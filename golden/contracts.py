@@ -60,10 +60,10 @@ class NormalisedEvent:
             assert self.side in (Side.BUY, Side.SELL), f"ADD at msg {self.msg_index} must have BUY or SELL side"
             assert self.price is not None, f"ADD at msg {self.msg_index} missing price"
             assert self.shares is not None, f"ADD at msg {self.msg_index} missing shares"
-            assert (self.new_order_ref is None), f"ADD at msg {self.msg_index} must not set new_order_ref" 
-            self._check_width("price", self.price, PRICE_BITS) 
+            assert (self.new_order_ref is None), f"ADD at msg {self.msg_index} must not set new_order_ref"
+            self._check_width("price", self.price, PRICE_BITS)
             self._check_width("shares", self.shares, SHARES_BITS)
-        
+
         elif self.op == Op.EXECUTE:
             assert (self.side == Side.UNKNOWN), f"EXECUTE at msg {self.msg_index} must have UNKNOWN side"
             assert self.price is None, f"EXECUTE at msg {self.msg_index} must not set price"
@@ -77,7 +77,7 @@ class NormalisedEvent:
             assert (self.shares is not None), f"CANCEL at msg {self.msg_index} missing shares"
             assert (self.new_order_ref is None), f"CANCEL at msg {self.msg_index} must not set new_order_ref"
             self._check_width("shares", self.shares, SHARES_BITS)
-        
+
         elif self.op == Op.DELETE:
             assert (self.side == Side.UNKNOWN), f"DELETE at msg {self.msg_index} must have UNKNOWN side"
             assert self.price is None, f"DELETE at msg {self.msg_index} must not set price"
@@ -92,7 +92,7 @@ class NormalisedEvent:
             self._check_width("price", self.price, PRICE_BITS)
             self._check_width("shares", self.shares, SHARES_BITS)
             self._check_width("new_order_ref", self.new_order_ref, ORDER_REF_BITS)
-        
+
         else:
             raise ValueError(f"Unsupported op {self.op!r} at msg {self.msg_index}")
 
@@ -102,7 +102,7 @@ class NormalisedEvent:
         assert self.msg_index >= 0, f"msg_index must be non-negative: {self.msg_index}"
         if self.timestamp_ns is not None:
             self._check_width("timestamp_ns", self.timestamp_ns, TIMESTAMP_BITS)
-    
+
 
     def _check_width(self, field_name: str, value: int, width_bits: int) -> None:
         assert ( 0 <= value < (1 << width_bits)), (f"{field_name} at msg {self.msg_index} must fit in {width_bits} bits, " f"got {value}")
@@ -124,7 +124,7 @@ class Bbo:
         if self.ask_price is not None:
             self._check_bbo_width("ask_price", self.ask_price, PRICE_BITS)
             self._check_bbo_width("ask_size", self.ask_size, SHARES_BITS)
-        
+
     def _check_bbo_width(self, field_name: str, value: int, width_bits: int) -> None:
         assert 0 <= value < (1 << width_bits), (f"{field_name} must fit in {width_bits} bits, got {value}")
 
@@ -150,7 +150,7 @@ class BookState:
         assert self.msg_index >= 0, f"msg_index must be non-negative: {self.msg_index}"
         self._check_levels("bid_levels", self.bid_levels)
         self._check_levels("ask_levels", self.ask_levels)
-    
+
     def _check_levels(self, name: str, levels: dict[int, Level]) -> None:
         for price, level in levels.items():
             assert 0 <= price < (1 << PRICE_BITS), (f"{name} price must fit in {PRICE_BITS} bits, got {price}")

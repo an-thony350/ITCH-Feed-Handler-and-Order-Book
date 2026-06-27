@@ -45,7 +45,7 @@ module data_handler_tb;
         .valid_o(valid_o)
     );
 
-// Initialise clock 
+// Initialise clock
 
     initial begin
         clk = 0;

@@ -17,7 +17,7 @@ This module has the following assumptions (which we can fix later depending on w
 
 typedef struct packed {
     logic [MSG_W-1:0]       message_type;
-    logic [STOCK_W-1:0]     stock_locate;  
+    logic [STOCK_W-1:0]     stock_locate;
     logic [ORN_W-1:0]       orn;
     logic [ORN_W-1:0]       updated_orn;
     logic                   side;
@@ -70,7 +70,7 @@ state_t current_state, next_state;
 always_comb begin
     case(current_state)
     IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[7:0] == 8'h41) ? ADD_CAP:
-                                                                (s_tdata_i[7:0] == 8'h43 || s_tdata_i[7:0] == 8'h55 || 
+                                                                (s_tdata_i[7:0] == 8'h43 || s_tdata_i[7:0] == 8'h55 ||
                                                                  s_tdata_i[7:0] == 8'h44 || s_tdata_i[7:0] == 8'h58 ||
                                                                  s_tdata_i[7:0] == 8'h45)
                                                                 ? MOD_CAP: IDLE) : IDLE;
@@ -89,7 +89,7 @@ always_ff @(posedge clk) begin
         data               <= '0;
         word_count         <= '0;
     end
-    
+
     else begin
         current_state <= next_state;
 
@@ -145,7 +145,7 @@ always_ff @(posedge clk) begin
                             data.price[31:24]       <= s_tdata_i[63:56];
                         end
                     end
-                    
+
                     3'd3: begin
                         if(data.message_type == 8'h55)      data.price[23:0] <= s_tdata_i[23:0];
                         else if(data.message_type == 8'h43) data.price       <= s_tdata_i[31:0];
@@ -156,7 +156,7 @@ always_ff @(posedge clk) begin
             end
         end
     end
-    
+
 end
 
 // Final output assignments
