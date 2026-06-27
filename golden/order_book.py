@@ -18,13 +18,16 @@ from golden.contracts import Bbo, BookState, Level, NormalisedEvent, Op, Side
 @dataclass(frozen=True, slots=True)
 class _OrderRecord:
     """Internal per-order state resolved by order reference."""
+
     side: Side
     price: int
     shares: int
     locate: int
 
+
 class OrderBook:
     """Small, obvious oracle book built from frozen contract snapshots."""
+
     def __init__(self, *, expected_locate: int | None = None) -> None:
         self.order_table: dict[int, _OrderRecord] = {}
         self.bid_levels: dict[int, Level] = {}
@@ -33,6 +36,7 @@ class OrderBook:
 
     def apply(self, event: NormalisedEvent) -> None:
         """Apply one normalised event to the book."""
+
         self._assert_expected_locate(event)
         if event.op is Op.ADD:
             self._apply_add(event)
@@ -54,6 +58,7 @@ class OrderBook:
 
     def bbo(self) -> Bbo:
         """Recompute the top of book from occupied price levels."""
+
         bid_price = max(self.bid_levels) if self.bid_levels else None
         ask_price = min(self.ask_levels) if self.ask_levels else None
         return Bbo(
@@ -65,6 +70,7 @@ class OrderBook:
 
     def snapshot(self, msg_index: int) -> BookState:
         """Return a stable compare snapshot of the current book state."""
+
         return BookState(
             msg_index=msg_index,
             bbo=self.bbo(),
@@ -116,19 +122,41 @@ class OrderBook:
         if new_order_ref != event.order_ref and new_order_ref in self.order_table:
             raise self._fail(event, f"REPLACE reused new_order_ref {new_order_ref}")
 
-        self._remove_order(
+        levels = self._levels_for_side(event, original_side)
+        original_level = levels.get(original_price)
+        if original_level is None:
+            raise self._fail(
+                event,
+                f"cannot replace from missing price level {original_price}",
+            )
+
+        removed_level = self._level_after_decrease(
             event,
-            order_ref=event.order_ref,
-            side=original_side,
-            price=original_price,
-            shares=original_shares,
+            original_price,
+            original_level,
+            shares_delta=original_shares,
+            count_delta=1,
         )
-        self._add_order(
-            event,
-            order_ref=new_order_ref,
+        if new_price == original_price:
+            add_base = removed_level
+        else:
+            add_base = levels.get(new_price)
+        added_level = self._level_after_increase(add_base, new_shares)
+
+        if new_price != original_price:
+            if removed_level is None:
+                del levels[original_price]
+            else:
+                levels[original_price] = removed_level
+        levels[new_price] = added_level
+
+        if new_order_ref != event.order_ref:
+            del self.order_table[event.order_ref]
+        self.order_table[new_order_ref] = _OrderRecord(
             side=original_side,
             price=new_price,
             shares=new_shares,
+            locate=event.locate,
         )
 
     def _reduce_order(self, event: NormalisedEvent) -> None:
@@ -211,14 +239,7 @@ class OrderBook:
     ) -> None:
         levels = self._levels_for_side(event, side)
         old_level = levels.get(price)
-        if old_level is None:
-            levels[price] = Level(shares=shares, order_count=1)
-            return
-
-        levels[price] = Level(
-            shares=old_level.shares + shares,
-            order_count=old_level.order_count + 1,
-        )
+        levels[price] = self._level_after_increase(old_level, shares)
 
     def _decrease_level(
         self,
@@ -234,6 +255,38 @@ class OrderBook:
         if old_level is None:
             raise self._fail(event, f"cannot decrease missing price level {price}")
 
+        new_level = self._level_after_decrease(
+            event,
+            price,
+            old_level,
+            shares_delta=shares_delta,
+            count_delta=count_delta,
+        )
+        if new_level is None:
+            del levels[price]
+            return
+
+        levels[price] = new_level
+
+    @staticmethod
+    def _level_after_increase(old_level: Level | None, shares: int) -> Level:
+        if old_level is None:
+            return Level(shares=shares, order_count=1)
+
+        return Level(
+            shares=old_level.shares + shares,
+            order_count=old_level.order_count + 1,
+        )
+
+    def _level_after_decrease(
+        self,
+        event: NormalisedEvent,
+        price: int,
+        old_level: Level,
+        *,
+        shares_delta: int,
+        count_delta: int,
+    ) -> Level | None:
         new_shares = old_level.shares - shares_delta
         new_count = old_level.order_count - count_delta
         if new_shares < 0:
@@ -253,10 +306,9 @@ class OrderBook:
                     event,
                     f"empty price level {price} has {new_shares} remaining shares",
                 )
-            del levels[price]
-            return
+            return None
 
-        levels[price] = Level(shares=new_shares, order_count=new_count)
+        return Level(shares=new_shares, order_count=new_count)
 
     def _levels_for_side(
         self, event: NormalisedEvent, side: Side
