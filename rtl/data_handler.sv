@@ -2,10 +2,11 @@
 This module has the following assumptions (which we can fix later depending on what we decide)
 
 - Assumes that we are taking in data using the MoldUDP64 Protocal - More specifcally we are taking in data in 8-byte packets
-- Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and the only inputted bytes are the ITCH bytes
+- Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and the only inputed bytes are the ITCH bytes
+- We are only parsing data from sections 1.3 & 1.4 - all other data is irrelevant
 - For adding orders to the book, we are using No MPID attribution (section 1.3.1) - extra byte is unecessary & wastes logic
-- For order executed, we are not including price message - (using section 1.4.1) - unsure about this - can be changed
-- Other orders still in process of being added
+- For order executed, we are including price message - (using section 1.4.2)
+
 
 - Test bench must be updated
 
@@ -18,6 +19,7 @@ typedef struct packed {
     logic [MSG_W-1:0]       message_type;
     logic [STOCK_W-1:0]     stock_locate;  
     logic [ORN_W-1:0]       orn;
+    logic [ORN_W-1:0]       updated_orn;
     logic                   side;
     logic [SHARES_W-1:0]    shares;
     logic [PRICE_W-1:0]     price;
@@ -52,23 +54,28 @@ module data_handler#(
 
 // Internal Variables
 
-logic [2:0] word_count; // may need to change this
+logic [2:0] word_count;
 data_t data;
 
 // State Machine for state data is recieved in
 
-typedef enum {  IDLE, ADD_CAP, EXC_CAP, SEND } state_t;
+typedef enum {  IDLE, ADD_CAP, MOD_CAP, SEND } state_t;
 
 state_t current_state, next_state;
 
 // Case logic for next state
 
+// 8'h41 = "A", 8'h43 = "C", 8'h44 = "D", 8'h45 = "E", 8'h55 = "U", 8'h58 = "X" - Maybe add local integers?
+
 always_comb begin
     case(current_state)
     IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[7:0] == 8'h41) ? ADD_CAP:
-                                                                (s_tdata_i[7:0] == 8'h45) ? EXC_CAP : IDLE) : IDLE;
+                                                                (s_tdata_i[7:0] == 8'h43 || s_tdata_i[7:0] == 8'h55 || 
+                                                                 s_tdata_i[7:0] == 8'h44 || s_tdata_i[7:0] == 8'h58 ||
+                                                                 s_tdata_i[7:0] == 8'h45)
+                                                                ? MOD_CAP: IDLE) : IDLE;
     ADD_CAP:        next_state = (s_tvalid_i && s_tlast_i) ? SEND       : ADD_CAP;
-    EXC_CAP:        next_state = (s_tvalid_i && s_tlast_i) ? SEND       : EXC_CAP;
+    MOD_CAP:        next_state = (s_tvalid_i && s_tlast_i) ? SEND       : MOD_CAP;
     SEND:           next_state = ready_i                   ? IDLE       : SEND;
     default:        next_state = IDLE;
     endcase
@@ -92,9 +99,10 @@ always_ff @(posedge clk) begin
                 data.stock_locate <= s_tdata_i[23:8];
                 word_count        <= '0;
 
-                if(s_tdata_i[7:0] == 8'45) begin // may be changed with other orders
-                    data.price <= '0;
-                    data.side  <= '0;
+                if(s_tdata_i[7:0] != 8'h55) data.updated_orn <= '0;
+                if(s_tdata_i[7:0] != 8'h41) begin
+                    data.side   <= '0;
+                    data.price  <= '0;
                 end
             end
         end
@@ -117,7 +125,7 @@ always_ff @(posedge clk) begin
                 endcase
             end
         end
-        else if(current_state == EXC_CAP) begin
+        else if(current_state == MOD_CAP) begin
             if(s_tvalid_i) begin
                 word_count <= word_count + 1;
                 case(word_count)
@@ -126,7 +134,21 @@ always_ff @(posedge clk) begin
 
                     3'd1: begin
                         data.orn[23:0]    <= s_tdata_i[23:0];
-                        data.shares       <= s_tdata_i[55:24];
+                        if(data.message_type == 8'h55)       data.updated_orn[63:24]  <= s_tdata_i[63:24];
+                        else if (data.message_type != 8'h44) data.shares              <= s_tdata_i[55:24];
+                    end
+
+                    3'd2: begin
+                        if(data.message_type == 8'h55) begin
+                            data.updated_orn[23:0]  <= s_tdata_i[23:0];
+                            data.shares             <= s_tdata_i[55:24];
+                            data.price[31:24]       <= s_tdata_i[63:56];
+                        end
+                    end
+                    
+                    3'd3: begin
+                        if(data.message_type == 8'h55)      data.price[23:0] <= s_tdata_i[23:0];
+                        else if(data.message_type == 8'h43) data.price       <= s_tdata_i[31:0];
                     end
 
                     default: ;
@@ -136,6 +158,8 @@ always_ff @(posedge clk) begin
     end
     
 end
+
+// Final output assignments
 
 assign rdata_o    = data;
 assign s_tready_o = (current_state != SEND) && rst_n;
