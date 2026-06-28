@@ -8,7 +8,13 @@ from pathlib import Path
 
 from golden.contracts import Bbo, Side
 from golden.runner import iter_itch_events, run_bytes, run_file
-from golden.stimulus import add_message, default_stream, encode_binaryfile, system_event
+from golden.stimulus import (
+    add_message,
+    default_stream,
+    encode_binaryfile,
+    stock_directory_message,
+    system_event,
+)
 
 
 def read_jsonl(path: Path) -> list[dict[str, object]]:
@@ -115,6 +121,75 @@ class RunnerTests(unittest.TestCase):
             "bid_price": None,
             "bid_size": None,
         })
+
+    def test_symbol_filter_resolves_daily_locate_from_stock_directory(self) -> None:
+        stream = encode_binaryfile(
+            (
+                stock_directory_message(
+                    locate=1,
+                    stock=b"MSFT    ",
+                    timestamp_ns=1,
+                ),
+                stock_directory_message(
+                    locate=2,
+                    stock=b"AAPL    ",
+                    timestamp_ns=2,
+                ),
+                add_message(
+                    locate=1,
+                    timestamp_ns=10,
+                    order_ref=1001,
+                    side=Side.BUY,
+                    shares=20,
+                    price=10_000,
+                ),
+                add_message(
+                    locate=2,
+                    timestamp_ns=11,
+                    order_ref=2001,
+                    side=Side.SELL,
+                    shares=30,
+                    price=10_100,
+                ),
+            )
+        )
+        events_out = io.StringIO()
+        states_out = io.StringIO()
+
+        stats = run_bytes(
+            stream,
+            events_out=events_out,
+            states_out=states_out,
+            symbol="aapl",
+        )
+
+        events = parse_jsonl(events_out.getvalue())
+        states = parse_jsonl(states_out.getvalue())
+        self.assertEqual(stats.filter_symbol, "AAPL")
+        self.assertEqual(stats.filter_locate, 2)
+        self.assertEqual(stats.source_messages_seen, 4)
+        self.assertEqual(stats.events_written, 1)
+        self.assertEqual(events[0]["locate"], 2)
+        self.assertEqual(events[0]["msg_index"], 3)
+        self.assertEqual(states[0]["bbo"], {
+            "ask_price": 10_100,
+            "ask_size": 30,
+            "bid_price": None,
+            "bid_size": None,
+        })
+
+    def test_symbol_and_locate_are_mutually_exclusive(self) -> None:
+        events_out = io.StringIO()
+        states_out = io.StringIO()
+
+        with self.assertRaisesRegex(ValueError, "either locate or symbol"):
+            run_bytes(
+                default_stream(seed=7, random_message_count=1),
+                events_out=events_out,
+                states_out=states_out,
+                locate=1,
+                symbol="MSFT",
+            )
 
     def test_max_messages_limits_source_records_including_ignored_messages(self) -> None:
         events = tuple(
