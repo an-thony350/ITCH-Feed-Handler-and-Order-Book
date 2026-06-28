@@ -11,12 +11,17 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, TextIO
 
 from golden.contracts import Bbo, BookState, Level, NormalisedEvent, Side
-from golden.itch_parser import ItchParseError, parse_itch_message
+from golden.itch_parser import (
+    iter_binaryfile_payloads,
+    parse_itch_message,
+    resolve_symbol_locate,
+)
 from golden.order_book import OrderBook
 
 
@@ -35,6 +40,8 @@ class RunnerStats:
     peak_live_orders: int
     peak_bid_levels: int
     peak_ask_levels: int
+    filter_locate: int | None
+    filter_symbol: str | None
 
 
 def run_file(
@@ -43,6 +50,7 @@ def run_file(
     events_out: str | Path,
     states_out: str | Path,
     locate: int | None = None,
+    symbol: str | None = None,
     start_index: int = 0,
     max_messages: int | None = None,
     max_events: int | None = None,
@@ -63,6 +71,7 @@ def run_file(
             events_out=events_handle,
             states_out=states_handle,
             locate=locate,
+            symbol=symbol,
             start_index=start_index,
             max_messages=max_messages,
             max_events=max_events,
@@ -75,14 +84,25 @@ def run_bytes(
     events_out: TextIO,
     states_out: TextIO,
     locate: int | None = None,
+    symbol: str | None = None,
     start_index: int = 0,
     max_messages: int | None = None,
     max_events: int | None = None,
 ) -> RunnerStats:
     """Run the golden model over in-memory BinaryFILE bytes."""
 
-    book = OrderBook(expected_locate=locate)
-    stats = _MutableStats()
+    filter_locate = _resolve_filter_locate(
+        data,
+        locate=locate,
+        symbol=symbol,
+        start_index=start_index,
+        max_messages=max_messages,
+    )
+    book = OrderBook(expected_locate=filter_locate)
+    stats = _MutableStats(
+        filter_locate=filter_locate,
+        filter_symbol=symbol.strip().upper() if symbol is not None else None,
+    )
 
     for msg_index, payload in iter_binaryfile_payloads(
         data,
@@ -94,7 +114,7 @@ def run_bytes(
         event = parse_itch_message(payload, msg_index=msg_index)
         if event is None:
             continue
-        if locate is not None and event.locate != locate:
+        if filter_locate is not None and event.locate != filter_locate:
             continue
 
         write_jsonl(events_out, event_to_dict(event))
@@ -120,12 +140,20 @@ def iter_itch_events(
     data: ReadableBytes,
     *,
     locate: int | None = None,
+    symbol: str | None = None,
     start_index: int = 0,
     max_messages: int | None = None,
     max_events: int | None = None,
 ) -> Iterator[NormalisedEvent]:
     """Yield parsed events from BinaryFILE bytes with optional filtering."""
 
+    filter_locate = _resolve_filter_locate(
+        data,
+        locate=locate,
+        symbol=symbol,
+        start_index=start_index,
+        max_messages=max_messages,
+    )
     events_yielded = 0
     for msg_index, payload in iter_binaryfile_payloads(
         data,
@@ -135,49 +163,13 @@ def iter_itch_events(
         event = parse_itch_message(payload, msg_index=msg_index)
         if event is None:
             continue
-        if locate is not None and event.locate != locate:
+        if filter_locate is not None and event.locate != filter_locate:
             continue
 
         yield event
         events_yielded += 1
         if max_events is not None and events_yielded >= max_events:
             return
-
-
-def iter_binaryfile_payloads(
-    data: ReadableBytes,
-    *,
-    start_index: int = 0,
-    max_messages: int | None = None,
-) -> Iterator[tuple[int, memoryview]]:
-    """Yield ``(msg_index, payload)`` from two-byte length-prefixed records."""
-
-    view = memoryview(data)
-    cursor = 0
-    messages_seen = 0
-    msg_index = start_index
-    while cursor < len(view):
-        if max_messages is not None and messages_seen >= max_messages:
-            return
-        if len(view) - cursor < 2:
-            raise ItchParseError(
-                f"truncated ITCH length at byte offset {cursor}: "
-                f"{len(view) - cursor} byte(s) available"
-            )
-
-        message_length = _uint(view, cursor, 2)
-        payload_start = cursor + 2
-        payload_end = payload_start + message_length
-        if payload_end > len(view):
-            raise ItchParseError(
-                f"msg_index={msg_index}: frame length {message_length} at byte "
-                f"offset {cursor} exceeds remaining stream bytes"
-            )
-
-        yield msg_index, view[payload_start:payload_end]
-        cursor = payload_end
-        messages_seen += 1
-        msg_index += 1
 
 
 def count_binaryfile_messages(
@@ -252,13 +244,29 @@ def levels_to_list(
     ]
 
 
-def write_jsonl(handle: TextIO, record: dict[str, object]) -> None:
+def write_jsonl(handle: TextIO, record: Mapping[str, object]) -> None:
     handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")))
     handle.write("\n")
 
 
-def _uint(payload: memoryview, offset: int, length: int) -> int:
-    return int.from_bytes(payload[offset : offset + length], byteorder="big")
+def _resolve_filter_locate(
+    data: ReadableBytes,
+    *,
+    locate: int | None,
+    symbol: str | None,
+    start_index: int,
+    max_messages: int | None,
+) -> int | None:
+    if locate is not None and symbol is not None:
+        raise ValueError("pass either locate or symbol, not both")
+    if symbol is None:
+        return locate
+    return resolve_symbol_locate(
+        data,
+        symbol,
+        start_index=start_index,
+        max_messages=max_messages,
+    )
 
 
 @dataclass
@@ -271,6 +279,8 @@ class _MutableStats:
     peak_live_orders: int = 0
     peak_bid_levels: int = 0
     peak_ask_levels: int = 0
+    filter_locate: int | None = None
+    filter_symbol: str | None = None
 
     def freeze(self) -> RunnerStats:
         return RunnerStats(
@@ -282,6 +292,8 @@ class _MutableStats:
             peak_live_orders=self.peak_live_orders,
             peak_bid_levels=self.peak_bid_levels,
             peak_ask_levels=self.peak_ask_levels,
+            filter_locate=self.filter_locate,
+            filter_symbol=self.filter_symbol,
         )
 
 
@@ -302,11 +314,18 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help="output JSONL path for book states after each event",
     )
-    parser.add_argument(
+    filter_group = parser.add_mutually_exclusive_group()
+    filter_group.add_argument(
         "--locate",
         type=int,
         default=None,
         help="optional stock locate filter",
+    )
+    filter_group.add_argument(
+        "--symbol",
+        type=str,
+        default=None,
+        help="optional stock symbol filter, resolved through Stock Directory messages",
     )
     parser.add_argument(
         "--start-index",
@@ -336,6 +355,7 @@ def main() -> None:
         events_out=args.events_out,
         states_out=args.states_out,
         locate=args.locate,
+        symbol=args.symbol,
         start_index=args.start_index,
         max_messages=args.max_messages,
         max_events=args.max_events,
@@ -344,6 +364,8 @@ def main() -> None:
         "wrote "
         f"{stats.events_written} events and {stats.states_written} states "
         f"from {stats.source_messages_seen} source messages; "
+        f"filter_symbol={stats.filter_symbol}; "
+        f"filter_locate={stats.filter_locate}; "
         f"final_msg_index={stats.final_msg_index}; "
         f"final_bbo={stats.final_bbo}; "
         f"peaks=(orders={stats.peak_live_orders}, "
