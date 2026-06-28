@@ -122,41 +122,19 @@ class OrderBook:
         if new_order_ref != event.order_ref and new_order_ref in self.order_table:
             raise self._fail(event, f"REPLACE reused new_order_ref {new_order_ref}")
 
-        levels = self._levels_for_side(event, original_side)
-        original_level = levels.get(original_price)
-        if original_level is None:
-            raise self._fail(
-                event,
-                f"cannot replace from missing price level {original_price}",
-            )
-
-        removed_level = self._level_after_decrease(
+        self._remove_order(
             event,
-            original_price,
-            original_level,
-            shares_delta=original_shares,
-            count_delta=1,
+            order_ref=event.order_ref,
+            side=original_side,
+            price=original_price,
+            shares=original_shares,
         )
-        if new_price == original_price:
-            add_base = removed_level
-        else:
-            add_base = levels.get(new_price)
-        added_level = self._level_after_increase(add_base, new_shares)
-
-        if new_price != original_price:
-            if removed_level is None:
-                del levels[original_price]
-            else:
-                levels[original_price] = removed_level
-        levels[new_price] = added_level
-
-        if new_order_ref != event.order_ref:
-            del self.order_table[event.order_ref]
-        self.order_table[new_order_ref] = _OrderRecord(
+        self._add_order(
+            event,
+            order_ref=new_order_ref,
             side=original_side,
             price=new_price,
             shares=new_shares,
-            locate=event.locate,
         )
 
     def _reduce_order(self, event: NormalisedEvent) -> None:
@@ -270,6 +248,7 @@ class OrderBook:
 
     @staticmethod
     def _level_after_increase(old_level: Level | None, shares: int) -> Level:
+        # One order is joining this price level.
         if old_level is None:
             return Level(shares=shares, order_count=1)
 
