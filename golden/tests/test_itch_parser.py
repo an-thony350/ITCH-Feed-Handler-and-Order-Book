@@ -1,6 +1,7 @@
 """
 Run with:
 
+python -m py_compile golden/itch_parser.py golden/tests/test_itch_parser.py
 python -m unittest discover -s golden/tests -v
 """
 
