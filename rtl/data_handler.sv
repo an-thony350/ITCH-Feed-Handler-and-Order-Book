@@ -1,22 +1,35 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
+// Company:  N/A
+// Engineer: Anthony Bartlett & Denzil Erza-Essien
 //
 // Create Date: 27.06.2026 16:18:27
-// Design Name:
+// Design Name: Data Handler
 // Module Name: data_handler
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
+// Project Name: Nasdaq Itch Feed Handler
+// Target Devices: PYNQ-Z1
+// Tool Versions: Vivado 2023
+// Description: This block parses data taken from Nasdaq broadcasting the
+//              TotalViewITCH. This block allows for data in section 1.3 & 1.4
+//              of the Nasdaq specification to be passes (i.e. relevant data for
+//              the order book only).
 //
 // Dependencies:
 //
 // Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-//
+// Revision 1 - File Created
+// Revision 2 - Data parsed according to the Nasdaq Specification
+// Revision 3 - All relevant parsing data from sections 1.3 & 1.4 added
+// Revision 4 - Big Endian input allowed with conversion to Little Endian addressing
+// Revision 5 - Bugfixes and complete testbenching done
+// Additional Comments: This module has the following assumptions:
+//- Assumes that we are taking in data using the MoldUDP64 Protocal - More
+//  specifcally we are taking in data in 8-byte packets
+//- Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes
+//  and the only inputed bytes are the ITCH bytes
+//- For adding orders to the book, we are using No MPID attribution (section 1.3.1),
+//  extra byte is unecessary & wastes logic
+//- For order executed, we are including price message - (using section 1.4.2)
 //////////////////////////////////////////////////////////////////////////////////
 
 
@@ -25,12 +38,8 @@ This module has the following assumptions (which we can fix later depending on w
 
 - Assumes that we are taking in data using the MoldUDP64 Protocal - More specifcally we are taking in data in 8-byte packets
 - Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and the only inputed bytes are the ITCH bytes
-- We are only parsing data from sections 1.3 & 1.4 - all other data is irrelevant
 - For adding orders to the book, we are using No MPID attribution (section 1.3.1) - extra byte is unecessary & wastes logic
 - For order executed, we are including price message - (using section 1.4.2)
-
-
-- Test bench must be updated
 
 */
 
