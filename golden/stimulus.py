@@ -7,7 +7,7 @@ import argparse
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable
 
 from golden.contracts import BookState, NormalisedEvent, Side
 from golden.itch_parser import parse_itch_stream
@@ -88,6 +88,62 @@ def system_event(
         + uint(tracking_number, 2)
         + uint(timestamp_ns, 6)
         + event_code
+    )
+
+
+def stock_directory_message(
+    *,
+    locate: int,
+    stock: bytes,
+    tracking_number: int = DEFAULT_TRACKING_NUMBER,
+    timestamp_ns: int,
+    market_category: bytes = b"Q",
+    financial_status: bytes = b"N",
+    round_lot_size: int = 100,
+    round_lots_only: bytes = b"N",
+    issue_classification: bytes = b"Q",
+    issue_subtype: bytes = b"  ",
+    authenticity: bytes = b"P",
+    short_sale_threshold: bytes = b"N",
+    ipo_flag: bytes = b"N",
+    luld_reference_price_tier: bytes = b"1",
+    etp_flag: bytes = b"N",
+    etp_leverage_factor: int = 0,
+    inverse_indicator: bytes = b"N",
+) -> bytes:
+    """Build a Stock Directory message carrying the daily symbol locate."""
+
+    assert len(stock) == 8
+    assert len(market_category) == 1
+    assert len(financial_status) == 1
+    assert len(round_lots_only) == 1
+    assert len(issue_classification) == 1
+    assert len(issue_subtype) == 2
+    assert len(authenticity) == 1
+    assert len(short_sale_threshold) == 1
+    assert len(ipo_flag) == 1
+    assert len(luld_reference_price_tier) == 1
+    assert len(etp_flag) == 1
+    assert len(inverse_indicator) == 1
+    return (
+        b"R"
+        + uint(locate, 2)
+        + uint(tracking_number, 2)
+        + uint(timestamp_ns, 6)
+        + stock
+        + market_category
+        + financial_status
+        + uint(round_lot_size, 4)
+        + round_lots_only
+        + issue_classification
+        + issue_subtype
+        + authenticity
+        + short_sale_threshold
+        + ipo_flag
+        + luld_reference_price_tier
+        + etp_flag
+        + uint(etp_leverage_factor, 4)
+        + inverse_indicator
     )
 
 
