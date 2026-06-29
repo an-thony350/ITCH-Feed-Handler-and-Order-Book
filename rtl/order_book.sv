@@ -1,3 +1,25 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:
+// Engineer:
+//
+// Create Date: 29.06.2026 15:15:19
+// Design Name:
+// Module Name: order_book
+// Project Name:
+// Target Devices:
+// Tool Versions:
+// Description:
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+
 // To do list:
 // - BBO  & Price Level Memory Block
 // - test bench
@@ -30,6 +52,7 @@ parameter int  STOCK_W  = 16;
 parameter int  MSG_W    = 8;
 parameter int  HASH_W   = 14;
 parameter int  FIFO_W   = 13;
+parameter int  BBO_W    = 12;
 
 // Struct for most data we will output - this isnt a complete list yet
 // note that the struct is above the module declaration for the input port rdata
@@ -60,7 +83,8 @@ module order_book#(
     STOCK_W =   16,
     MSG_W   =   8,
     HASH_W  =   14,
-    FIFO_W  =   13
+    FIFO_W  =   13,
+    BBO_W   =   12
 )(
     input   logic               clk,
     input   logic               rst_n,
@@ -68,6 +92,7 @@ module order_book#(
     // inputs from data handler
     input   data_t              rdata_i,
     input   logic               valid_i,
+    input   [PRICE_W-1:0]       base_price,
 
     // outputs to data handler
     output  logic               ready_o,
@@ -95,13 +120,14 @@ hash_data_t hash_data;
 
 // local parameters
 
-localparam int MAP_W = 1 << HASH_W;
+localparam int HASH_DEPTH = 1 << HASH_W;
 localparam int FIFO_DEPTH = 1 << FIFO_W;
+localparam int BBO_DEPTH  = 1 << BBO_W;
 
 // internal hash map registers
 
 logic       [HASH_W-1:0]    hash_idx;
-hash_data_t book            [MAP_W-1:0];
+hash_data_t book            [HASH_DEPTH-1:0];
 logic                       is_clear;
 logic       [HASH_W-1:0]    clear_idx;
 logic       [HASH_W-1:0]    read_ptr;
@@ -110,6 +136,7 @@ logic       [HASH_W-1:0]    rep_hash_idx;
 logic                       rep_state; // 1'b0 = deleting old order, 1'b1 = adding new order
 logic                       latched_side;
 logic       [HASH_W-1:0]    target_idx;
+logic                       target_side;
 
 // FIFO registers
 logic       [HASH_W-1:0]    fifo    [FIFO_DEPTH-1:0];
@@ -117,6 +144,12 @@ logic       [FIFO_W-1:0]    fifo_cons;
 logic       [FIFO_W-1:0]    fifo_prod;
 logic       [HASH_W-1:0]    fifo_addr;
 
+// internal price book registers
+
+logic       [SHARES_W-1:0]  price_book  [BBO_DEPTH-1:0];
+logic       [BBO_DEPTH-1:0] active_bid;
+logic       [BBO_DEPTH-1:0] active_ask;
+logic       [BBO_W-1:0]     price_idx;
 
 
 
@@ -126,7 +159,7 @@ typedef enum { CLEAR, IDLE, RD_MEM, EVAL_MEM, ALLOC, ADD, EDR, REP, DONE } state
 
 state_t current_state, next_state, ret_state;
 
-// index assignment - based off orn
+// index assignment
 
 assign hash_idx = rdata_i.orn[13:0] ^ rdata_i.orn[27:14] ^ rdata_i.orn[41:28] ^
                   rdata_i.orn[55:42] ^ {6'b0, rdata_i.orn[63:56]};
@@ -137,6 +170,8 @@ assign rep_hash_idx = rdata_i.updated_orn[13:0]  ^ rdata_i.updated_orn[27:14] ^
 
 assign target_idx = (rdata_i.message_type == 8'h55 && rep_state) ? rep_hash_idx : hash_idx;
 
+assign price_idx  = (current_state == ADD) ? (rdata_i.price - base_price) : (bram_dout.price - base_price);
+
 // data packing assignment for book
 
 assign hash_data.orn        = rdata_i.orn;
@@ -144,6 +179,7 @@ assign hash_data.side       = rdata_i.side;
 assign hash_data.shares     = rdata_i.shares;
 assign hash_data.price      = rdata_i.price;
 assign hash_data.next_ptr   = '0; // this might be wrong
+assign target_side          = (rdata_i.message_type == 8'h55) ? latched_side : rdata_i.side;
 
 // case logic for next state
 // 8'h41 = "A", 8'h43 = "C", 8'h44 = "D", 8'h45 = "E", 8'h55 = "U", 8'h58 = "X" - Maybe add local integers?
@@ -184,14 +220,14 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         ready_o         <=  1'b0;
-        bbo_data_o      <=  '0;
-        bbo_valid_o     <=  1'b0;
         current_state   <=  CLEAR;
         is_clear        <=  1'b0;
         clear_idx       <=  '0;
         read_ptr        <=  1'b0;
         fifo_cons       <=  '0;
         fifo_prod       <=  '0;
+        active_bid      <=  '0;
+        active_ask      <=  '0;
         ret_state       <=  IDLE;
     end
     else begin
@@ -202,8 +238,11 @@ always_ff @(posedge clk) begin
         if(current_state == CLEAR) begin
             book[clear_idx]     <=  '0;
             clear_idx           <=  clear_idx + 1;
+            if (clear_idx < BBO_DEPTH) begin
+                price_book[clear_idx] <= '0;
+            end
             if(clear_idx >= FIFO_DEPTH) fifo[clear_idx - FIFO_DEPTH] <= clear_idx;
-            if(clear_idx == MAP_W) is_clear <= 1'b1;
+            if(clear_idx == HASH_DEPTH-1) is_clear <= 1'b1;
         end
         else if(current_state == RD_MEM) begin
             if (ret_state == EVAL_MEM) read_ptr <= bram_dout.next_ptr;
@@ -227,6 +266,9 @@ always_ff @(posedge clk) begin
                 book[read_ptr].price    <= rdata_i.price;
                 book[read_ptr].valid    <=  1'b1;
                 rep_state               <=  1'b0;
+                price_book[price_idx]   <= price_book[price_idx] + hash_data.shares;
+                if (target_side == 1'b1)  active_bid[price_idx] <= 1'b1;
+                else                      active_ask[price_idx] <= 1'b1;
             end
         end
         else if(current_state == EDR) begin
@@ -234,12 +276,22 @@ always_ff @(posedge clk) begin
                 if(rdata_i.message_type == 8'h43 || rdata_i.message_type == 8'h45 ||
                    rdata_i.message_type == 8'h58) begin
                     book[read_ptr].shares       <= book[read_ptr].shares - hash_data.shares;
+                    price_book[price_idx]       <= price_book[price_idx] - hash_data.shares;
+                    if((price_book[price_idx] - hash_data.shares) == 0) begin
+                        if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
+                        else                       active_ask[price_idx] <= 1'b0;
+                    end
                 end
                 else if(rdata_i.message_type == 8'h44) begin
                     book[read_ptr]          <=  '0;
                     book[read_ptr].valid    <=  1'b0;
                     fifo[fifo_prod]         <=  read_ptr;
                     fifo_prod               <=  fifo_prod + 1;
+                    price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
+                    if((price_book[price_idx] - bram_dout.shares) == 0) begin
+                        if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
+                        else                       active_ask[price_idx] <= 1'b0;
+                    end
                 end
             end
         end
@@ -251,9 +303,79 @@ always_ff @(posedge clk) begin
             latched_side            <=  bram_dout.side;
             rep_state               <=  1'b1;
             ret_state               <=  IDLE;
+            price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
+            if((price_book[price_idx] - bram_dout.shares) == 0) begin
+                if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
+                else                       active_ask[price_idx] <= 1'b0;
+            end
         end
     end
 end
+
+// Combinational logic for BBO calculation
+
+logic [BBO_W-1:0] best_bid_idx_comb, best_ask_idx_comb;
+logic bid_found_comb, ask_found_comb;
+
+always_comb begin
+    best_bid_idx_comb = '0;
+    bid_found_comb = 1'b0;
+    for(int i = BBO_DEPTH - 1; i >= 0; i--) begin
+        if(active_bid[i]) begin
+            best_bid_idx_comb = i[BBO_W-1:0];
+            bid_found_comb = 1'b1;
+            break;
+        end
+    end
+end
+
+always_comb begin
+    best_ask_idx_comb = '0;
+    ask_found_comb = 1'b0;
+    for(int j = 0; j < BBO_DEPTH; j++) begin
+        if(active_ask[j]) begin
+            best_ask_idx_comb = j[BBO_W-1:0];
+            ask_found_comb = 1'b1;
+            break;
+        end
+    end
+end
+
+// Pipeline registers
+logic [BBO_W-1:0] reg_bid_idx, reg_ask_idx;
+logic reg_bid_valid, reg_ask_valid;
+logic [SHARES_W-1:0] reg_bid_shares, reg_ask_shares;
+
+always_ff @(posedge clk) begin
+    if (!rst_n) begin
+        reg_bid_valid <= 1'b0;
+        reg_ask_valid <= 1'b0;
+    end else begin
+        reg_bid_idx   <= best_bid_idx_comb;
+        reg_ask_idx   <= best_ask_idx_comb;
+        reg_bid_valid <= bid_found_comb;
+        reg_ask_valid <= ask_found_comb;
+
+        reg_bid_shares <= price_book[best_bid_idx_comb];
+        reg_ask_shares <= price_book[best_ask_idx_comb];
+    end
+end
+
+always_ff @(posedge clk) begin
+    if (!rst_n) begin
+        bbo_valid_o <= 1'b0;
+        bbo_data_o  <= '0;
+    end else begin
+        bbo_data_o.bid_price  <= reg_bid_valid ? (reg_bid_idx + base_price) : '0;
+        bbo_data_o.bid_shares <= reg_bid_valid ? reg_bid_shares : '0;
+
+        bbo_data_o.ask_price  <= reg_ask_valid ? (reg_ask_idx + base_price) : '0;
+        bbo_data_o.ask_shares <= reg_ask_valid ? reg_ask_shares : '0;
+
+        bbo_valid_o <= (reg_bid_valid || reg_ask_valid);
+    end
+end
+
 
 assign ready_o  =   (current_state == IDLE) && rst_n;
 
