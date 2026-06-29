@@ -21,7 +21,6 @@ async def start_clock(dut: Any, *, period_ns: int = 10) -> None:
     """
 
     cocotb.start_soon(Clock(dut.clk, period_ns, unit="ns").start())
-    await Timer(0, unit="ns")
 
 
 async def reset_dut(dut: Any, *, cycles: int = 5) -> None:
