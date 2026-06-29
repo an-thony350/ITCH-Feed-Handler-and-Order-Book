@@ -117,6 +117,14 @@ typedef struct packed {
 } hash_data_t;
 
 hash_data_t hash_data;
+data_t event_q;
+
+logic [ORN_W-1:0] target_orn;
+logic [PRICE_W-1:0] price_delta_raw;
+
+logic update_done;
+logic update_done_d1;
+logic update_done_d2;
 
 // local parameters
 
@@ -137,6 +145,9 @@ logic                       rep_state; // 1'b0 = deleting old order, 1'b1 = addi
 logic                       latched_side;
 logic       [HASH_W-1:0]    target_idx;
 logic                       target_side;
+logic       [HASH_W-1:0]    input_hash_idx;
+logic       [HASH_W-1:0]    input_rep_hash_idx;
+logic       [HASH_W-1:0]    input_target_idx;
 
 // FIFO registers
 logic       [HASH_W-1:0]    fifo    [FIFO_DEPTH-1:0];
@@ -161,31 +172,46 @@ state_t current_state, next_state, ret_state;
 
 // index assignment
 
-assign hash_idx = rdata_i.orn[13:0] ^ rdata_i.orn[27:14] ^ rdata_i.orn[41:28] ^
-                  rdata_i.orn[55:42] ^ {6'b0, rdata_i.orn[63:56]};
+assign input_hash_idx = rdata_i.orn[13:0] ^ rdata_i.orn[27:14] ^ rdata_i.orn[41:28] ^
+                        rdata_i.orn[55:42] ^ {6'b0, rdata_i.orn[63:56]};
 
-assign rep_hash_idx = rdata_i.updated_orn[13:0]  ^ rdata_i.updated_orn[27:14] ^
-                      rdata_i.updated_orn[41:28] ^ rdata_i.updated_orn[55:42] ^
-                      {6'b0, rdata_i.updated_orn[63:56]};
+assign input_rep_hash_idx = rdata_i.updated_orn[13:0]  ^ rdata_i.updated_orn[27:14] ^
+                            rdata_i.updated_orn[41:28] ^ rdata_i.updated_orn[55:42] ^
+                            {6'b0, rdata_i.updated_orn[63:56]};
 
-assign target_idx = (rdata_i.message_type == 8'h55 && rep_state) ? rep_hash_idx : hash_idx;
+assign input_target_idx = (rdata_i.message_type == 8'h55 && rep_state)
+                        ? input_rep_hash_idx
+                        : input_hash_idx;
 
-logic [PRICE_W-1:0] price_delta_raw;
+assign hash_idx = event_q.orn[13:0] ^ event_q.orn[27:14] ^ event_q.orn[41:28] ^
+                  event_q.orn[55:42] ^ {6'b0, event_q.orn[63:56]};
+
+assign rep_hash_idx = event_q.updated_orn[13:0]  ^ event_q.updated_orn[27:14] ^
+                      event_q.updated_orn[41:28] ^ event_q.updated_orn[55:42] ^
+                      {6'b0, event_q.updated_orn[63:56]};
+
+assign target_orn = (event_q.message_type == 8'h55 && rep_state)
+                  ? event_q.updated_orn
+                  : event_q.orn;
+
+assign target_idx = (event_q.message_type == 8'h55 && rep_state)
+                  ? rep_hash_idx
+                  : hash_idx;
 
 assign price_delta_raw = (current_state == ADD)
-                       ? (rdata_i.price - base_price)
+                       ? (event_q.price - base_price)
                        : (bram_dout.price - base_price);
 
 assign price_idx = price_delta_raw[BBO_W-1:0];
 
 // data packing assignment for book
 
-assign hash_data.orn        = rdata_i.orn;
-assign hash_data.side       = rdata_i.side;
-assign hash_data.shares     = rdata_i.shares;
-assign hash_data.price      = rdata_i.price;
+assign hash_data.orn        = target_orn;
+assign hash_data.side       = event_q.side;
+assign hash_data.shares     = event_q.shares;
+assign hash_data.price      = event_q.price;
 assign hash_data.next_ptr   = '0; // this might be wrong
-assign target_side          = (rdata_i.message_type == 8'h55) ? latched_side : rdata_i.side;
+assign target_side          = (event_q.message_type == 8'h55) ? latched_side : event_q.side;
 
 // case logic for next state
 // 8'h41 = "A", 8'h43 = "C", 8'h44 = "D", 8'h45 = "E", 8'h55 = "U", 8'h58 = "X" - Maybe add local integers?
@@ -197,12 +223,25 @@ always_comb begin
     RD_MEM:  next_state =                EVAL_MEM;
     EVAL_MEM: begin
         if(!bram_dout.valid) begin
-            next_state = ((rdata_i.message_type == 8'h41) || (rdata_i.message_type == 8'h55 && rep_state)) ? ADD : IDLE; //
+            next_state = ((event_q.message_type == 8'h41) ||
+                         (event_q.message_type == 8'h55 && rep_state))
+                       ? ADD
+                       : IDLE;
         end
-        else if(bram_dout.valid && bram_dout.orn == hash_data.orn)  next_state = (rdata_i.message_type == 8'h41 || rdata_i.message_type == 8'h55) ? ALLOC : EDR;
-        else if(bram_dout.valid && bram_dout.orn == hash_data.orn && (rdata_i.message_type == 8'h55 && !rep_state))  next_state = REP;
+        else if(bram_dout.valid && bram_dout.orn == target_orn) begin
+            if(event_q.message_type == 8'h55 && !rep_state) begin
+                next_state = REP;
+            end
+            else if((event_q.message_type == 8'h41) ||
+                    (event_q.message_type == 8'h55 && rep_state)) begin
+                next_state = ALLOC;
+            end
+            else begin
+                next_state = EDR;
+            end
+        end
         else begin
-                if((rdata_i.message_type == 8'h41) || (rdata_i.message_type == 8'h55 && rep_state)) begin
+                if((event_q.message_type == 8'h41) || (event_q.message_type == 8'h55 && rep_state)) begin
                     if(bram_dout.next_ptr == '0) next_state = ALLOC;
                     else next_state = RD_MEM;
                 end
@@ -212,8 +251,8 @@ always_comb begin
         end
     end
     ALLOC:   next_state =                EVAL_MEM;
-    ADD:     next_state = valid_i    ?   DONE           :   ADD;
-    EDR:     next_state = valid_i    ?   DONE           :   EDR;
+    ADD:     next_state =                DONE;
+    EDR:     next_state =                DONE;
     REP:     next_state =                RD_MEM;
     DONE:    next_state = ready_i    ?   IDLE           :   DONE;
     default: next_state = current_state;
@@ -230,6 +269,7 @@ always_ff @(posedge clk) begin
         clear_idx       <=  '0;
         read_ptr        <=  '0;
         fifo_cons       <=  '0;
+        fifo_prod       <=  '0;
         fifo_addr       <=  '0;
         active_bid      <=  '0;
         active_ask      <=  '0;
@@ -237,9 +277,14 @@ always_ff @(posedge clk) begin
         rep_state       <=  1'b0;
         latched_side    <=  1'b0;
         ret_state       <=  IDLE;
+        event_q         <=  '0;
     end
     else begin
         current_state   <=  next_state;
+        if(current_state == IDLE && valid_i) begin
+            event_q     <=  rdata_i;
+            read_ptr    <=  input_target_idx;
+        end
         bram_dout       <=  book[read_ptr];
         fifo_addr       <=  fifo[fifo_cons];
 
@@ -276,39 +321,38 @@ always_ff @(posedge clk) begin
             else                                                  ret_state <= IDLE;
         end
         else if(current_state == ADD) begin
-            if(valid_i) begin
-                book[read_ptr].orn      <= (rdata_i.message_type == 8'h55) ? rdata_i.updated_orn : rdata_i.orn;
-                book[read_ptr].side     <= (rdata_i.message_type == 8'h55) ? latched_side        : rdata_i.side;
-                book[read_ptr].shares   <= rdata_i.shares;
-                book[read_ptr].price    <= rdata_i.price;
-                book[read_ptr].valid    <=  1'b1;
-                rep_state               <=  1'b0;
-                price_book[price_idx]   <= price_book[price_idx] + hash_data.shares;
-                if (target_side == 1'b1)  active_bid[price_idx] <= 1'b1;
-                else                      active_ask[price_idx] <= 1'b1;
-            end
+            book[read_ptr].orn      <= target_orn;
+            book[read_ptr].side     <= target_side;
+            book[read_ptr].shares   <= event_q.shares;
+            book[read_ptr].price    <= event_q.price;
+            book[read_ptr].valid    <= 1'b1;
+
+            rep_state               <= 1'b0;
+
+            price_book[price_idx]   <= price_book[price_idx] + event_q.shares;
+
+            if(target_side == 1'b1) active_bid[price_idx] <= 1'b1;
+            else                    active_ask[price_idx] <= 1'b1;
         end
         else if(current_state == EDR) begin
-            if(valid_i) begin
-                if(rdata_i.message_type == 8'h43 || rdata_i.message_type == 8'h45 ||
-                   rdata_i.message_type == 8'h58) begin
-                    book[read_ptr].shares       <= book[read_ptr].shares - hash_data.shares;
-                    price_book[price_idx]       <= price_book[price_idx] - hash_data.shares;
-                    if((price_book[price_idx] - hash_data.shares) == 0) begin
-                        if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
-                        else                       active_ask[price_idx] <= 1'b0;
-                    end
+            if(event_q.message_type == 8'h43 || event_q.message_type == 8'h45 ||
+               event_q.message_type == 8'h58) begin
+                book[read_ptr].shares       <= book[read_ptr].shares - event_q.shares;
+                price_book[price_idx]       <= price_book[price_idx] - event_q.shares;
+                if((price_book[price_idx] - event_q.shares) == 0) begin
+                    if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
+                    else                       active_ask[price_idx] <= 1'b0;
                 end
-                else if(rdata_i.message_type == 8'h44) begin
-                    book[read_ptr]          <=  '0;
-                    book[read_ptr].valid    <=  1'b0;
-                    fifo[fifo_prod]         <=  read_ptr;
-                    fifo_prod               <=  fifo_prod + FIFO_W'(1);
-                    price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
-                    if((price_book[price_idx] - bram_dout.shares) == 0) begin
-                        if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
-                        else                       active_ask[price_idx] <= 1'b0;
-                    end
+            end
+            else if(event_q.message_type == 8'h44) begin
+                book[read_ptr]          <=  '0;
+                book[read_ptr].valid    <=  1'b0;
+                fifo[fifo_prod]         <=  read_ptr;
+                fifo_prod               <=  fifo_prod + FIFO_W'(1);
+                price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
+                if((price_book[price_idx] - bram_dout.shares) == 0) begin
+                    if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
+                    else                       active_ask[price_idx] <= 1'b0;
                 end
             end
         end
@@ -316,7 +360,7 @@ always_ff @(posedge clk) begin
             book[read_ptr]          <=  '0;
             book[read_ptr].valid    <=  1'b0;
             fifo[fifo_prod]         <=  read_ptr;
-            fifo_prod               <=  fifo_prod + 1;
+            fifo_prod               <=  fifo_prod + FIFO_W'(1);
             latched_side            <=  bram_dout.side;
             rep_state               <=  1'b1;
             ret_state               <=  IDLE;
@@ -366,31 +410,43 @@ logic               latch_bbo_valid;
 
 always_ff @(posedge clk) begin
     if (!rst_n) begin
-        reg_bid_valid <= 1'b0;
-        reg_ask_valid <= 1'b0;
+        reg_bid_idx     <= '0;
+        reg_ask_idx     <= '0;
+        reg_bid_valid   <= 1'b0;
+        reg_ask_valid   <= 1'b0;
+        reg_bid_shares  <= '0;
+        reg_ask_shares  <= '0;
     end else begin
-        reg_bid_idx   <= best_bid_idx_comb;
-        reg_ask_idx   <= best_ask_idx_comb;
-        reg_bid_valid <= bid_found_comb;
-        reg_ask_valid <= ask_found_comb;
+        reg_bid_idx     <= best_bid_idx_comb;
+        reg_ask_idx     <= best_ask_idx_comb;
+        reg_bid_valid   <= bid_found_comb;
+        reg_ask_valid   <= ask_found_comb;
 
-        reg_bid_shares <= price_book[best_bid_idx_comb];
-        reg_ask_shares <= price_book[best_ask_idx_comb];
+        reg_bid_shares  <= price_book[best_bid_idx_comb];
+        reg_ask_shares  <= price_book[best_ask_idx_comb];
     end
 end
 
+assign update_done = (current_state == ADD) || (current_state == EDR);
+
 always_ff @(posedge clk) begin
-    if (current_state != IDLE) begin
+    if(!rst_n) begin
+        update_done_d1  <= 1'b0;
+        update_done_d2  <= 1'b0;
         latch_bbo_valid <= 1'b0;
-        bbo_data_o  <= '0;
-    end else begin
+        bbo_data_o      <= '0;
+    end
+    else begin
+        update_done_d1 <= update_done;
+        update_done_d2 <= update_done_d1;
+
         bbo_data_o.bid_price  <= reg_bid_valid ? (base_price + PRICE_W'(reg_bid_idx)) : '0;
         bbo_data_o.bid_shares <= reg_bid_valid ? reg_bid_shares : '0;
 
         bbo_data_o.ask_price  <= reg_ask_valid ? (base_price + PRICE_W'(reg_ask_idx)) : '0;
         bbo_data_o.ask_shares <= reg_ask_valid ? reg_ask_shares : '0;
 
-        latch_bbo_valid <= (reg_bid_valid || reg_ask_valid);
+        latch_bbo_valid <= update_done_d2;
     end
 end
 
