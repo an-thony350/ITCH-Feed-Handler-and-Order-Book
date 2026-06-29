@@ -7,7 +7,7 @@ from typing import Any
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import RisingEdge
 
 from .layout import pack_data_t
 from .scoreboard import signal_value_to_int
@@ -97,14 +97,13 @@ async def drive_order_book_event(
     dut: Any,
     event: dict[str, Any],
     *,
-    hold_valid_until_bbo: bool = True,
+    hold_valid_until_bbo: bool = False,
     timeout_cycles: int = 10_000,
 ) -> int | None:
     """Drive one golden event into order_book.sv.
 
-    The ideal ready/valid contract would allow valid_i to deassert immediately
-    after the ready_o handshake. The current order_book RTL still uses valid_i
-    inside later states, so the default keeps valid_i high until bbo_valid_o.
+    valid_i is asserted for exactly one accepted input handshake. The RTL should
+    latch rdata_i internally and continue processing from that latched event.
 
     Return:
         packed bbo_data_o word if hold_valid_until_bbo is True, else None.
@@ -119,16 +118,13 @@ async def drive_order_book_event(
 
     await RisingEdge(dut.clk)
 
+    dut.valid_i.value = 0
+    dut.rdata_i.value = 0
+
     if not hold_valid_until_bbo:
-        dut.valid_i.value = 0
         return None
 
-    bbo_word = await wait_bbo_valid(dut, timeout_cycles=timeout_cycles)
-    dut.valid_i.value = 0
-    await RisingEdge(dut.clk)
-
-    return bbo_word
-
+    return await wait_bbo_valid(dut, timeout_cycles=timeout_cycles)
 
 async def drive_order_book_events(
     dut: Any,
