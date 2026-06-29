@@ -197,9 +197,9 @@ always_comb begin
     RD_MEM:  next_state =                EVAL_MEM;
     EVAL_MEM: begin
         if(!bram_dout.valid) begin
-            next_state = ((rdata_i.message_type == 8'h41) || (rdata_i.message_type == 8'h55 && rep_state)) ? ADD : IDLE;
+            next_state = ((rdata_i.message_type == 8'h41) || (rdata_i.message_type == 8'h55 && rep_state)) ? ADD : IDLE; //
         end
-        else if(bram_dout.valid && bram_dout.orn == hash_data.orn && rdata_i.message_type != 8'h55)  next_state = EDR;
+        else if(bram_dout.valid && bram_dout.orn == hash_data.orn)  next_state = (rdata_i.message_type == 8'h41 || rdata_i.message_type == 8'h55) ? ALLOC : EDR;
         else if(bram_dout.valid && bram_dout.orn == hash_data.orn && (rdata_i.message_type == 8'h55 && !rep_state))  next_state = REP;
         else begin
                 if((rdata_i.message_type == 8'h41) || (rdata_i.message_type == 8'h55 && rep_state)) begin
@@ -362,6 +362,7 @@ end
 logic [BBO_W-1:0] reg_bid_idx, reg_ask_idx;
 logic reg_bid_valid, reg_ask_valid;
 logic [SHARES_W-1:0] reg_bid_shares, reg_ask_shares;
+logic               latch_bbo_valid;
 
 always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -379,8 +380,8 @@ always_ff @(posedge clk) begin
 end
 
 always_ff @(posedge clk) begin
-    if (!rst_n) begin
-        bbo_valid_o <= 1'b0;
+    if (current_state != IDLE) begin
+        latch_bbo_valid <= 1'b0;
         bbo_data_o  <= '0;
     end else begin
         bbo_data_o.bid_price  <= reg_bid_valid ? (base_price + PRICE_W'(reg_bid_idx)) : '0;
@@ -389,11 +390,12 @@ always_ff @(posedge clk) begin
         bbo_data_o.ask_price  <= reg_ask_valid ? (base_price + PRICE_W'(reg_ask_idx)) : '0;
         bbo_data_o.ask_shares <= reg_ask_valid ? reg_ask_shares : '0;
 
-        bbo_valid_o <= (reg_bid_valid || reg_ask_valid);
+        latch_bbo_valid <= (reg_bid_valid || reg_ask_valid);
     end
 end
 
 
 assign ready_o  =   (current_state == IDLE) && rst_n;
+assign bbo_valid_o = latch_bbo_valid && rst_n;
 
 endmodule
