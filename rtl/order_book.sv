@@ -170,7 +170,13 @@ assign rep_hash_idx = rdata_i.updated_orn[13:0]  ^ rdata_i.updated_orn[27:14] ^
 
 assign target_idx = (rdata_i.message_type == 8'h55 && rep_state) ? rep_hash_idx : hash_idx;
 
-assign price_idx  = (current_state == ADD) ? (rdata_i.price - base_price) : (bram_dout.price - base_price);
+logic [PRICE_W-1:0] price_delta_raw;
+
+assign price_delta_raw = (current_state == ADD)
+                       ? (rdata_i.price - base_price)
+                       : (bram_dout.price - base_price);
+
+assign price_idx = price_delta_raw[BBO_W-1:0];
 
 // data packing assignment for book
 
@@ -219,15 +225,17 @@ end
 
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        ready_o         <=  1'b0;
         current_state   <=  CLEAR;
         is_clear        <=  1'b0;
         clear_idx       <=  '0;
-        read_ptr        <=  1'b0;
+        read_ptr        <=  '0;
         fifo_cons       <=  '0;
-        fifo_prod       <=  '0;
+        fifo_addr       <=  '0;
         active_bid      <=  '0;
         active_ask      <=  '0;
+        bram_dout       <=  '0;
+        rep_state       <=  1'b0;
+        latched_side    <=  1'b0;
         ret_state       <=  IDLE;
     end
     else begin
@@ -236,13 +244,22 @@ always_ff @(posedge clk) begin
         fifo_addr       <=  fifo[fifo_cons];
 
         if(current_state == CLEAR) begin
-            book[clear_idx]     <=  '0;
-            clear_idx           <=  clear_idx + 1;
-            if (clear_idx < BBO_DEPTH) begin
-                price_book[clear_idx] <= '0;
+            book[clear_idx] <= '0;
+
+            if(clear_idx < HASH_W'(BBO_DEPTH)) begin
+                price_book[clear_idx[BBO_W-1:0]] <= '0;
             end
-            if(clear_idx >= FIFO_DEPTH) fifo[clear_idx - FIFO_DEPTH] <= clear_idx;
-            if(clear_idx == HASH_DEPTH-1) is_clear <= 1'b1;
+
+            if(clear_idx >= HASH_W'(FIFO_DEPTH)) begin
+                fifo[clear_idx[FIFO_W-1:0]] <= clear_idx;
+            end
+
+            if(clear_idx == HASH_W'(HASH_DEPTH - 1)) begin
+                is_clear <= 1'b1;
+            end
+            else begin
+                clear_idx <= clear_idx + HASH_W'(1);
+            end
         end
         else if(current_state == RD_MEM) begin
             if (ret_state == EVAL_MEM) read_ptr <= bram_dout.next_ptr;
@@ -251,7 +268,7 @@ always_ff @(posedge clk) begin
         else if(current_state == ALLOC) begin
             book[read_ptr].next_ptr <=  fifo_addr;
             read_ptr                <=  fifo_addr;
-            fifo_cons               <=  fifo_cons   + 1;
+            fifo_cons               <=  fifo_cons + FIFO_W'(1);
             ret_state               <=  IDLE;
         end
         else if(current_state == EVAL_MEM) begin
@@ -286,7 +303,7 @@ always_ff @(posedge clk) begin
                     book[read_ptr]          <=  '0;
                     book[read_ptr].valid    <=  1'b0;
                     fifo[fifo_prod]         <=  read_ptr;
-                    fifo_prod               <=  fifo_prod + 1;
+                    fifo_prod               <=  fifo_prod + FIFO_W'(1);
                     price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
                     if((price_book[price_idx] - bram_dout.shares) == 0) begin
                         if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
@@ -366,10 +383,10 @@ always_ff @(posedge clk) begin
         bbo_valid_o <= 1'b0;
         bbo_data_o  <= '0;
     end else begin
-        bbo_data_o.bid_price  <= reg_bid_valid ? (reg_bid_idx + base_price) : '0;
+        bbo_data_o.bid_price  <= reg_bid_valid ? (base_price + PRICE_W'(reg_bid_idx)) : '0;
         bbo_data_o.bid_shares <= reg_bid_valid ? reg_bid_shares : '0;
 
-        bbo_data_o.ask_price  <= reg_ask_valid ? (reg_ask_idx + base_price) : '0;
+        bbo_data_o.ask_price  <= reg_ask_valid ? (base_price + PRICE_W'(reg_ask_idx)) : '0;
         bbo_data_o.ask_shares <= reg_ask_valid ? reg_ask_shares : '0;
 
         bbo_valid_o <= (reg_bid_valid || reg_ask_valid);
