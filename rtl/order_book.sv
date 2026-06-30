@@ -196,8 +196,8 @@ assign target_idx = (event_q.message_type == 8'h55 && rep_state)
                   : hash_idx;
 
 assign price_delta_raw = (current_state == ADD)
-                       ? (event_q.price - base_price)
-                       : (bram_dout.price - base_price);
+                       ? (event_q.price - base_price_i)
+                       : (bram_dout.price - base_price_i);
 
 assign price_idx = price_delta_raw[BBO_W-1:0];
 
@@ -437,10 +437,10 @@ always_ff @(posedge clk) begin
         update_done_d1 <= update_done;
         update_done_d2 <= update_done_d1;
 
-        bbo_data_o.bid_price  <= reg_bid_valid ? (base_price + PRICE_W'(reg_bid_idx)) : '0;
+        bbo_data_o.bid_price  <= reg_bid_valid ? (base_price_i + PRICE_W'(reg_bid_idx)) : '0;
         bbo_data_o.bid_shares <= reg_bid_valid ? reg_bid_shares : '0;
 
-        bbo_data_o.ask_price  <= reg_ask_valid ? (base_price + PRICE_W'(reg_ask_idx)) : '0;
+        bbo_data_o.ask_price  <= reg_ask_valid ? (base_price_i + PRICE_W'(reg_ask_idx)) : '0;
         bbo_data_o.ask_shares <= reg_ask_valid ? reg_ask_shares : '0;
 
         latch_bbo_valid <= update_done_d2;
