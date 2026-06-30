@@ -107,7 +107,7 @@ state_t current_state, next_state;
 
 always_comb begin
     case(current_state)
-    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[63:56] == 8'h41) ? ADD_CAP:
+    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[63:56] == 8'h41 || s_tdata_i[63:56] == 8'h46) ? ADD_CAP:
                                                                 (s_tdata_i[63:56] == 8'h43 || s_tdata_i[63:56] == 8'h55 ||
                                                                  s_tdata_i[63:56] == 8'h44 || s_tdata_i[63:56] == 8'h58 ||
                                                                  s_tdata_i[63:56] == 8'h45)
