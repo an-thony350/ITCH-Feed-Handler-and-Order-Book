@@ -48,10 +48,9 @@ used for the "overflow" when another node is needed in the linked list (also kep
 parameter int  ORN_W    = 64;
 parameter int  PRICE_W  = 32;
 parameter int  SHARES_W = 32;
-parameter int  STOCK_W  = 16;
 parameter int  MSG_W    = 8;
-parameter int  HASH_W   = 14;
-parameter int  FIFO_W   = 13;
+parameter int  HASH_W   = 12;
+parameter int  FIFO_W   = 11;
 parameter int  BBO_W    = 12;
 
 // Struct for most data we will output - this isnt a complete list yet
@@ -59,7 +58,6 @@ parameter int  BBO_W    = 12;
 
 typedef struct packed {
     logic [MSG_W-1:0]       message_type;
-    logic [STOCK_W-1:0]     stock_locate;
     logic [ORN_W-1:0]       orn;
     logic [ORN_W-1:0]       updated_orn;
     logic                   side;
@@ -80,7 +78,6 @@ module order_book#(
     ORN_W   =   64,
     PRICE_W =   32,
     SHARES_W=   32,
-    STOCK_W =   16,
     MSG_W   =   8,
     HASH_W  =   14,
     FIFO_W  =   13,
@@ -89,12 +86,15 @@ module order_book#(
     input   logic               clk,
     input   logic               rst_n,
 
-    // inputs from data handler
+    // inputs from sybmol router
     input   data_t              rdata_i,
-    input   logic               valid_i,
+    input   logic               valid_stock0_o,
+    input   logic               valid_stock1_o,
+    input   logic               valid_stock2_o,
+    input   logic               valid_stock3_o,
     input   [PRICE_W-1:0]       base_price,
 
-    // outputs to data handler
+    // outputs to symbol router
     output  logic               ready_o,
 
     // input from next block
@@ -172,23 +172,23 @@ state_t current_state, next_state, ret_state;
 
 // index assignment
 
-assign input_hash_idx = rdata_i.orn[13:0] ^ rdata_i.orn[27:14] ^ rdata_i.orn[41:28] ^
-                        rdata_i.orn[55:42] ^ {6'b0, rdata_i.orn[63:56]};
+assign input_hash_idx = rdata_i.orn[11:0] ^ rdata_i.orn[23:12] ^ rdata_i.orn[35:24] ^
+                        rdata_i.orn[47:36] ^ rdata_i.orn[59:48] ^ {8'b0, rdata_i.orn[63:60]};
 
-assign input_rep_hash_idx = rdata_i.updated_orn[13:0]  ^ rdata_i.updated_orn[27:14] ^
-                            rdata_i.updated_orn[41:28] ^ rdata_i.updated_orn[55:42] ^
-                            {6'b0, rdata_i.updated_orn[63:56]};
+assign input_rep_hash_idx = rdata_i.updated_orn[11:0]  ^ rdata_i.updated_orn[23:12] ^
+                            rdata_i.updated_orn[35:24] ^ rdata_i.updated_orn[47:36] ^
+                            rdata_i.updated_orn[59:48] ^ {8'b0, rdata_i.updated_orn[63:60]};
 
 assign input_target_idx = (rdata_i.message_type == 8'h55 && rep_state)
                         ? input_rep_hash_idx
                         : input_hash_idx;
 
-assign hash_idx = event_q.orn[13:0] ^ event_q.orn[27:14] ^ event_q.orn[41:28] ^
-                  event_q.orn[55:42] ^ {6'b0, event_q.orn[63:56]};
+assign hash_idx = event_q.orn[11:0] ^ event_q.orn[23:12] ^ event_q.orn[35:24] ^
+                  event_q.orn[47:36] ^ event_q.orn[59:48] ^ {8'b0, event_q.orn[63:60]};
 
-assign rep_hash_idx = event_q.updated_orn[13:0]  ^ event_q.updated_orn[27:14] ^
-                      event_q.updated_orn[41:28] ^ event_q.updated_orn[55:42] ^
-                      {6'b0, event_q.updated_orn[63:56]};
+assign rep_hash_idx = event_q.updated_orn[11:0]  ^ event_q.updated_orn[23:12] ^
+                      event_q.updated_orn[35:24] ^ event_q.updated_orn[47:36] ^
+                      event_q.updated_orn[59:48] ^ {8'b0, event_q.updated_orn[63:60]};
 
 assign target_orn = (event_q.message_type == 8'h55 && rep_state)
                   ? event_q.updated_orn
