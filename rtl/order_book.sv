@@ -45,27 +45,24 @@ used for the "overflow" when another node is needed in the linked list (also kep
 */
 
 
-parameter int  ORN_W    = 64;
-parameter int  PRICE_W  = 32;
-parameter int  SHARES_W = 32;
-parameter int  MSG_W    = 8;
-parameter int  HASH_W   = 12;
-parameter int  FIFO_W   = 11;
-parameter int  BBO_W    = 12;
-
-// Struct for most data we will output - this isnt a complete list yet
-// note that the struct is above the module declaration for the input port rdata
+parameter int ORN_W    = 64;
+parameter int PRICE_W  = 32;
+parameter int SHARES_W = 32;
+parameter int STOCK_W  = 16;
+parameter int MSG_W    = 8;
+parameter int HASH_W   = 14;
+parameter int FIFO_W   = 13;
+parameter int BBO_W    = 12;
 
 typedef struct packed {
     logic [MSG_W-1:0]       message_type;
+    logic [STOCK_W-1:0]     stock_locate;
     logic [ORN_W-1:0]       orn;
     logic [ORN_W-1:0]       updated_orn;
-    logic                   side;
+    logic                   side;          // 1 = bid/buy, 0 = ask/sell
     logic [SHARES_W-1:0]    shares;
     logic [PRICE_W-1:0]     price;
 } o_data_t;
-
-// Struct for BBO
 
 typedef struct packed {
     logic [PRICE_W-1:0]     bid_price;
@@ -74,315 +71,212 @@ typedef struct packed {
     logic [SHARES_W-1:0]    ask_shares;
 } bbo_t;
 
-module order_book#(
-    ORN_W   =   64,
-    PRICE_W =   32,
-    SHARES_W=   32,
-    MSG_W   =   8,
-    HASH_W  =   14,
-    FIFO_W  =   13,
-    BBO_W   =   12
+module order_book #(
+    parameter int ORN_W    = 64,
+    parameter int PRICE_W  = 32,
+    parameter int SHARES_W = 32,
+    parameter int STOCK_W  = 16,
+    parameter int MSG_W    = 8,
+    parameter int HASH_W   = 14,
+    parameter int FIFO_W   = 13,
+    parameter int BBO_W    = 12,
+    parameter int MAX_PROBES = 16
 )(
-    input   logic               clk,
-    input   logic               rst_n,
+    input  logic               clk,
+    input  logic               rst_n,
 
-    // inputs from sybmol router
-    input   o_data_t            rdata_i,
-    input   logic               valid_i,
-    input   [PRICE_W-1:0]       base_price_i,
+    // input from symbol router / normalised-event harness
+    input  o_data_t            rdata_i,
+    input  logic               valid_i,
+    input  logic [PRICE_W-1:0] base_price_i,
 
-    // outputs to symbol router
-    output  logic               ready_o,
+    // output to upstream block
+    output logic               ready_o,
 
-    // input from next block
-    input   logic               ready_i,
+    // input from downstream block
+    input  logic               ready_i,
 
-    // outputs to ??
-    output  bbo_t               bbo_data_o,
-    output  logic               bbo_valid_o
+    // BBO output
+    output bbo_t               bbo_data_o,
+    output logic               bbo_valid_o
 );
 
-// struct for relevant data stored in hash map
-
-typedef struct packed {
-    logic [ORN_W-1:0]    orn;
-    logic                side;
-    logic [SHARES_W-1:0] shares;
-    logic [PRICE_W-1:0]  price;
-    logic                valid;
-    logic [HASH_W-1:0]   next_ptr;
-} hash_data_t;
-
-hash_data_t hash_data;
-o_data_t event_q;
-
-logic [ORN_W-1:0] target_orn;
-logic [PRICE_W-1:0] price_delta_raw;
-
-logic update_done;
-logic update_done_d1;
-logic update_done_d2;
-
-// local parameters
-
 localparam int HASH_DEPTH = 1 << HASH_W;
-localparam int FIFO_DEPTH = 1 << FIFO_W;
 localparam int BBO_DEPTH  = 1 << BBO_W;
 
-// internal hash map registers
+localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
+localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
+localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
+localparam logic [MSG_W-1:0] MSG_EXEC_PX  = 8'h43; // C
+localparam logic [MSG_W-1:0] MSG_DELETE   = 8'h44; // D
+localparam logic [MSG_W-1:0] MSG_REPLACE  = 8'h55; // U
+localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
 
-logic       [HASH_W-1:0]    hash_idx;
-hash_data_t book            [HASH_DEPTH-1:0];
-logic                       is_clear;
-logic       [HASH_W-1:0]    clear_idx;
-logic       [HASH_W-1:0]    read_ptr;
-hash_data_t                 bram_dout;
-logic       [HASH_W-1:0]    rep_hash_idx;
-logic                       rep_state; // 1'b0 = deleting old order, 1'b1 = adding new order
-logic                       latched_side;
-logic       [HASH_W-1:0]    target_idx;
-logic                       target_side;
-logic       [HASH_W-1:0]    input_hash_idx;
-logic       [HASH_W-1:0]    input_rep_hash_idx;
-logic       [HASH_W-1:0]    input_target_idx;
+typedef struct packed {
+    logic                   valid;
+    logic [ORN_W-1:0]       orn;
+    logic                   side;
+    logic [SHARES_W-1:0]    shares;
+    logic [PRICE_W-1:0]     price;
+} order_entry_t;
 
-// FIFO registers
-logic       [HASH_W-1:0]    fifo    [FIFO_DEPTH-1:0];
-logic       [FIFO_W-1:0]    fifo_cons;
-logic       [FIFO_W-1:0]    fifo_prod;
-logic       [HASH_W-1:0]    fifo_addr;
+typedef enum logic [2:0] {
+    CLEAR,
+    IDLE,
+    UPDATE,
+    REPLACE_ADD,
+    EMIT,
+    WAIT_DOWNSTREAM
+} state_t;
 
-// internal price book registers
+state_t current_state, next_state;
 
-logic       [SHARES_W-1:0]  price_book  [BBO_DEPTH-1:0];
-logic       [BBO_DEPTH-1:0] active_bid;
-logic       [BBO_DEPTH-1:0] active_ask;
-logic       [BBO_W-1:0]     price_idx;
+order_entry_t order_table [HASH_DEPTH-1:0];
+logic [SHARES_W-1:0] bid_price_book [BBO_DEPTH-1:0];
+logic [SHARES_W-1:0] ask_price_book [BBO_DEPTH-1:0];
 
+o_data_t event_q;
+logic [PRICE_W-1:0] base_price_q;
+logic [HASH_W-1:0] clear_idx;
 
+logic [HASH_W-1:0] lookup_idx;
+logic lookup_found;
+order_entry_t lookup_entry;
 
-// state machine for order book states
+logic [HASH_W-1:0] insert_idx;
+logic insert_found;
+logic insert_existing_found;
 
-typedef enum { CLEAR, IDLE, RD_MEM, EVAL_MEM, ALLOC, ADD, EDR, REP, DONE } state_t;
+logic [BBO_W-1:0] event_price_idx;
+logic [BBO_W-1:0] lookup_price_idx;
 
-state_t current_state, next_state, ret_state;
+logic [BBO_W-1:0] best_bid_idx_comb;
+logic [BBO_W-1:0] best_ask_idx_comb;
+logic bid_found_comb;
+logic ask_found_comb;
 
-// index assignment
+function automatic logic is_add_msg(input logic [MSG_W-1:0] msg);
+    return (msg == MSG_ADD_A) || (msg == MSG_ADD_F);
+endfunction
 
-assign input_hash_idx = rdata_i.orn[11:0] ^ rdata_i.orn[23:12] ^ rdata_i.orn[35:24] ^
-                        rdata_i.orn[47:36] ^ rdata_i.orn[59:48] ^ {8'b0, rdata_i.orn[63:60]};
+function automatic logic is_reduce_msg(input logic [MSG_W-1:0] msg);
+    return (msg == MSG_EXEC) || (msg == MSG_EXEC_PX) || (msg == MSG_CANCEL);
+endfunction
 
-assign input_rep_hash_idx = rdata_i.updated_orn[11:0]  ^ rdata_i.updated_orn[23:12] ^
-                            rdata_i.updated_orn[35:24] ^ rdata_i.updated_orn[47:36] ^
-                            rdata_i.updated_orn[59:48] ^ {8'b0, rdata_i.updated_orn[63:60]};
-
-assign input_target_idx = (rdata_i.message_type == 8'h55 && rep_state)
-                        ? input_rep_hash_idx
-                        : input_hash_idx;
-
-assign hash_idx = event_q.orn[11:0] ^ event_q.orn[23:12] ^ event_q.orn[35:24] ^
-                  event_q.orn[47:36] ^ event_q.orn[59:48] ^ {8'b0, event_q.orn[63:60]};
-
-assign rep_hash_idx = event_q.updated_orn[11:0]  ^ event_q.updated_orn[23:12] ^
-                      event_q.updated_orn[35:24] ^ event_q.updated_orn[47:36] ^
-                      event_q.updated_orn[59:48] ^ {8'b0, event_q.updated_orn[63:60]};
-
-assign target_orn = (event_q.message_type == 8'h55 && rep_state)
-                  ? event_q.updated_orn
-                  : event_q.orn;
-
-assign target_idx = (event_q.message_type == 8'h55 && rep_state)
-                  ? rep_hash_idx
-                  : hash_idx;
-
-assign price_delta_raw = (current_state == ADD)
-                       ? (event_q.price - base_price_i)
-                       : (bram_dout.price - base_price_i);
-
-assign price_idx = price_delta_raw[BBO_W-1:0];
-
-// data packing assignment for book
-
-assign hash_data.orn        = target_orn;
-assign hash_data.side       = event_q.side;
-assign hash_data.shares     = event_q.shares;
-assign hash_data.price      = event_q.price;
-assign hash_data.next_ptr   = '0; // this might be wrong
-assign target_side          = (event_q.message_type == 8'h55) ? latched_side : event_q.side;
-
-// case logic for next state
-// 8'h41 = "A", 8'h43 = "C", 8'h44 = "D", 8'h45 = "E", 8'h55 = "U", 8'h58 = "X" - Maybe add local integers?
-
-always_comb begin
-    case(current_state)
-    CLEAR:   next_state = is_clear   ?   IDLE    :   CLEAR;
-    IDLE:    next_state = valid_i    ?   RD_MEM  :   IDLE;
-    RD_MEM:  next_state =                EVAL_MEM;
-    EVAL_MEM: begin
-        if(!bram_dout.valid) begin
-            next_state = ((event_q.message_type == 8'h41) ||
-                         (event_q.message_type == 8'h55 && rep_state))
-                       ? ADD
-                       : IDLE;
+function automatic logic [HASH_W-1:0] hash_orn(input logic [ORN_W-1:0] orn);
+    logic [HASH_W-1:0] h;
+    begin
+        h = '0;
+        for (int bit_i = 0; bit_i < ORN_W; bit_i++) begin
+            h[bit_i % HASH_W] = h[bit_i % HASH_W] ^ orn[bit_i];
         end
-        else if(bram_dout.valid && bram_dout.orn == target_orn) begin
-            if(event_q.message_type == 8'h55 && !rep_state) begin
-                next_state = REP;
-            end
-            else if((event_q.message_type == 8'h41) ||
-                    (event_q.message_type == 8'h55 && rep_state)) begin
-                next_state = ALLOC;
-            end
-            else begin
-                next_state = EDR;
-            end
-        end
-        else begin
-                if((event_q.message_type == 8'h41) || (event_q.message_type == 8'h55 && rep_state)) begin
-                    if(bram_dout.next_ptr == '0) next_state = ALLOC;
-                    else next_state = RD_MEM;
-                end
-                else begin
-                    next_state = (bram_dout.next_ptr != '0) ? RD_MEM : IDLE;
-                end
-        end
+        return h;
     end
-    ALLOC:   next_state =                EVAL_MEM;
-    ADD:     next_state =                DONE;
-    EDR:     next_state =                DONE;
-    REP:     next_state =                RD_MEM;
-    DONE:    next_state = ready_i    ?   IDLE           :   DONE;
-    default: next_state = current_state;
+endfunction
+
+function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
+    logic [PRICE_W-1:0] delta;
+    begin
+        delta = price - base_price_q;
+        return delta[BBO_W-1:0];
+    end
+endfunction
+
+assign lookup_entry = order_table[lookup_idx];
+assign event_price_idx = price_to_idx(event_q.price);
+assign lookup_price_idx = price_to_idx(lookup_entry.price);
+
+// Next-state logic.
+always_comb begin
+    next_state = current_state;
+
+    case (current_state)
+        CLEAR: begin
+            next_state = (clear_idx == HASH_W'(HASH_DEPTH - 1)) ? IDLE : CLEAR;
+        end
+
+        IDLE: begin
+            next_state = valid_i ? UPDATE : IDLE;
+        end
+
+        UPDATE: begin
+            next_state = (event_q.message_type == MSG_REPLACE) ? REPLACE_ADD : EMIT;
+        end
+
+        REPLACE_ADD: begin
+            next_state = EMIT;
+        end
+
+        EMIT: begin
+            next_state = ready_i ? IDLE : WAIT_DOWNSTREAM;
+        end
+
+        WAIT_DOWNSTREAM: begin
+            next_state = ready_i ? IDLE : WAIT_DOWNSTREAM;
+        end
+
+        default: begin
+            next_state = CLEAR;
+        end
     endcase
 end
 
+// Bounded lookup for the current event's original order reference.
+always_comb begin
+    logic [HASH_W-1:0] base_idx;
+    logic [HASH_W-1:0] probe_idx;
 
-// Sequential logic for Order Book - synchronous reset
+    lookup_idx = '0;
+    lookup_found = 1'b0;
+    base_idx = hash_orn(event_q.orn);
 
-always_ff @(posedge clk) begin
-    if(!rst_n) begin
-        current_state   <=  CLEAR;
-        is_clear        <=  1'b0;
-        clear_idx       <=  '0;
-        read_ptr        <=  '0;
-        fifo_cons       <=  '0;
-        fifo_prod       <=  '0;
-        fifo_addr       <=  '0;
-        active_bid      <=  '0;
-        active_ask      <=  '0;
-        bram_dout       <=  '0;
-        rep_state       <=  1'b0;
-        latched_side    <=  1'b0;
-        ret_state       <=  IDLE;
-        event_q         <=  '0;
-    end
-    else begin
-        current_state   <=  next_state;
-        if(current_state == IDLE && valid_i) begin
-            event_q     <=  rdata_i;
-            read_ptr    <=  input_target_idx;
-        end
-        bram_dout       <=  book[read_ptr];
-        fifo_addr       <=  fifo[fifo_cons];
-
-        if(current_state == CLEAR) begin
-            book[clear_idx] <= '0;
-
-            if(clear_idx < HASH_W'(BBO_DEPTH)) begin
-                price_book[clear_idx[BBO_W-1:0]] <= '0;
-            end
-
-            if(clear_idx >= HASH_W'(FIFO_DEPTH)) begin
-                fifo[clear_idx[FIFO_W-1:0]] <= clear_idx;
-            end
-
-            if(clear_idx == HASH_W'(HASH_DEPTH - 1)) begin
-                is_clear <= 1'b1;
-            end
-            else begin
-                clear_idx <= clear_idx + HASH_W'(1);
-            end
-        end
-        else if(current_state == RD_MEM) begin
-            if (ret_state == EVAL_MEM) read_ptr <= bram_dout.next_ptr;
-            else read_ptr   <=  target_idx;
-        end
-        else if(current_state == ALLOC) begin
-            book[read_ptr].next_ptr <=  fifo_addr;
-            read_ptr                <=  fifo_addr;
-            fifo_cons               <=  fifo_cons + FIFO_W'(1);
-            ret_state               <=  IDLE;
-        end
-        else if(current_state == EVAL_MEM) begin
-            if(bram_dout.valid && bram_dout.orn != hash_data.orn) ret_state <= EVAL_MEM;
-            else                                                  ret_state <= IDLE;
-        end
-        else if(current_state == ADD) begin
-            book[read_ptr].orn      <= target_orn;
-            book[read_ptr].side     <= target_side;
-            book[read_ptr].shares   <= event_q.shares;
-            book[read_ptr].price    <= event_q.price;
-            book[read_ptr].valid    <= 1'b1;
-
-            rep_state               <= 1'b0;
-
-            price_book[price_idx]   <= price_book[price_idx] + event_q.shares;
-
-            if(target_side == 1'b1) active_bid[price_idx] <= 1'b1;
-            else                    active_ask[price_idx] <= 1'b1;
-        end
-        else if(current_state == EDR) begin
-            if(event_q.message_type == 8'h43 || event_q.message_type == 8'h45 ||
-               event_q.message_type == 8'h58) begin
-                book[read_ptr].shares       <= book[read_ptr].shares - event_q.shares;
-                price_book[price_idx]       <= price_book[price_idx] - event_q.shares;
-                if((price_book[price_idx] - event_q.shares) == 0) begin
-                    if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
-                    else                       active_ask[price_idx] <= 1'b0;
-                end
-            end
-            else if(event_q.message_type == 8'h44) begin
-                book[read_ptr]          <=  '0;
-                book[read_ptr].valid    <=  1'b0;
-                fifo[fifo_prod]         <=  read_ptr;
-                fifo_prod               <=  fifo_prod + FIFO_W'(1);
-                price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
-                if((price_book[price_idx] - bram_dout.shares) == 0) begin
-                    if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
-                    else                       active_ask[price_idx] <= 1'b0;
-                end
-            end
-        end
-        else if(current_state == REP) begin // effectively a delete state (with some latched data)
-            book[read_ptr]          <=  '0;
-            book[read_ptr].valid    <=  1'b0;
-            fifo[fifo_prod]         <=  read_ptr;
-            fifo_prod               <=  fifo_prod + FIFO_W'(1);
-            latched_side            <=  bram_dout.side;
-            rep_state               <=  1'b1;
-            ret_state               <=  IDLE;
-            price_book[price_idx]   <=  price_book[price_idx] - bram_dout.shares;
-            if((price_book[price_idx] - bram_dout.shares) == 0) begin
-                if(bram_dout.side == 1'b1) active_bid[price_idx] <= 1'b0;
-                else                       active_ask[price_idx] <= 1'b0;
-            end
+    for (int probe = 0; probe < MAX_PROBES; probe++) begin
+        probe_idx = base_idx + HASH_W'(probe);
+        if (!lookup_found && order_table[probe_idx].valid &&
+            order_table[probe_idx].orn == event_q.orn) begin
+            lookup_found = 1'b1;
+            lookup_idx = probe_idx;
         end
     end
 end
 
-// Combinational logic for BBO calculation
+// Bounded insert search for ADD, or for the new reference during REPLACE_ADD.
+always_comb begin
+    logic [ORN_W-1:0] insert_orn;
+    logic [HASH_W-1:0] base_idx;
+    logic [HASH_W-1:0] probe_idx;
 
-logic [BBO_W-1:0] best_bid_idx_comb, best_ask_idx_comb;
-logic bid_found_comb, ask_found_comb;
+    insert_idx = '0;
+    insert_found = 1'b0;
+    insert_existing_found = 1'b0;
+    insert_orn = (current_state == REPLACE_ADD) ? event_q.updated_orn : event_q.orn;
+    base_idx = hash_orn(insert_orn);
 
+    for (int probe = 0; probe < MAX_PROBES; probe++) begin
+        probe_idx = base_idx + HASH_W'(probe);
+
+        if (!insert_existing_found && order_table[probe_idx].valid &&
+            order_table[probe_idx].orn == insert_orn) begin
+            insert_existing_found = 1'b1;
+            insert_idx = probe_idx;
+        end
+
+        if (!insert_found && !order_table[probe_idx].valid) begin
+            insert_found = 1'b1;
+            insert_idx = probe_idx;
+        end
+    end
+end
+
+// BBO recompute from separate bid/ask aggregate memories.
 always_comb begin
     best_bid_idx_comb = '0;
     bid_found_comb = 1'b0;
-    for(int i = BBO_DEPTH - 1; i >= 0; i--) begin
-        if(active_bid[i]) begin
-            best_bid_idx_comb = i[BBO_W-1:0];
+
+    for (int i = 0; i < BBO_DEPTH; i++) begin
+        if (bid_price_book[i] != '0) begin
+            best_bid_idx_comb = BBO_W'(i);
             bid_found_comb = 1'b1;
-            break;
         end
     end
 end
@@ -390,65 +284,135 @@ end
 always_comb begin
     best_ask_idx_comb = '0;
     ask_found_comb = 1'b0;
-    for(int j = 0; j < BBO_DEPTH; j++) begin
-        if(active_ask[j]) begin
-            best_ask_idx_comb = j[BBO_W-1:0];
+
+    for (int j = 0; j < BBO_DEPTH; j++) begin
+        if (!ask_found_comb && ask_price_book[j] != '0) begin
+            best_ask_idx_comb = BBO_W'(j);
             ask_found_comb = 1'b1;
-            break;
         end
     end
 end
 
-// Pipeline registers
-logic [BBO_W-1:0] reg_bid_idx, reg_ask_idx;
-logic reg_bid_valid, reg_ask_valid;
-logic [SHARES_W-1:0] reg_bid_shares, reg_ask_shares;
-logic               latch_bbo_valid;
-
+// State and memory updates.
 always_ff @(posedge clk) begin
     if (!rst_n) begin
-        reg_bid_idx     <= '0;
-        reg_ask_idx     <= '0;
-        reg_bid_valid   <= 1'b0;
-        reg_ask_valid   <= 1'b0;
-        reg_bid_shares  <= '0;
-        reg_ask_shares  <= '0;
+        current_state <= CLEAR;
+        event_q <= '0;
+        base_price_q <= '0;
+        clear_idx <= '0;
+        bbo_data_o <= '0;
+        bbo_valid_o <= 1'b0;
     end else begin
-        reg_bid_idx     <= best_bid_idx_comb;
-        reg_ask_idx     <= best_ask_idx_comb;
-        reg_bid_valid   <= bid_found_comb;
-        reg_ask_valid   <= ask_found_comb;
+        current_state <= next_state;
+        bbo_valid_o <= 1'b0;
 
-        reg_bid_shares  <= price_book[best_bid_idx_comb];
-        reg_ask_shares  <= price_book[best_ask_idx_comb];
+        case (current_state)
+            CLEAR: begin
+                order_table[clear_idx] <= '0;
+
+                if (clear_idx < HASH_W'(BBO_DEPTH)) begin
+                    bid_price_book[clear_idx[BBO_W-1:0]] <= '0;
+                    ask_price_book[clear_idx[BBO_W-1:0]] <= '0;
+                end
+
+                if (clear_idx != HASH_W'(HASH_DEPTH - 1)) begin
+                    clear_idx <= clear_idx + HASH_W'(1);
+                end
+            end
+
+            IDLE: begin
+                if (valid_i) begin
+                    event_q <= rdata_i;
+                    base_price_q <= base_price_i;
+                end
+            end
+
+            UPDATE: begin
+                if (is_add_msg(event_q.message_type)) begin
+                    if (insert_found && !insert_existing_found) begin
+                        order_table[insert_idx].valid  <= 1'b1;
+                        order_table[insert_idx].orn    <= event_q.orn;
+                        order_table[insert_idx].side   <= event_q.side;
+                        order_table[insert_idx].shares <= event_q.shares;
+                        order_table[insert_idx].price  <= event_q.price;
+
+                        if (event_q.side) begin
+                            bid_price_book[event_price_idx] <= bid_price_book[event_price_idx] + event_q.shares;
+                        end else begin
+                            ask_price_book[event_price_idx] <= ask_price_book[event_price_idx] + event_q.shares;
+                        end
+                    end
+                end else if (is_reduce_msg(event_q.message_type)) begin
+                    if (lookup_found) begin
+                        if (lookup_entry.side) begin
+                            bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - event_q.shares;
+                        end else begin
+                            ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - event_q.shares;
+                        end
+
+                        if (event_q.shares >= lookup_entry.shares) begin
+                            order_table[lookup_idx] <= '0;
+                        end else begin
+                            order_table[lookup_idx].shares <= lookup_entry.shares - event_q.shares;
+                        end
+                    end
+                end else if (event_q.message_type == MSG_DELETE) begin
+                    if (lookup_found) begin
+                        if (lookup_entry.side) begin
+                            bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - lookup_entry.shares;
+                        end else begin
+                            ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - lookup_entry.shares;
+                        end
+
+                        order_table[lookup_idx] <= '0;
+                    end
+                end else if (event_q.message_type == MSG_REPLACE) begin
+                    if (lookup_found) begin
+                        if (lookup_entry.side) begin
+                            bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - lookup_entry.shares;
+                        end else begin
+                            ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - lookup_entry.shares;
+                        end
+
+                        // Keep the inherited side in event_q for the add-new half.
+                        event_q.side <= lookup_entry.side;
+                        order_table[lookup_idx] <= '0;
+                    end
+                end
+            end
+
+            REPLACE_ADD: begin
+                if (insert_found && !insert_existing_found) begin
+                    order_table[insert_idx].valid  <= 1'b1;
+                    order_table[insert_idx].orn    <= event_q.updated_orn;
+                    order_table[insert_idx].side   <= event_q.side;
+                    order_table[insert_idx].shares <= event_q.shares;
+                    order_table[insert_idx].price  <= event_q.price;
+
+                    if (event_q.side) begin
+                        bid_price_book[event_price_idx] <= bid_price_book[event_price_idx] + event_q.shares;
+                    end else begin
+                        ask_price_book[event_price_idx] <= ask_price_book[event_price_idx] + event_q.shares;
+                    end
+                end
+            end
+
+            EMIT: begin
+                bbo_valid_o <= 1'b1;
+
+                bbo_data_o.bid_price  <= bid_found_comb ? (base_price_q + PRICE_W'(best_bid_idx_comb)) : '0;
+                bbo_data_o.bid_shares <= bid_found_comb ? bid_price_book[best_bid_idx_comb] : '0;
+                bbo_data_o.ask_price  <= ask_found_comb ? (base_price_q + PRICE_W'(best_ask_idx_comb)) : '0;
+                bbo_data_o.ask_shares <= ask_found_comb ? ask_price_book[best_ask_idx_comb] : '0;
+            end
+
+            default: begin
+                // No memory update.
+            end
+        endcase
     end
 end
 
-assign update_done = (current_state == ADD) || (current_state == EDR);
-
-always_ff @(posedge clk) begin
-    if(!rst_n) begin
-        update_done_d1  <= 1'b0;
-        update_done_d2  <= 1'b0;
-        latch_bbo_valid <= 1'b0;
-        bbo_data_o      <= '0;
-    end
-    else begin
-        update_done_d1 <= update_done;
-        update_done_d2 <= update_done_d1;
-
-        bbo_data_o.bid_price  <= reg_bid_valid ? (base_price_i + PRICE_W'(reg_bid_idx)) : '0;
-        bbo_data_o.bid_shares <= reg_bid_valid ? reg_bid_shares : '0;
-
-        bbo_data_o.ask_price  <= reg_ask_valid ? (base_price_i + PRICE_W'(reg_ask_idx)) : '0;
-        bbo_data_o.ask_shares <= reg_ask_valid ? reg_ask_shares : '0;
-
-        latch_bbo_valid <= update_done_d2;
-    end
-end
-
-
-assign ready_o  =   (current_state == IDLE) && rst_n;
-assign bbo_valid_o = latch_bbo_valid && rst_n;
+assign ready_o = (current_state == IDLE) && rst_n;
 
 endmodule
