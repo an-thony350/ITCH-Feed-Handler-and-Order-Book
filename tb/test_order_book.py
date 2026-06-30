@@ -693,3 +693,325 @@ def make_random_valid_events(
 async def test_order_book_random_valid_stream_matches_python_golden(dut: Any) -> None:
     events = make_random_valid_events(seed=12345, count=75)
     await drive_sequence_against_python_golden(dut, events)
+
+
+from itch_harness.axis import wait_bbo_valid
+from itch_harness.layout import DATA_FIELDS, ITCH_EXECUTE_PRICE, insert_field, pack_data_t
+
+ITCH_ADD_WITH_MPID = ord("F")
+BBO_LAST_IDX = (1 << 12) - 1
+
+
+async def drive_order_book_event_with_rtl_msg_type(
+    dut: Any,
+    event: dict[str, Any],
+    *,
+    message_type: int,
+    timeout_cycles: int = 20_000,
+) -> int:
+    """Drive one event but override the raw RTL message_type field.
+
+    The golden normalised op stays the same, but this lets us exercise RTL paths
+    that are semantically equivalent at the book level, e.g. Add-with-MPID ('F')
+    and Executed-with-Price ('C').
+    """
+
+    packed = pack_data_t(event)
+    packed = insert_field(packed, DATA_FIELDS["message_type"], message_type)
+
+    await wait_ready(dut, "ready_o", timeout_cycles=timeout_cycles)
+
+    dut.rdata_i.value = packed
+    dut.valid_i.value = 1
+
+    await RisingEdge(dut.clk)
+
+    dut.valid_i.value = 0
+    dut.rdata_i.value = 0
+
+    return await wait_bbo_valid(dut, timeout_cycles=timeout_cycles)
+
+
+@cocotb.test()
+async def test_order_book_delete_one_of_two_orders_at_same_bid_price_keeps_remaining_level(
+    dut: Any,
+) -> None:
+    events = [
+        add_event(1, order_ref=1001, side="BUY", shares=80, price=10000),
+        add_event(2, order_ref=1002, side="BUY", shares=120, price=10000),
+        delete_event(3, order_ref=1001),
+        execute_event(4, order_ref=1002, shares=120),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=80),
+        expected_state(2, bid_price=10000, bid_size=200),
+        expected_state(3, bid_price=10000, bid_size=120),
+        expected_state(4),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_full_execute_one_of_two_same_price_asks_keeps_remaining_level(
+    dut: Any,
+) -> None:
+    events = [
+        add_event(1, order_ref=2001, side="SELL", shares=60, price=10020),
+        add_event(2, order_ref=2002, side="SELL", shares=90, price=10020),
+        execute_event(3, order_ref=2001, shares=60),
+        cancel_event(4, order_ref=2002, shares=40),
+    ]
+
+    states = [
+        expected_state(1, ask_price=10020, ask_size=60),
+        expected_state(2, ask_price=10020, ask_size=150),
+        expected_state(3, ask_price=10020, ask_size=90),
+        expected_state(4, ask_price=10020, ask_size=50),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_best_bid_and_ask_walk_multiple_levels_when_levels_empty(
+    dut: Any,
+) -> None:
+    events = [
+        add_event(1, order_ref=3001, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=3002, side="BUY", shares=50, price=10005),
+        add_event(3, order_ref=3003, side="BUY", shares=25, price=9995),
+        add_event(4, order_ref=4001, side="SELL", shares=70, price=10020),
+        add_event(5, order_ref=4002, side="SELL", shares=30, price=10015),
+        add_event(6, order_ref=4003, side="SELL", shares=10, price=10025),
+        delete_event(7, order_ref=3002),
+        delete_event(8, order_ref=4002),
+        delete_event(9, order_ref=3001),
+        delete_event(10, order_ref=4001),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10005, bid_size=50),
+        expected_state(3, bid_price=10005, bid_size=50),
+        expected_state(4, bid_price=10005, bid_size=50, ask_price=10020, ask_size=70),
+        expected_state(5, bid_price=10005, bid_size=50, ask_price=10015, ask_size=30),
+        expected_state(6, bid_price=10005, bid_size=50, ask_price=10015, ask_size=30),
+        expected_state(7, bid_price=10000, bid_size=100, ask_price=10015, ask_size=30),
+        expected_state(8, bid_price=10000, bid_size=100, ask_price=10020, ask_size=70),
+        expected_state(9, bid_price=9995, bid_size=25, ask_price=10020, ask_size=70),
+        expected_state(10, bid_price=9995, bid_size=25, ask_price=10025, ask_size=10),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_replace_one_order_at_shared_price_preserves_remaining_old_level(
+    dut: Any,
+) -> None:
+    events = [
+        add_event(1, order_ref=5001, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=5002, side="BUY", shares=50, price=10000),
+        replace_event(3, order_ref=5001, new_order_ref=6001, shares=30, price=10010),
+        delete_event(4, order_ref=6001),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10000, bid_size=150),
+        expected_state(3, bid_price=10010, bid_size=30),
+        expected_state(4, bid_price=10000, bid_size=50),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_same_ref_replace_to_new_price_remains_lookupable_by_same_ref(
+    dut: Any,
+) -> None:
+    events = [
+        add_event(1, order_ref=7001, side="BUY", shares=100, price=10000),
+        replace_event(2, order_ref=7001, new_order_ref=7001, shares=75, price=10008),
+        execute_event(3, order_ref=7001, shares=25),
+        delete_event(4, order_ref=7001),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10008, bid_size=75),
+        expected_state(3, bid_price=10008, bid_size=50),
+        expected_state(4),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_hash_cluster_delete_middle_reuse_slot_and_lookup_tail(
+    dut: Any,
+) -> None:
+    """Exercise a longer bounded-probe cluster, deletion in the middle, and reuse.
+
+    These refs collide under the RTL hash because their set bit lands in the same
+    HASH_W modulo bucket.
+    """
+
+    ref_a = 1
+    ref_b = 1 << 14
+    ref_c = 1 << 28
+    ref_d = 1 << 42
+
+    events = [
+        add_event(1, order_ref=ref_a, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=ref_b, side="BUY", shares=40, price=10005),
+        add_event(3, order_ref=ref_c, side="BUY", shares=60, price=10010),
+        delete_event(4, order_ref=ref_b),
+        execute_event(5, order_ref=ref_c, shares=10),
+        add_event(6, order_ref=ref_d, side="BUY", shares=25, price=10008),
+        delete_event(7, order_ref=ref_c),
+        execute_event(8, order_ref=ref_a, shares=100),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10005, bid_size=40),
+        expected_state(3, bid_price=10010, bid_size=60),
+        expected_state(4, bid_price=10010, bid_size=60),
+        expected_state(5, bid_price=10010, bid_size=50),
+        expected_state(6, bid_price=10010, bid_size=50),
+        expected_state(7, bid_price=10008, bid_size=25),
+        expected_state(8, bid_price=10008, bid_size=25),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_extreme_supported_price_indices_base_and_last_tick(
+    dut: Any,
+) -> None:
+    low = BASE_PRICE
+    high = BASE_PRICE + BBO_LAST_IDX
+
+    events = [
+        add_event(1, order_ref=8001, side="BUY", shares=10, price=low),
+        add_event(2, order_ref=8002, side="BUY", shares=20, price=high),
+        add_event(3, order_ref=8003, side="SELL", shares=30, price=high),
+        add_event(4, order_ref=8004, side="SELL", shares=40, price=low + 1),
+        delete_event(5, order_ref=8002),
+    ]
+
+    states = [
+        expected_state(1, bid_price=low, bid_size=10),
+        expected_state(2, bid_price=high, bid_size=20),
+        expected_state(3, bid_price=high, bid_size=20, ask_price=high, ask_size=30),
+        expected_state(4, bid_price=high, bid_size=20, ask_price=low + 1, ask_size=40),
+        expected_state(5, bid_price=low, bid_size=10, ask_price=low + 1, ask_size=40),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states)
+
+
+@cocotb.test()
+async def test_order_book_add_with_mpid_message_type_f_behaves_like_add(dut: Any) -> None:
+    await initialise_order_book(dut)
+
+    event = add_event(1, order_ref=9001, side="BUY", shares=123, price=10000)
+    bbo_word = await drive_order_book_event_with_rtl_msg_type(
+        dut,
+        event,
+        message_type=ITCH_ADD_WITH_MPID,
+    )
+
+    assert_bbo_matches_word(bbo_word, expected_state(1, bid_price=10000, bid_size=123))
+
+    await drive_and_check(
+        dut,
+        execute_event(2, order_ref=9001, shares=23),
+        expected_state(2, bid_price=10000, bid_size=100),
+    )
+
+
+@cocotb.test()
+async def test_order_book_execute_with_price_message_type_c_behaves_like_execute(
+    dut: Any,
+) -> None:
+    await initialise_order_book(dut)
+
+    await drive_and_check(
+        dut,
+        add_event(1, order_ref=9101, side="SELL", shares=100, price=10020),
+        expected_state(1, ask_price=10020, ask_size=100),
+    )
+
+    event = execute_event(2, order_ref=9101, shares=35)
+    bbo_word = await drive_order_book_event_with_rtl_msg_type(
+        dut,
+        event,
+        message_type=ITCH_EXECUTE_PRICE,
+    )
+
+    assert_bbo_matches_word(bbo_word, expected_state(2, ask_price=10020, ask_size=65))
+
+
+@cocotb.test()
+async def test_order_book_bbo_valid_is_single_pulse_while_downstream_stalled(
+    dut: Any,
+) -> None:
+    await initialise_order_book(dut)
+
+    dut.ready_i.value = 0
+
+    bbo_word = await drive_order_book_event(
+        dut,
+        add_event(1, order_ref=9201, side="BUY", shares=100, price=10000),
+        hold_valid_until_bbo=True,
+        timeout_cycles=20_000,
+    )
+    assert bbo_word is not None
+    assert_bbo_matches_word(bbo_word, expected_state(1, bid_price=10000, bid_size=100))
+
+    for _ in range(8):
+        await RisingEdge(dut.clk)
+        assert signal_value_to_int(dut.bbo_valid_o.value) == 0, (
+            "bbo_valid_o should be a single-cycle pulse while waiting for ready_i"
+        )
+        assert signal_value_to_int(dut.ready_o.value) == 0, (
+            "ready_o must stay low while the output is blocked by ready_i"
+        )
+
+    dut.ready_i.value = 1
+    await wait_ready(dut, "ready_o", timeout_cycles=20_000)
+
+
+@cocotb.test()
+async def test_order_book_reset_after_activity_clears_all_book_state(dut: Any) -> None:
+    await initialise_order_book(dut)
+
+    await drive_and_check(
+        dut,
+        add_event(1, order_ref=9301, side="BUY", shares=100, price=10000),
+        expected_state(1, bid_price=10000, bid_size=100),
+    )
+    await drive_and_check(
+        dut,
+        add_event(2, order_ref=9302, side="SELL", shares=50, price=10020),
+        expected_state(2, bid_price=10000, bid_size=100, ask_price=10020, ask_size=50),
+    )
+
+    dut.valid_i.value = 0
+    dut.rdata_i.value = 0
+    dut.ready_i.value = 1
+    dut.base_price_i.value = BASE_PRICE
+
+    await reset_dut(dut, cycles=5)
+    await wait_ready(dut, "ready_o", timeout_cycles=100_000)
+
+    await drive_and_check(
+        dut,
+        add_event(3, order_ref=9303, side="SELL", shares=70, price=10015),
+        expected_state(3, ask_price=10015, ask_size=70),
+    )
