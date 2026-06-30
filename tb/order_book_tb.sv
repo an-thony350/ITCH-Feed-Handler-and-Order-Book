@@ -20,16 +20,6 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-
-/*
-
-Note that the price data is written as the value in pounds shifted by 100
-
-e.g. $140.50 = 14050 in decimal
-     $170.00 = 17000 in decimal
-
-
-*/
 module order_book_tb;
 
 // input data structure
@@ -119,9 +109,9 @@ module order_book_tb;
     #50;
 
     rst_n <= 1;
-    $display("Waiting for Order Book to initialise memory...");
+    $display("Waiting for Order Book to initialize memory...");
     wait(ready_o == 1'b1);
-    $display("Order Book Initialised");
+    $display("Order Book Initialized and Ready!");
 
     @(posedge clk);
 
@@ -144,10 +134,10 @@ module order_book_tb;
             rdata_i.updated_orn         <=  64'h0;
 
             @(posedge clk);
+            valid_i                     <=  1'b0;
             ready_i                     <=  1'b1;
         end
         wait(bbo_valid_o);
-        valid_i <=  1'b0;
         #1;
 
         if(bbo_data_o.bid_price != 32'h0000445c) $display("Incorrect Price Value");
@@ -173,10 +163,10 @@ module order_book_tb;
             rdata_i.updated_orn         <=  64'h0;
 
             @(posedge clk);
+            valid_i                     <=  1'b0;
             ready_i                     <=  1'b1;
         end
         wait(bbo_valid_o);
-        valid_i <=  1'b0;
         #1;
 
         if(bbo_data_o.ask_price != 32'h00004a6a) $display("Incorrect Price Value");
@@ -197,7 +187,7 @@ module order_book_tb;
             valid_i                     <=  1'b1;
             base_price                  <=  32'h00_00_3A_98; // $150.00 base price
             rdata_i.message_type        <=  8'h41;
-            rdata_i.orn                 <=  64'h00_00_00_00_00_00_00_64; // 100
+            rdata_i.orn                 <=  64'h00_00_00_00_00_00_40_65; // 100
             rdata_i.price               <=  price_i;
             rdata_i.shares              <=  shares_i;
             rdata_i.side                <=  1'b1; // Buy
@@ -205,10 +195,10 @@ module order_book_tb;
             rdata_i.updated_orn         <=  64'h0;
 
             @(posedge clk);
+            valid_i                     <=  1'b0;
             ready_i                     <=  1'b1;
         end
         wait(bbo_valid_o);
-        valid_i <=  1'b0;
         #1;
 
 
@@ -232,10 +222,10 @@ module order_book_tb;
             rdata_i.updated_orn         <=  64'h0;
 
             @(posedge clk);
+            valid_i                     <=  1'b0;
             ready_i                     <=  1'b1;
         end
         wait(bbo_valid_o);
-        valid_i <=  1'b0;
         #1;
 
 
