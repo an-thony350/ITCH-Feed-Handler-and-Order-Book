@@ -61,13 +61,14 @@ module symbol_router#(
 logic   [PRICE_W-1:0]   bp_list [4];
 
 // combination I/O assignment
-
-assign rdata_o.message_type = rdata_i.message_type;
-assign rdata_o.orn          = rdata_i.orn;
-assign rdata_o.updated_orn  = rdata_i.updated_orn;
-assign rdata_o.side         = rdata_i.side;
-assign rdata_o.shares       = rdata_i.shares;
-assign rdata_o.price        = rdata_i.price;
+if(ready_i && valid_i) begin
+    assign rdata_o.message_type = rdata_i.message_type;
+    assign rdata_o.orn          = rdata_i.orn;
+    assign rdata_o.updated_orn  = rdata_i.updated_orn;
+    assign rdata_o.side         = rdata_i.side;
+    assign rdata_o.shares       = rdata_i.shares;
+    assign rdata_o.price        = rdata_i.price;
+end
 
 always_ff@(posedge clk) begin
     if(!rst_n) begin
@@ -81,7 +82,8 @@ always_ff@(posedge clk) begin
         valid_stock1_o  <=  1'b0;
         valid_stock2_o  <=  1'b0;
         valid_stock3_o  <=  1'b0;
-        if(valid_i) begin
+        ready_o         <=  1'b1;
+        if(valid_i && ready_i) begin
             case(rdata_i.stock_locate) // actual values not added yet as stocks undecided
                 16'd0:  begin
                     valid_stock0_o  <=  1'b1;

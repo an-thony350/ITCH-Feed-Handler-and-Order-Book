@@ -63,7 +63,7 @@ typedef struct packed {
     logic                   side;
     logic [SHARES_W-1:0]    shares;
     logic [PRICE_W-1:0]     price;
-} data_t;
+} o_data_t;
 
 // Struct for BBO
 
@@ -87,12 +87,9 @@ module order_book#(
     input   logic               rst_n,
 
     // inputs from sybmol router
-    input   data_t              rdata_i,
-    input   logic               valid_stock0_o,
-    input   logic               valid_stock1_o,
-    input   logic               valid_stock2_o,
-    input   logic               valid_stock3_o,
-    input   [PRICE_W-1:0]       base_price,
+    input   o_data_t            rdata_i,
+    input   logic               valid_i,
+    input   [PRICE_W-1:0]       base_price_i,
 
     // outputs to symbol router
     output  logic               ready_o,
@@ -117,7 +114,7 @@ typedef struct packed {
 } hash_data_t;
 
 hash_data_t hash_data;
-data_t event_q;
+o_data_t event_q;
 
 logic [ORN_W-1:0] target_orn;
 logic [PRICE_W-1:0] price_delta_raw;
