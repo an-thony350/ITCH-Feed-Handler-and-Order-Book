@@ -159,7 +159,12 @@ order_book ob_stock3(
     .bbo_valid_o(bbo_valid_3)
 );
 
+
+// We need an arbiter & fifo here, this will not work if two blocks output at the same time
 always_comb begin
+    bbo_data_o  = '0;
+    bbo_valid_o = 1'b0;
+
     if(bbo_valid_0) begin
         bbo_data_o  = bbo_stock_0;
         bbo_valid_o = bbo_valid_0;
@@ -172,9 +177,9 @@ always_comb begin
         bbo_data_o  = bbo_stock_2;
         bbo_valid_o = bbo_valid_2;
     end
-    else begin
+    else if(bbo_valid_3) begin
         bbo_data_o  = bbo_stock_3;
-        bbo_valid_o = bbo_valid_3;
+        bbo_valid_o = 1'b1;
     end
 end
 

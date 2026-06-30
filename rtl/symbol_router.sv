@@ -48,7 +48,7 @@ module symbol_router#(
 
     // outputs to order book
     output  o_data_t                rdata_o,
-    output  logic   [PRICE_W-1:0]   base_price_o
+    output  logic   [PRICE_W-1:0]   base_price_o,
 
     // stock outputs to order book - names will change
     output  logic                   valid_stock0_o,
@@ -60,15 +60,21 @@ module symbol_router#(
 
 logic   [PRICE_W-1:0]   bp_list [4];
 
-// combination I/O assignment
-if(ready_i && valid_i) begin
-    assign rdata_o.message_type = rdata_i.message_type;
-    assign rdata_o.orn          = rdata_i.orn;
-    assign rdata_o.updated_orn  = rdata_i.updated_orn;
-    assign rdata_o.side         = rdata_i.side;
-    assign rdata_o.shares       = rdata_i.shares;
-    assign rdata_o.price        = rdata_i.price;
+// Temporarily initialised ROM here, we can change this later with a .mem file
+initial begin
+    bp_list[0] = 32'h00_00_3A_98; // Stock 0: $150.00
+    bp_list[1] = 32'h00_00_4E_20; // Stock 1: $200.00
+    bp_list[2] = 32'h00_00_27_10; // Stock 2: $100.00
+    bp_list[3] = 32'h00_00_13_88; // Stock 3: $50.00
 end
+
+// combination I/O assignment
+assign rdata_o.message_type = rdata_i.message_type;
+assign rdata_o.orn          = rdata_i.orn;
+assign rdata_o.updated_orn  = rdata_i.updated_orn;
+assign rdata_o.side         = rdata_i.side;
+assign rdata_o.shares       = rdata_i.shares;
+assign rdata_o.price        = rdata_i.price;
 
 always_ff@(posedge clk) begin
     if(!rst_n) begin
