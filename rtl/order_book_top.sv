@@ -43,9 +43,9 @@ module order_book_top#(
     PRICE_W =   32,
     SHARES_W=   32,
     MSG_W   =   8,
-    HASH_W  =   14,
-    FIFO_W  =   12,
-    BBO_W   =   11
+    HASH_W  =   12,
+    FIFO_W  =   11,
+    BBO_W   =   12
 )(
     input   logic               clk,
     input   logic               rst_n,
@@ -65,8 +65,8 @@ module order_book_top#(
     output  logic               bbo_valid_o
 );
 
-// Internal registers
-logic               sr_ob_ready;
+// Internal registers sr + ob regs
+logic [3:0]         sr_ob_ready_bus;
 o_data_t            ob_sr_rdata;
 logic [PRICE_W-1:0] ob_sr_base_price;
 logic               ob_sr_valid_stock0;
@@ -82,6 +82,24 @@ logic               bbo_valid_1;
 logic               bbo_valid_2;
 logic               bbo_valid_3;
 
+// Internal registers for 4 FIFOs
+
+bbo_t fifo_0 [15:0];
+bbo_t fifo_1 [15:0];
+bbo_t fifo_2 [15:0];
+bbo_t fifo_3 [15:0];
+
+logic [3:0] wr_ptr [4];
+logic [3:0] rd_ptr [4];
+logic       fifo_empty [4];
+logic [1:0] sched_count
+
+// fifo assignment
+assign fifo_empty[0] = (wr_ptr[0] == rd_ptr[0]);
+assign fifo_empty[1] = (wr_ptr[1] == rd_ptr[1]);
+assign fifo_empty[2] = (wr_ptr[2] == rd_ptr[2]);
+assign fifo_empty[3] = (wr_ptr[3] == rd_ptr[3]);
+
 
 
 // Data Handler -> Symbol Router
@@ -92,7 +110,7 @@ symbol_router router(
     .rdata_i(rdata_i),
     .valid_i(valid_i),
     .ready_o(ready_o),
-    .ready_i(sr_ob_ready),
+    .ready_i(sr_ob_ready_bus),
     .rdata_o(ob_sr_rdata),
     .base_price_o(ob_sr_base_price),
     .valid_stock0_o(ob_sr_valid_stock0),
@@ -111,7 +129,7 @@ order_book ob_stock0(
     .rdata_i(ob_sr_rdata),
     .valid_i(ob_sr_valid_stock0),
     .base_price_i(ob_sr_base_price),
-    .ready_o(sr_ob_ready),
+    .ready_o(sr_ob_ready_bus[0]),
     .ready_i(ready_i),
     .bbo_data_o(bbo_stock_0),
     .bbo_valid_o(bbo_valid_0)
@@ -125,7 +143,7 @@ order_book ob_stock1(
     .rdata_i(ob_sr_rdata),
     .valid_i(ob_sr_valid_stock1),
     .base_price_i(ob_sr_base_price),
-    .ready_o(sr_ob_ready),
+    .ready_o(sr_ob_ready_bus[1]),
     .ready_i(ready_i),
     .bbo_data_o(bbo_stock_1),
     .bbo_valid_o(bbo_valid_1)
@@ -139,7 +157,7 @@ order_book ob_stock2(
     .rdata_i(ob_sr_rdata),
     .valid_i(ob_sr_valid_stock2),
     .base_price_i(ob_sr_base_price),
-    .ready_o(sr_ob_ready),
+    .ready_o(sr_ob_ready_bus[2]),
     .ready_i(ready_i),
     .bbo_data_o(bbo_stock_2),
     .bbo_valid_o(bbo_valid_2)
@@ -153,35 +171,89 @@ order_book ob_stock3(
     .rdata_i(ob_sr_rdata),
     .valid_i(ob_sr_valid_stock3),
     .base_price_i(ob_sr_base_price),
-    .ready_o(sr_ob_ready),
+    .ready_o(sr_ob_ready_bus[3]),
     .ready_i(ready_i),
     .bbo_data_o(bbo_stock_3),
     .bbo_valid_o(bbo_valid_3)
 );
 
+// FIFO write logic
 
-// We need an arbiter & fifo here, this will not work if two blocks output at the same time
-always_comb begin
-    bbo_data_o  = '0;
-    bbo_valid_o = 1'b0;
-
-    if(bbo_valid_0) begin
-        bbo_data_o  = bbo_stock_0;
-        bbo_valid_o = bbo_valid_0;
+always_ff @(posedge clk) begin
+    if (!rst_n) begin
+        wr_ptr[0]   <=  '0;
+        wr_ptr[1]   <=  '0;
+        wr_ptr[2]   <=  '0;
+        wr_ptr[3]   <=  '0;
     end
-    else if(bbo_valid_1) begin
-        bbo_data_o  = bbo_stock_1;
-        bbo_valid_o = bbo_valid_1;
-    end
-    else if(bbo_valid_2) begin
-        bbo_data_o  = bbo_stock_2;
-        bbo_valid_o = bbo_valid_2;
-    end
-    else if(bbo_valid_3) begin
-        bbo_data_o  = bbo_stock_3;
-        bbo_valid_o = 1'b1;
+    else begin
+        if(bbo_valid_0) begin
+            fifo_0[wr_ptr[0]] <= bbo_stock_0;
+            wr_ptr[0] <= wr_ptr[0] + 1'b1;
+        end
+        if(bbo_valid_1) begin
+            fifo_1[wr_ptr[1]] <= bbo_stock_1;
+            wr_ptr[1] <= wr_ptr[1] + 1'b1;
+        end
+        if(bbo_valid_2) begin
+            fifo_2[wr_ptr[2]] <= bbo_stock_2;
+            wr_ptr[2] <= wr_ptr[2] + 1'b1;
+        end
+        if(bbo_valid_3) begin
+            fifo_3[wr_ptr[3]] <= bbo_stock_3;
+            wr_ptr[3] <= wr_ptr[3] + 1'b1;
+        end
     end
 end
 
+// RR scheduler and read logic from fifo
+
+always_ff @(posedge clk) begin
+    if (!rst_n) begin
+        sched_count <= '0;
+        rd_ptr[0]   <= '0;
+        rd_ptr[1]   <= '0;
+        rd_ptr[2]   <= '0;
+        rd_ptr[3]   <= '0;
+        bbo_valid_o <= 1'b0;
+        bbo_data_o  <= '0;
+    end
+    else begin
+        bbo_valid_o <= 1'b0;
+        sched_count <= sched_count + 1'b1;
+
+        case (sched_count)
+
+            2'd0: begin
+                if (!fifo_empty[0]) begin
+                    bbo_data_o  <= fifo_0[rd_ptr[0]];
+                    bbo_valid_o <= 1'b1;
+                    rd_ptr[0]   <= rd_ptr[0] + 1'b1;
+                end
+            end
+            2'd1: begin
+                if (!fifo_empty[1]) begin
+                    bbo_data_o  <= fifo_1[rd_ptr[1]];
+                    bbo_valid_o <= 1'b1;
+                    rd_ptr[1]   <= rd_ptr[1] + 1'b1;
+                end
+            end
+            2'd2: begin
+                if (!fifo_empty[2]) begin
+                    bbo_data_o  <= fifo_2[rd_ptr[2]];
+                    bbo_valid_o <= 1'b1;
+                    rd_ptr[2]   <= rd_ptr[2] + 1'b1;
+                end
+            end
+            2'd3: begin
+                if (!fifo_empty[3]) begin
+                    bbo_data_o  <= fifo_3[rd_ptr[3]];
+                    bbo_valid_o <= 1'b1;
+                    rd_ptr[3]   <= rd_ptr[3] + 1'b1;
+                end
+            end
+        endcase
+    end
+end
 
 endmodule

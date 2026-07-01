@@ -44,7 +44,7 @@ module symbol_router#(
     output  logic                   ready_o,
 
     // input from order_book
-    input   logic                   ready_i,
+    input   logic [3:0]             ready_i,
 
     // outputs to order book
     output  o_data_t                rdata_o,
@@ -59,6 +59,7 @@ module symbol_router#(
 );
 
 logic   [PRICE_W-1:0]   bp_list [4];
+logic   [1:0]           target_idx;
 
 // Temporarily initialised ROM here, we can change this later with a .mem file
 initial begin
@@ -68,13 +69,18 @@ initial begin
     bp_list[3] = 32'h00_00_13_88; // Stock 3: $50.00
 end
 
-// combination I/O assignment
-assign rdata_o.message_type = rdata_i.message_type;
-assign rdata_o.orn          = rdata_i.orn;
-assign rdata_o.updated_orn  = rdata_i.updated_orn;
-assign rdata_o.side         = rdata_i.side;
-assign rdata_o.shares       = rdata_i.shares;
-assign rdata_o.price        = rdata_i.price;
+always_comb begin
+    target_idx  =   2'b00;
+    case(rdata_i.stock_locate)
+        16'd0:  target_idx  =   2'b00;
+        16'd1:  target_idx  =   2'b01;
+        16'd2:  target_idx  =   2'b10;
+        16'd3:  target_idx  =   2'b11;
+        default:    ;
+    endcase
+end
+
+assign ready_o = (!valid_i) || ready_i[target_idx];
 
 always_ff@(posedge clk) begin
     if(!rst_n) begin
@@ -88,8 +94,13 @@ always_ff@(posedge clk) begin
         valid_stock1_o  <=  1'b0;
         valid_stock2_o  <=  1'b0;
         valid_stock3_o  <=  1'b0;
-        ready_o         <=  1'b1;
-        if(valid_i && ready_i) begin
+        if(valid_i && ready_o) begin
+            rdata_o.message_type     <=      rdata_i.message_type;
+            rdata_o.orn              <=      rdata_i.orn;
+            rdata_o.price            <=      rdata_i.price;
+            rdata_o.shares           <=      rdata_i.shares;
+            rdata_o.side             <=      rdata_i.side;
+            rdata_o.updated_orn      <=      rdata_i.updated_orn;
             case(rdata_i.stock_locate) // actual values not added yet as stocks undecided
                 16'd0:  begin
                     valid_stock0_o  <=  1'b1;
