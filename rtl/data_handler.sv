@@ -1,35 +1,22 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:  N/A
-// Engineer: Anthony Bartlett & Denzil Erza-Essien
+// Company:
+// Engineer:
 //
 // Create Date: 27.06.2026 16:18:27
-// Design Name: Data Handler
+// Design Name:
 // Module Name: data_handler
-// Project Name: Nasdaq Itch Feed Handler
-// Target Devices: PYNQ-Z1
-// Tool Versions: Vivado 2023
-// Description: This block parses data taken from Nasdaq broadcasting the
-//              TotalViewITCH. This block allows for data in section 1.3 & 1.4
-//              of the Nasdaq specification to be passes (i.e. relevant data for
-//              the order book only).
+// Project Name:
+// Target Devices:
+// Tool Versions:
+// Description:
 //
 // Dependencies:
 //
 // Revision:
-// Revision 1 - File Created
-// Revision 2 - Data parsed according to the Nasdaq Specification
-// Revision 3 - All relevant parsing data from sections 1.3 & 1.4 added
-// Revision 4 - Big Endian input allowed with conversion to Little Endian addressing
-// Revision 5 - Bugfixes and complete testbenching done
-// Additional Comments: This module has the following assumptions:
-//- Assumes that we are taking in data using the MoldUDP64 Protocal - More
-//  specifcally we are taking in data in 8-byte packets
-//- Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes
-//  and the only inputed bytes are the ITCH bytes
-//- For adding orders to the book, we are using No MPID attribution (section 1.3.1),
-//  extra byte is unecessary & wastes logic
-//- For order executed, we are including price message - (using section 1.4.2)
+// Revision 0.01 - File Created
+// Additional Comments:
+//
 //////////////////////////////////////////////////////////////////////////////////
 
 
@@ -38,36 +25,22 @@ This module has the following assumptions (which we can fix later depending on w
 
 - Assumes that we are taking in data using the MoldUDP64 Protocal - More specifcally we are taking in data in 8-byte packets
 - Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and the only inputed bytes are the ITCH bytes
+- We are only parsing data from sections 1.3 & 1.4 - all other data is irrelevant
 - For adding orders to the book, we are using No MPID attribution (section 1.3.1) - extra byte is unecessary & wastes logic
 - For order executed, we are including price message - (using section 1.4.2)
 
+
+- Test bench must be updated
+
 */
+import hdl_header::*;
 
-parameter int  ORN_W    = 64;
-parameter int  PRICE_W  = 32;
-parameter int  SHARES_W = 32;
-parameter int  PACKET_W = 64;
-parameter int  STOCK_W  = 16;
-parameter int  MSG_W    = 8;
-
-// Struct for most data we will output - this isnt a complete list yet
-// note that the struct is above the module declaration for the output port rdata
-
-typedef struct packed {
-    logic [MSG_W-1:0]       message_type;
-    logic [STOCK_W-1:0]     stock_locate;
-    logic [ORN_W-1:0]       orn;
-    logic [ORN_W-1:0]       updated_orn;
-    logic                   side;
-    logic [SHARES_W-1:0]    shares;
-    logic [PRICE_W-1:0]     price;
-} data_t;
 
 module data_handler#(
     ORN_W    = 64,
     PRICE_W  = 32,
     SHARES_W = 32,
-    PACKET_W = 64,
+    PACKET_W = 32,
     STOCK_W  = 16,
     MSG_W    = 8
 )(
@@ -92,7 +65,7 @@ module data_handler#(
 
 // Internal Variables
 
-logic [2:0] word_count;
+logic [3:0] word_count;
 data_t data;
 
 // State Machine for state data is recieved in
@@ -107,13 +80,18 @@ state_t current_state, next_state;
 
 always_comb begin
     case(current_state)
-    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[63:56] == 8'h41 || s_tdata_i[63:56] == 8'h46) ? ADD_CAP:
-                                                                (s_tdata_i[63:56] == 8'h43 || s_tdata_i[63:56] == 8'h55 ||
-                                                                 s_tdata_i[63:56] == 8'h44 || s_tdata_i[63:56] == 8'h58 ||
-                                                                 s_tdata_i[63:56] == 8'h45)
+    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[31:24] == 8'h41) ? ADD_CAP:
+                                                                (s_tdata_i[31:24] == 8'h43 || s_tdata_i[31:24] == 8'h55 ||
+                                                                 s_tdata_i[31:24] == 8'h44 || s_tdata_i[31:24] == 8'h58 ||
+                                                                 s_tdata_i[31:24] == 8'h45)
                                                                 ? MOD_CAP: IDLE) : IDLE;
-    ADD_CAP:        next_state = (s_tvalid_i && s_tlast_i) ? SEND       : ADD_CAP;
-    MOD_CAP:        next_state = (s_tvalid_i && s_tlast_i) ? SEND       : MOD_CAP;
+    ADD_CAP:        next_state = (word_count == 4'd8)      ? SEND       : ADD_CAP;
+    MOD_CAP: begin
+                if(data.message_type == 8'h44)      next_state = (word_count == 4'd4) ? SEND : MOD_CAP;
+                else if(data.message_type == 8'h58) next_state = (word_count == 4'd5) ? SEND : MOD_CAP;
+                else if(data.message_type == 8'h45) next_state = (word_count == 4'd7) ? SEND : MOD_CAP;
+                else                                next_state = (word_count == 4'd8) ? SEND : MOD_CAP;
+    end
     SEND:           next_state = ready_i                   ? IDLE       : SEND;
     default:        next_state = IDLE;
     endcase
@@ -133,12 +111,12 @@ always_ff @(posedge clk) begin
 
         if(current_state == IDLE) begin
             if(s_tvalid_i) begin
-                data.message_type <= s_tdata_i[63:56];
-                data.stock_locate <= { s_tdata_i[55:48], s_tdata_i[47:40] };
+                data.message_type <= s_tdata_i[31:24];
+                data.stock_locate <= { s_tdata_i[23:16], s_tdata_i[15:8] };
                 word_count        <= '0;
 
-                if(s_tdata_i[63:56] != 8'h55) data.updated_orn <= '0;
-                if(s_tdata_i[63:56] != 8'h41) begin
+                if(s_tdata_i[31:24] != 8'h55) data.updated_orn <= '0;
+                if(s_tdata_i[31:24] != 8'h41) begin
                     data.side   <= '0;
                     data.price  <= '0;
                 end
@@ -149,18 +127,18 @@ always_ff @(posedge clk) begin
                 word_count <= word_count + 1;
                 case(word_count)
 
-                    3'd0: data.orn[63:24] <= { s_tdata_i[39:32], s_tdata_i[31:24], s_tdata_i[23:16],
-                                               s_tdata_i[15:8], s_tdata_i[7:0] };
+                    4'd1: data.orn[63:56]   <= s_tdata_i[7:0];
 
-                    3'd1: begin
-                        data.orn[23:0]    <= { s_tdata_i[63:56], s_tdata_i[55:48], s_tdata_i[47:40] };
-                        data.side         <= (s_tdata_i[39:32] == 8'h42) ? 1'b1 : 1'b0; // if = "B" assert buy
-                        data.shares       <= { s_tdata_i[31:24], s_tdata_i[23:16], s_tdata_i[15:8],
-                                               s_tdata_i[7:0] };
+                    4'd2: data.orn[55:24]   <= { s_tdata_i };
+
+                    4'd3: begin
+                        data.orn[23:0]      <= { s_tdata_i[31:8] };
+                        data.side           <= (s_tdata_i[7:0] == 8'h42) ? 1'b1 : 1'b0; // if = "B" assert buy
                     end
 
-                    3'd3: data.price      <= { s_tdata_i[63:56], s_tdata_i[55:48], s_tdata_i[47:40],
-                                               s_tdata_i[39:32] };
+                    4'd4: data.shares       <=  s_tdata_i;
+
+                    4'd7: data.price        <= { s_tdata_i };
 
                     default: ; // do nothing
                 endcase
@@ -171,30 +149,34 @@ always_ff @(posedge clk) begin
                 word_count <= word_count + 1;
                 case(word_count)
 
-                    3'd0: data.orn[63:24] <=  { s_tdata_i[39:32], s_tdata_i[31:24], s_tdata_i[23:16],
-                                               s_tdata_i[15:8], s_tdata_i[7:0] };
+                    4'd1: data.orn[63:56] <= { s_tdata_i[7:0] };
 
-                    3'd1: begin
-                        data.orn[23:0]    <= { s_tdata_i[63:56], s_tdata_i[55:48], s_tdata_i[47:40] };
-                        if(data.message_type == 8'h55)       data.updated_orn[63:24]  <= { s_tdata_i[39:32], s_tdata_i[31:24], s_tdata_i[23:16],
-                                                                                           s_tdata_i[15:8], s_tdata_i[7:0] };
-                        else if (data.message_type != 8'h44) data.shares              <= { s_tdata_i[39:32], s_tdata_i[31:24], s_tdata_i[23:16],
-                                                                                           s_tdata_i[15:8] };
+                    4'd2: data.orn[55:24] <= { s_tdata_i };
+
+                    4'd3: begin
+                        data.orn[23:0]  <=  s_tdata_i[31:8];
+                        if(data.message_type == 8'h55) data.updated_orn[63:56]  <= { s_tdata_i[7:0] };
+                        else if (data.message_type != 8'h44) data.shares[31:24] <= { s_tdata_i[7:0] };
                     end
-
-                    3'd2: begin
+                    4'd4: begin
+                        if(data.message_type == 8'h55) data.updated_orn[55:24]  <= { s_tdata_i };
+                        else if (data.message_type != 8'h44) data.shares[23:0]  <= { s_tdata_i[31:8] };
+                    end
+                    4'd5: begin
                         if(data.message_type == 8'h55) begin
-                            data.updated_orn[23:0]  <= { s_tdata_i[63:56], s_tdata_i[55:48], s_tdata_i[47:40] };
-                            data.shares             <= { s_tdata_i[39:32], s_tdata_i[31:24], s_tdata_i[23:16],
-                                                         s_tdata_i[15:8] };
-                            data.price[31:24]       <=   s_tdata_i[7:0];
+                            data.updated_orn[23:0]   <= { s_tdata_i[31:8] };
+                            data.shares[31:24]       <= { s_tdata_i[7:0]  };
                         end
                     end
-
-                    3'd3: begin
-                        if(data.message_type == 8'h55)      data.price[23:0] <= { s_tdata_i[63:56], s_tdata_i[55:48], s_tdata_i[47:40] };
-                        else if(data.message_type == 8'h45) data.price       <= { s_tdata_i[63:56], s_tdata_i[55:48], s_tdata_i[47:40],
-                                                                                  s_tdata_i[39:32] };
+                    4'd6: begin
+                        if(data.message_type == 8'h55) begin
+                            data.shares[23:0]        <= { s_tdata_i[31:8] };
+                            data.price[31:24]        <= { s_tdata_i[7:0] };
+                        end
+                    end
+                    4'd7: begin
+                        if(data.message_type == 8'h55)      data.price[23:0] <= { s_tdata_i[31:8] };
+                        else if(data.message_type == 8'h43) data.price       <= { s_tdata_i };
                     end
 
                     default: ;
