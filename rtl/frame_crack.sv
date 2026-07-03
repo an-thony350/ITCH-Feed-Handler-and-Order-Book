@@ -67,12 +67,13 @@ module frame_crack #(
   logic [DGRAM_LEN_W-1:0] dgram_len;
   logic [DGRAM_LEN_W-1:0] payload_left;
   logic                   dgram_start_pending;
+  logic                   final_flush_pending;
 
   axis_data_t pack_data;
   axis_keep_t pack_keep;
   logic [3:0] pack_count;
 
-  assign s_axis_tready_o = rst_n && (!m_axis_tvalid_o || m_axis_tready_i);
+  assign s_axis_tready_o = rst_n && !final_flush_pending && (!m_axis_tvalid_o || m_axis_tready_i);
   assign m_dgram_len_o   = dgram_len;
 
   // utility functions
@@ -154,6 +155,7 @@ module frame_crack #(
       dgram_len            <= '0;
       payload_left         <= '0;
       dgram_start_pending  <= 1'b0;
+      final_flush_pending  <= 1'b0;
       pack_data            <= '0;
       pack_keep            <= '0;
       pack_count           <= '0;
@@ -180,6 +182,7 @@ module frame_crack #(
       logic [DGRAM_LEN_W-1:0] dgram_len_v;
       logic [DGRAM_LEN_W-1:0] payload_left_v;
       logic                   dgram_start_pending_v;
+      logic                   final_flush_pending_v;
       axis_data_t             pack_data_v;
       axis_keep_t             pack_keep_v;
       logic [3:0]             pack_count_v;
@@ -198,7 +201,17 @@ module frame_crack #(
       end
 
       // latch inputs on valid handshake
-      if (s_axis_tvalid_i && s_axis_tready_o) begin
+      if (final_flush_pending && (!m_axis_tvalid_o || m_axis_tready_i)) begin
+        m_axis_tdata_o       <= pack_data;
+        m_axis_tkeep_o       <= pack_keep;
+        m_axis_tvalid_o      <= 1'b1;
+        m_axis_tlast_o       <= 1'b1;
+        m_dgram_start_o      <= 1'b0;
+        pack_data            <= '0;
+        pack_keep            <= '0;
+        pack_count           <= '0;
+        final_flush_pending  <= 1'b0;
+      end else if (s_axis_tvalid_i && s_axis_tready_o) begin
         ethertype_v           = ethertype;
         ip_version_ihl_v      = ip_version_ihl;
         ip_total_len_v        = ip_total_len;
@@ -213,6 +226,7 @@ module frame_crack #(
         dgram_len_v           = dgram_len;
         payload_left_v        = payload_left;
         dgram_start_pending_v = dgram_start_pending;
+        final_flush_pending_v = final_flush_pending;
         pack_data_v           = pack_data;
         pack_keep_v           = pack_keep;
         pack_count_v          = pack_count;
@@ -269,6 +283,10 @@ module frame_crack #(
                   pack_keep_v           = '0;
                   pack_count_v          = '0;
                   emitted               = 1'b1;
+                end else if (payload_left_v == '0) begin
+                  // This beat already produced one output beat. The remaining
+                  // bytes are the final partial beat, so emit them next cycle.
+                  final_flush_pending_v = 1'b1;
                 end
               end
             end
@@ -346,6 +364,7 @@ module frame_crack #(
             pack_data_v    = '0;
             pack_keep_v    = '0;
             pack_count_v   = '0;
+            final_flush_pending_v = 1'b0;
           end
 
           byte_idx_v            = '0;
@@ -376,6 +395,7 @@ module frame_crack #(
         dgram_len           <= dgram_len_v;
         payload_left        <= payload_left_v;
         dgram_start_pending <= dgram_start_pending_v;
+        final_flush_pending <= final_flush_pending_v;
         pack_data           <= pack_data_v;
         pack_keep           <= pack_keep_v;
         pack_count          <= pack_count_v;
