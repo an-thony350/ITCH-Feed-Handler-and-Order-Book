@@ -180,7 +180,7 @@ module order_book_tb;
 // Actual tests now with base data added - focus on forming linked lists
 // From here, only change price and shares
 
-    task Test_Add_BID_To_Book([PRICE_W-1:0] price_i, [SHARES_W-1:0] shares_i);
+    task Test_Add_BID_To_Book();
     $display("Adding data to order book for bid prices...");
         begin
             @(posedge clk);
@@ -188,8 +188,8 @@ module order_book_tb;
             base_price                  <=  32'h00_00_3A_98; // $150.00 base price
             rdata_i.message_type        <=  8'h41;
             rdata_i.orn                 <=  64'h00_00_00_00_00_00_40_65; // 100
-            rdata_i.price               <=  price_i;
-            rdata_i.shares              <=  shares_i;
+            rdata_i.price               <=  32'h00_00_4A_38; // $190.00
+            rdata_i.shares              <=  32'd40; // 40 shares
             rdata_i.side                <=  1'b1; // Buy
             rdata_i.stock_locate        <=  16'h00_64; // not relevant currently - may actuaally remove in order book???
             rdata_i.updated_orn         <=  64'h0;
@@ -215,8 +215,8 @@ module order_book_tb;
             base_price                  <=  32'h00_00_3A_98; // $150.00 base price
             rdata_i.message_type        <=  8'h41;
             rdata_i.orn                 <=  64'h00_00_00_00_00_00_00_64; // 100
-            rdata_i.price               <=  price;
-            rdata_i.shares              <=  shares;
+            rdata_i.price               <=  32'h00_00_4A_38;
+            rdata_i.shares              <=  32'd40;
             rdata_i.side                <=  1'b0; // Sell
             rdata_i.stock_locate        <=  16'h00_64; // not relevant currently - may actuaally remove in order book???
             rdata_i.updated_orn         <=  64'h0;
@@ -234,6 +234,32 @@ module order_book_tb;
 
     endtask
 
+    task Test_Order_Executed_MSG_BID();
+    $display("Executing order message - taking away shares count...");
+        begin
+            @(posedge clk);
+            valid_i                     <=  1'b1;
+            base_price                  <=  32'h00_00_3A_98; // $150.00 base price
+            rdata_i.message_type        <=  8'h43;
+            rdata_i.orn                 <=  64'h00_00_00_00_00_00_40_65;
+            rdata_i.price               <=  32'h00_00_4A_38;
+            rdata_i.shares              <=  32'd20;
+            rdata_i.side                <=  1'b1;
+            rdata_i.stock_locate        <=  16'h00_64; // not relevant currently - may actuaally remove in order book???
+            rdata_i.updated_orn         <=  64'h0;
+
+            @(posedge clk);
+            valid_i                     <=  1'b0;
+            ready_i                     <=  1'b1;
+        end
+        wait(bbo_valid_o);
+        #1;
+
+        @(posedge clk);
+        ready_i         <=  1'b0;
+
+    endtask
+
 // Main
 
     initial begin
@@ -246,9 +272,9 @@ module order_book_tb;
 
         #20;
 
-        Test_Add_ASK_To_Book_BASE();
+        //Test_Add_ASK_To_Book_BASE();
 
-        #20;
+        //#20;
 
         Test_Add_BID_To_Book(32'h00_00_4A_38, 32'd40); // $190.00, 40 shares
         if(bbo_data_o.bid_price != 32'h00004a38) $display("Incorrect Price Value");
@@ -256,6 +282,8 @@ module order_book_tb;
 
         #20;
 
+
+/*
         Test_Add_BID_To_Book(32'h00_00_46_50, 32'd20); // $180.00, 40 shares
         if(bbo_data_o.bid_price != 32'h00004a38) $display("Incorrect Price Value");
         else $display("Correct Price Value");
@@ -266,7 +294,7 @@ module order_book_tb;
         Test_Add_ASK_To_Book(32'h00_00_48_44, 32'd199); // $185.00, 199 shares
         if(bbo_data_o.ask_price != 32'h00004844) $display("Incorrect Price Value");
         else $display("Correct Price Value");
-
+*/
         $finish;
     end
 

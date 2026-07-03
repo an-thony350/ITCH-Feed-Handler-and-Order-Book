@@ -5,8 +5,7 @@ This file is the single Python-side definition of how to pack/unpack those
 vectors.
 
 RTL data_t layout, MSB first:
-    message_type [216:209]
-    stock_locate [208:193]
+    message_type [200:193]
     orn          [192:129]
     updated_orn  [128:65]
     side         [64]
@@ -26,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-DATA_W = 217
+DATA_W = 201
 BBO_W = 128
 
 MSG_W = 8
@@ -72,8 +71,7 @@ DATA_FIELDS = {
     "side": Field(64, 1),
     "updated_orn": Field(65, 64),
     "orn": Field(129, 64),
-    "stock_locate": Field(193, 16),
-    "message_type": Field(209, 8),
+    "message_type": Field(193, 8),
 }
 
 BBO_FIELDS = {
@@ -121,7 +119,6 @@ def pack_data_t(event: dict[str, Any]) -> int:
 
     word = 0
     word = insert_field(word, DATA_FIELDS["message_type"], message_type)
-    word = insert_field(word, DATA_FIELDS["stock_locate"], int(event["locate"]))
     word = insert_field(word, DATA_FIELDS["orn"], int(event["order_ref"]))
     word = insert_field(
         word,
