@@ -162,6 +162,8 @@ logic [BBO_DEPTH-1:0] bid_active_bits;
 logic [BBO_DEPTH-1:0] ask_active_bits;
 logic [63:0]    bid_chunk_bits;
 logic [63:0]    ask_chunk_bits;
+logic [63:0]    active_bid_lookup_chunk;
+logic [63:0]    active_ask_lookup_chunk;
 
 // functions to determine type of message - ADD and EXECUTE messages have multiple calls
 
@@ -201,6 +203,8 @@ assign event_price_idx = price_to_idx(latched_rdata.price);
 assign lookup_price_idx = price_to_idx(lookup_entry.price);
 assign bid_chunk_bits   =   bid_active_bits[ (bid_multiple * 64) +: 64];
 assign ask_chunk_bits   =   ask_active_bits[ (ask_multiple * 64) +: 64];
+assign active_bid_lookup_chunk  =   bid_active_bits[{lookup_price_idx[11:6], 6'd0} +: 64];
+assign active_ask_lookup_chunk  =   ask_active_bits[{lookup_price_idx[11:6], 6'd0} +: 64];
 
 // State machine logic - Next state determination
 
@@ -312,6 +316,11 @@ always_ff @(posedge clk) begin
                     ask_active_bits[clear_idx[BBO_W-1:0]] <= '0;
                 end
 
+                if(int'(clear_idx) == 0) begin
+                    bid_enc_valid <= '0;
+                    ask_enc_valid <= '0;
+                end
+
                 if (int'(clear_idx) != HASH_DEPTH - 1) begin
                     clear_idx <= clear_idx + HASH_W'(1);
                 end
@@ -338,7 +347,7 @@ always_ff @(posedge clk) begin
             end
 
             IDX_REQ: begin
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+               // $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 h_orn           <=  order_table[hash_idx].orn;
                 h_valid         <=  order_table[hash_idx].valid;
                 rep_h_valid     <=  order_table[rep_hash_idx].valid;
@@ -347,7 +356,7 @@ always_ff @(posedge clk) begin
             end
 
             IDX_SEARCH: begin
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+               // $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 if(probe < MAX_PROBES || rep_probe < MAX_PROBES) begin
                     if(is_add_msg(latched_rdata.message_type)) begin
                         if(!h_valid || h_tombstone) begin
@@ -399,7 +408,7 @@ always_ff @(posedge clk) begin
             end
 
             UPDATE: begin
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+               // $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 if (is_add_msg(latched_rdata.message_type)) begin
                     order_table[insert_idx].valid       <=  1'b1;
                     order_table[insert_idx].orn         <=  latched_rdata.orn;
@@ -441,33 +450,45 @@ always_ff @(posedge clk) begin
                 end
                 else if(latched_rdata.message_type == MSG_DELETE) begin
                     if (lookup_entry.side) begin
-                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - latched_rdata.shares;
+                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - lookup_entry.shares;
                         if(bid_price_book[lookup_price_idx] == lookup_entry.shares) begin
                             bid_active_bits[lookup_price_idx]       <=  1'b0;
+                            if(active_bid_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
+                                bid_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                            end
                         end
                     end
                     else begin
-                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - latched_rdata.shares;
+                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - lookup_entry.shares;
                         if(ask_price_book[lookup_price_idx] == lookup_entry.shares) begin
                             ask_active_bits[lookup_price_idx]       <=  1'b0;
+                            if(active_ask_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
+                                ask_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                            end
                         end
                     end
 
                     order_table[lookup_idx].tombstone   <=  1'b1;
                 end
                 else if (latched_rdata.message_type == MSG_REPLACE) begin
-                    $display("DEBUG REPLACE: old_ref=%d, new_ref=%d, price=%d, shares=%d",
-              lookup_idx, insert_idx, latched_rdata.price, latched_rdata.shares);
+                  //  $display("DEBUG REPLACE: old_ref=%d, new_ref=%d, price=%d, shares=%d",
+             // lookup_idx, insert_idx, latched_rdata.price, latched_rdata.shares);
                     if (lookup_entry.side) begin
-                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - latched_rdata.shares;
+                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - lookup_entry.shares;
                         if(bid_price_book[lookup_price_idx] == lookup_entry.shares) begin
                             bid_active_bits[lookup_price_idx]       <=  1'b0;
+                            if(active_bid_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
+                                bid_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                            end
                         end
                     end
                     else begin
-                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - latched_rdata.shares;
+                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - lookup_entry.shares;
                         if(ask_price_book[lookup_price_idx] == lookup_entry.shares) begin
                             ask_active_bits[lookup_price_idx]       <=  1'b0;
+                            if(active_bid_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
+                                bid_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                            end
                         end
                     end
 
@@ -478,9 +499,9 @@ always_ff @(posedge clk) begin
             end
 
             REPLACE_ADD: begin
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
-                $display("DEBUG REPLACE: old_ref=%d, new_ref=%d, price=%d, shares=%d, event_price_idx=%d",
-              hash_idx, insert_idx, latched_rdata.price, latched_rdata.shares, event_price_idx);
+              //  $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+              //  $display("DEBUG REPLACE: old_ref=%d, new_ref=%d, price=%d, shares=%d, event_price_idx=%d",
+            //  hash_idx, insert_idx, latched_rdata.price, latched_rdata.shares, event_price_idx);
                 order_table[insert_idx].valid       <=  1'b1;
                 order_table[insert_idx].orn         <=  latched_rdata.updated_orn;
                 order_table[insert_idx].side        <=  latched_rdata.side;
@@ -502,7 +523,7 @@ always_ff @(posedge clk) begin
 
             BBO_CHUNK_PRIORITY: begin
 
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+             //   $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 for(int i = 0; i < CHUNK_LEN; i++) begin
                     if(bid_enc_valid[i] != 0) begin
                         bid_multiple   <=  6'(i);
@@ -518,13 +539,13 @@ always_ff @(posedge clk) begin
             end
 
             BBO_BIT_PRIORITY: begin
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+              //  $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 for(int i = 0; i < CHUNK_LEN; i++) begin
                     if(bid_chunk_bits[i] != 0) begin
                         bid_found_comb      <=  1'b1;
                         best_bid_idx        <=  BBO_W'(i);
-                        $display("DEBUG BBO: chunk=%d, mask=%b, active_bit_1010=%b",
-          i, bid_enc_valid[i], bid_active_bits[1010]);
+                //        $display("DEBUG BBO: chunk=%d, mask=%b, active_bit_1010=%b",
+       //   i, bid_enc_valid[i], bid_active_bits[1010]);
                     end
                 end
                 for(int j = 63; j >= 0; j--) begin
@@ -538,7 +559,7 @@ always_ff @(posedge clk) begin
             end
 
             EMIT: begin
-                $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+            //    $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 bbo_valid_o <= 1'b1;
 
                 bbo_data_o.bid_price  <= bid_found_comb ? (latched_base_price + PRICE_W'((bid_multiple * 64) + best_bid_idx)) : '0;
