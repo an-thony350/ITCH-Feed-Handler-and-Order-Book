@@ -255,7 +255,7 @@ async def assert_no_extra_bbo_valid_pulses(
 # Basic smoke / handshake tests
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_reset_reaches_ready(dut: Any) -> None:
     await initialise_order_book(dut)
 
@@ -263,7 +263,7 @@ async def test_order_book_reset_reaches_ready(dut: Any) -> None:
     assert signal_value_to_int(dut.bbo_valid_o.value) == 0
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_single_add_matches_expected_bbo(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10000),
@@ -275,7 +275,7 @@ async def test_order_book_single_add_matches_expected_bbo(dut: Any) -> None:
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_bbo_valid_is_not_sticky(dut: Any) -> None:
     await initialise_order_book(dut)
 
@@ -291,7 +291,7 @@ async def test_order_book_bbo_valid_is_not_sticky(dut: Any) -> None:
 # ADD / BBO priority behaviour
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_adds_update_best_bid_and_best_ask(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10000),
@@ -310,7 +310,7 @@ async def test_order_book_adds_update_best_bid_and_best_ask(dut: Any) -> None:
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_same_price_adds_aggregate_shares(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10000),
@@ -332,7 +332,7 @@ async def test_order_book_same_price_adds_aggregate_shares(dut: Any) -> None:
 # EXECUTE / CANCEL / DELETE lifecycle tests
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_partial_execute_then_second_execute_is_cumulative(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10000),
@@ -349,7 +349,7 @@ async def test_order_book_partial_execute_then_second_execute_is_cumulative(dut:
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_full_execute_best_bid_drops_to_next_level(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10005),
@@ -366,7 +366,7 @@ async def test_order_book_full_execute_best_bid_drops_to_next_level(dut: Any) ->
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_cancel_to_zero_best_bid_drops_to_next_level(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10005),
@@ -383,7 +383,7 @@ async def test_order_book_cancel_to_zero_best_bid_drops_to_next_level(dut: Any) 
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_delete_best_ask_drops_to_next_level(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="SELL", shares=100, price=10020),
@@ -403,7 +403,7 @@ async def test_order_book_delete_best_ask_drops_to_next_level(dut: Any) -> None:
 # REPLACE behaviour
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_replace_moves_bid_to_new_ref_new_price(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10000),
@@ -420,7 +420,7 @@ async def test_order_book_replace_moves_bid_to_new_ref_new_price(dut: Any) -> No
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_replace_inherits_original_sell_side(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="SELL", shares=100, price=10020),
@@ -450,7 +450,7 @@ async def test_order_book_replace_only_order_same_price_changes_size(dut: Any) -
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_replace_same_ref_same_price_changes_size(dut: Any) -> None:
     events = [
         add_event(1, order_ref=1001, side="BUY", shares=100, price=10000),
@@ -470,7 +470,7 @@ async def test_order_book_replace_same_ref_same_price_changes_size(dut: Any) -> 
 # Hash collision / linked-list behaviour
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_same_hash_collision_insert_lookup_delete(dut: Any) -> None:
     """Two different refs with the same XOR hash should both be reachable.
 
@@ -502,7 +502,7 @@ async def test_order_book_same_hash_collision_insert_lookup_delete(dut: Any) -> 
 # Side-independence test
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_locked_book_same_price_keeps_bid_and_ask_sizes_independent(
     dut: Any,
 ) -> None:
@@ -535,7 +535,7 @@ async def test_order_book_locked_book_same_price_keeps_bid_and_ask_sizes_indepen
 # Generated oracle replay
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_first_ten_oracle_events_match_golden_bbo(dut: Any) -> None:
     await initialise_order_book(dut)
 
@@ -546,7 +546,7 @@ async def test_order_book_first_ten_oracle_events_match_golden_bbo(dut: Any) -> 
         await drive_and_check(dut, event, state)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_full_generated_oracle_matches_golden_bbo(dut: Any) -> None:
     await initialise_order_book(dut)
 
@@ -659,7 +659,7 @@ def make_random_valid_events(
     return events
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_random_valid_stream_matches_python_golden(dut: Any) -> None:
     events = make_random_valid_events(seed=12345, count=75)
     await drive_sequence_against_python_golden(dut, events)
@@ -702,7 +702,7 @@ async def drive_order_book_event_with_rtl_msg_type(
     return await wait_bbo_valid(dut, timeout_cycles=timeout_cycles)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_delete_one_of_two_orders_at_same_bid_price_keeps_remaining_level(
     dut: Any,
 ) -> None:
@@ -723,7 +723,7 @@ async def test_order_book_delete_one_of_two_orders_at_same_bid_price_keeps_remai
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_full_execute_one_of_two_same_price_asks_keeps_remaining_level(
     dut: Any,
 ) -> None:
@@ -744,7 +744,7 @@ async def test_order_book_full_execute_one_of_two_same_price_asks_keeps_remainin
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_best_bid_and_ask_walk_multiple_levels_when_levels_empty(
     dut: Any,
 ) -> None:
@@ -777,7 +777,7 @@ async def test_order_book_best_bid_and_ask_walk_multiple_levels_when_levels_empt
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_replace_one_order_at_shared_price_preserves_remaining_old_level(
     dut: Any,
 ) -> None:
@@ -798,7 +798,7 @@ async def test_order_book_replace_one_order_at_shared_price_preserves_remaining_
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_same_ref_replace_to_new_price_remains_lookupable_by_same_ref(
     dut: Any,
 ) -> None:
@@ -819,7 +819,7 @@ async def test_order_book_same_ref_replace_to_new_price_remains_lookupable_by_sa
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_hash_cluster_delete_middle_reuse_slot_and_lookup_tail(
     dut: Any,
 ) -> None:
@@ -859,7 +859,7 @@ async def test_order_book_hash_cluster_delete_middle_reuse_slot_and_lookup_tail(
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_extreme_supported_price_indices_base_and_last_tick(
     dut: Any,
 ) -> None:
@@ -885,7 +885,7 @@ async def test_order_book_extreme_supported_price_indices_base_and_last_tick(
     await drive_sequence_with_hand_expected(dut, events, states)
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_add_with_mpid_message_type_f_behaves_like_add(dut: Any) -> None:
     await initialise_order_book(dut)
 
@@ -905,7 +905,7 @@ async def test_order_book_add_with_mpid_message_type_f_behaves_like_add(dut: Any
     )
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_execute_with_price_message_type_c_behaves_like_execute(
     dut: Any,
 ) -> None:
@@ -927,7 +927,7 @@ async def test_order_book_execute_with_price_message_type_c_behaves_like_execute
     assert_bbo_matches_word(bbo_word, expected_state(2, ask_price=10020, ask_size=65))
 
 
-@cocotb.test(skip=True)
+@cocotb.test(skip=False)
 async def test_order_book_reset_after_activity_clears_all_book_state(dut: Any) -> None:
     await initialise_order_book(dut)
 
