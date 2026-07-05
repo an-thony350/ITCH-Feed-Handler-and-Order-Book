@@ -46,17 +46,7 @@ used for the "overflow" when another node is needed in the linked list (also kep
 
 import hdl_header::*;
 
-module order_book #(
-    parameter int ORN_W    = 64,
-    parameter int PRICE_W  = 32,
-    parameter int SHARES_W = 32,
-    parameter int STOCK_W  = 16,
-    parameter int MSG_W    = 8,
-    parameter int HASH_W   = 12,
-    parameter int FIFO_W   = 11,
-    parameter int BBO_W    = 12,
-    parameter int MAX_PROBES = 16
-)(
+module order_book(
     input  logic               clk,
     input  logic               rst_n,
 
@@ -73,20 +63,6 @@ module order_book #(
     output logic               bbo_valid_o
 );
 
-// local parameters for tables and ASCII message types
-
-localparam int HASH_DEPTH = 1 << HASH_W;
-localparam int BBO_DEPTH  = 1 << BBO_W;
-localparam int CHUNK_LEN  = BBO_DEPTH >> 6; // BBO_DEPTH dvided by 64
-
-localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
-localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
-localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
-localparam logic [MSG_W-1:0] MSG_EXEC_PX  = 8'h43; // C
-localparam logic [MSG_W-1:0] MSG_DELETE   = 8'h44; // D
-localparam logic [MSG_W-1:0] MSG_REPLACE  = 8'h55; // U
-localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
-
 // Struct for data inputted to order book
 
 typedef struct packed {
@@ -98,6 +74,135 @@ typedef struct packed {
     logic                   tombstone;
 } order_entry_t;
 
+
+
+// local parameters for tables and ASCII message types
+
+localparam int HASH_DEPTH = 1 << HASH_W;
+localparam int BBO_DEPTH  = 1 << BBO_W;
+localparam int CHUNK_LEN  = 1 << CHUNK_W;
+localparam int ENTRY_W    = $bits(order_entry_t);
+
+
+localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
+localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
+localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
+localparam logic [MSG_W-1:0] MSG_EXEC_PX  = 8'h43; // C
+localparam logic [MSG_W-1:0] MSG_DELETE   = 8'h44; // D
+localparam logic [MSG_W-1:0] MSG_REPLACE  = 8'h55; // U
+localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
+
+
+
+// internal registers
+
+// BRAM Blocks
+(* ram_style = "block" *) logic [ENTRY_W-1:0]   order_table    [HASH_DEPTH-1:0];
+(* ram_style = "block" *) logic [SHARES_W-1:0]  bid_price_book [BBO_DEPTH-1:0];
+(* ram_style = "block" *) logic [SHARES_W-1:0]  ask_price_book [BBO_DEPTH-1:0];
+
+
+// Dual-Port (A & B) BRAM registers - data, write-enable, & address pointer registers
+
+// order table registers
+logic               we_a;
+logic [HASH_W-1:0]  addr_a;
+order_entry_t       din_a;
+order_entry_t       dout_a;
+
+logic               we_b;
+logic [HASH_W-1:0]  addr_b;
+order_entry_t       din_b;
+order_entry_t       dout_b;
+
+logic [ENTRY_W-1:0] ram_din_a;
+logic [ENTRY_W-1:0] ram_dout_a;
+logic [ENTRY_W-1:0] ram_din_b;
+logic [ENTRY_W-1:0] ram_dout_b;
+
+// bid price book registers
+logic                bid_we_a;
+logic [BBO_W-1:0]    bid_addr_a;
+logic [SHARES_W-1:0] bid_din_a;
+logic [SHARES_W-1:0] bid_dout_a;
+
+logic                bid_we_b;
+logic [BBO_W-1:0]    bid_addr_b;
+logic [SHARES_W-1:0] bid_din_b;
+logic [SHARES_W-1:0] bid_dout_b;
+
+// ask price book registers
+logic                ask_we_a;
+logic [BBO_W-1:0]    ask_addr_a;
+logic [SHARES_W-1:0] ask_din_a;
+logic [SHARES_W-1:0] ask_dout_a;
+
+logic                ask_we_b;
+logic [BBO_W-1:0]    ask_addr_b;
+logic [SHARES_W-1:0] ask_din_b;
+logic [SHARES_W-1:0] ask_dout_b;
+
+
+// IDX registers
+logic [HASH_W-1:0]  clear_idx;
+logic [HASH_W-1:0]  lookup_idx;
+logic [HASH_W-1:0]  hash_idx;
+logic [HASH_W-1:0]  rep_hash_idx;
+logic [BBO_W-1:0]   event_price_idx;
+logic [BBO_W-1:0]   lookup_p_idx_wire;
+logic [BBO_W-1:0]   event_p_idx_wire;
+logic [HASH_W-1:0]  insert_idx;
+logic [BBO_W-1:0]   best_bid_idx;
+logic [BBO_W-1:0]   best_ask_idx;
+
+
+// Found signals
+logic idx_found;
+logic rep_idx_found;
+logic bid_chunk_found;
+logic ask_chunk_found;
+logic bid_bit_found;
+logic ask_bit_found;
+
+
+// IDX Search registers
+int           probe;
+int           rep_probe;
+order_entry_t h_entry;
+order_entry_t rep_h_entry;
+
+
+// Replacement Add register
+logic [SHARES_W-1:0] base_add_shares;
+logic [SHARES_W-1:0] tmp_base_shares;
+
+
+// Latched registers
+o_data_t                latched_rdata;
+order_entry_t           latched_lookup_entry;
+logic [PRICE_W-1:0]     latched_base_price;
+logic [SHARES_W-1:0]    latched_book_shares;
+logic [SHARES_W-1:0]    latched_event_shares;
+logic [BBO_W-1:0]       latched_lookup_price_idx;
+
+
+// Price book & BBO output registers
+logic           bid_found_comb;
+logic           ask_found_comb;
+
+logic [CHUNK_LEN-1:0]    bid_enc_valid;
+logic [CHUNK_LEN-1:0]    ask_enc_valid;
+logic [CHUNK_W-1:0]      bid_multiple;
+logic [CHUNK_W-1:0]      ask_multiple;
+logic [CHUNK_LEN-1:0]    bid_active_chunks [CHUNK_LEN-1:0];
+logic [CHUNK_LEN-1:0]    ask_active_chunks [CHUNK_LEN-1:0];
+logic [CHUNK_LEN-1:0]    bid_chunk_bits;
+logic [CHUNK_LEN-1:0]    ask_chunk_bits;
+logic [CHUNK_LEN-1:0]    active_bid_lookup_chunk;
+logic [CHUNK_LEN-1:0]    active_ask_lookup_chunk;
+
+
+
 // state machine for order book data
 
 typedef enum {
@@ -105,65 +210,20 @@ typedef enum {
     IDLE,
     IDX_REQ,
     IDX_SEARCH,
-    UPDATE,
+    UPDATE_READ_TBL,
+    UPDATE_READ_BOOK,
+    UPDATE_WRITE,
     REPLACE_ADD,
     BBO_CHUNK_PRIORITY,
     BBO_BIT_PRIORITY,
+    FETCH_BBO,
+    FETCH_BBO_WAIT,
     EMIT
 } state_t;
 
 state_t current_state, next_state;
 
-// internal registers
 
-order_entry_t order_table [HASH_DEPTH-1:0];
-logic [SHARES_W-1:0] bid_price_book [BBO_DEPTH-1:0];
-logic [SHARES_W-1:0] ask_price_book [BBO_DEPTH-1:0];
-
-o_data_t latched_rdata;
-logic [PRICE_W-1:0] latched_base_price;
-logic [HASH_W-1:0] clear_idx;
-
-logic [HASH_W-1:0] lookup_idx;
-logic lookup_found;
-order_entry_t lookup_entry;
-logic                       idx_found;
-logic                       rep_idx_found;
-int                         probe;
-int                         rep_probe;
-logic [HASH_W-1:0]          hash_idx;
-logic [HASH_W-1:0]          rep_hash_idx;
-logic                       h_valid;
-logic                       rep_h_valid;
-logic [ORN_W-1:0]           h_orn;
-logic                       h_tombstone;
-logic                       rep_h_tombstone;
-
-logic [HASH_W-1:0] insert_idx;
-logic insert_found;
-logic insert_existing_found;
-
-logic [BBO_W-1:0] event_price_idx;
-logic [BBO_W-1:0] lookup_price_idx;
-
-logic [BBO_W-1:0] best_bid_idx;
-logic [BBO_W-1:0] best_ask_idx;
-logic bid_found_comb;
-logic ask_found_comb;
-logic bid_chunk_found;
-logic ask_chunk_found;
-logic bid_bit_found;
-logic ask_bit_found;
-logic [63:0]    bid_enc_valid;
-logic [63:0]    ask_enc_valid;
-logic [5:0]    bid_multiple;
-logic [5:0]    ask_multiple;
-logic [BBO_DEPTH-1:0] bid_active_bits;
-logic [BBO_DEPTH-1:0] ask_active_bits;
-logic [63:0]    bid_chunk_bits;
-logic [63:0]    ask_chunk_bits;
-logic [63:0]    active_bid_lookup_chunk;
-logic [63:0]    active_ask_lookup_chunk;
 
 // functions to determine type of message - ADD and EXECUTE messages have multiple calls
 
@@ -176,7 +236,6 @@ function automatic logic is_reduce_msg(input logic [MSG_W-1:0] msg);
 endfunction
 
 // Hashing function
-
 function automatic logic [HASH_W-1:0] hash_orn(input logic [ORN_W-1:0] orn);
     logic [HASH_W-1:0] h;
     begin
@@ -188,8 +247,7 @@ function automatic logic [HASH_W-1:0] hash_orn(input logic [ORN_W-1:0] orn);
     end
 endfunction
 
-// Price logic (for price book) - Only works if delta < $40.96 - look into dropping the signal if it has this issue
-
+// Price logic (for price book) - Only works if delta < $40.96
 function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
     logic [PRICE_W-1:0] delta;
     begin
@@ -198,55 +256,113 @@ function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] pric
     end
 endfunction
 
-assign lookup_entry = order_table[lookup_idx];
-assign event_price_idx = price_to_idx(latched_rdata.price);
-assign lookup_price_idx = price_to_idx(lookup_entry.price);
-assign bid_chunk_bits   =   bid_active_bits[ (bid_multiple * 64) +: 64];
-assign ask_chunk_bits   =   ask_active_bits[ (ask_multiple * 64) +: 64];
-assign active_bid_lookup_chunk  =   bid_active_bits[{lookup_price_idx[11:6], 6'd0} +: 64];
-assign active_ask_lookup_chunk  =   ask_active_bits[{lookup_price_idx[11:6], 6'd0} +: 64];
 
-// State machine logic - Next state determination
+
+// Combinational assignments
+
+// idx assignments
+assign event_price_idx          =   price_to_idx(latched_rdata.price);
+assign lookup_p_idx_wire        =   price_to_idx(dout_a.price);
+assign event_p_idx_wire         =   price_to_idx(latched_rdata.price);
+
+// chunck assignments
+assign bid_chunk_bits           =   bid_active_chunks[bid_multiple];
+assign ask_chunk_bits           =   ask_active_chunks[ask_multiple];
+assign active_bid_lookup_chunk  =   bid_active_chunks[latched_lookup_price_idx[11:6]];
+assign active_ask_lookup_chunk  =   ask_active_chunks[latched_lookup_price_idx[11:6]];
+
+// hashed data assignments
+assign h_entry                  =   dout_a;
+assign rep_h_entry              =   dout_b;
+
+// Combinational State machine logic
 
 always_comb begin
+    // default assignments
+
     next_state = current_state;
+
+    we_a       = 1'b0;
+    addr_a     = clear_idx;
+    din_a      = '0;
+
+    we_b       = 1'b0;
+    addr_b     = clear_idx;
+    din_b      = '0;
+
+    bid_we_a   = 1'b0;
+    bid_addr_a = clear_idx[BBO_W-1:0];
+    bid_din_a  = '0;
+
+    bid_we_b   = 1'b0;
+    bid_addr_b = clear_idx[BBO_W-1:0];
+    bid_din_b  = '0;
+
+    ask_we_a   = 1'b0;
+    ask_addr_a = clear_idx[BBO_W-1:0];
+    ask_din_a  = '0;
+
+    ask_we_b   = 1'b0;
+    ask_addr_b = clear_idx[BBO_W-1:0];
+    ask_din_b  = '0;
 
     case (current_state)
         CLEAR: begin
             next_state = (int'(clear_idx) == (HASH_DEPTH - 1)) ? IDLE : CLEAR;
+
+            we_a       = 1'b1;
+            addr_a     = clear_idx;
+            din_a      = '0;
+
+            bid_we_a   = 1'b1;
+            bid_addr_a = clear_idx[BBO_W-1:0];
+            bid_din_a  = '0;
+
+            ask_we_a   = 1'b1;
+            ask_addr_a = clear_idx[BBO_W-1:0];
+            ask_din_a  = '0;
         end
 
         IDLE: begin
             next_state = valid_i ? IDX_REQ : IDLE;
+
+            addr_a     = valid_i ? hash_orn(rdata_i.orn)         : '0;
+            addr_b     = valid_i ? hash_orn(rdata_i.updated_orn) : '0;
         end
 
         IDX_REQ: begin
             next_state = IDX_SEARCH;
+
+            addr_a     = hash_idx;
+            addr_b     = rep_hash_idx;
         end
 
         IDX_SEARCH: begin
+            addr_a     = hash_idx;
+            addr_b     = rep_hash_idx;
+
             if(latched_rdata.message_type == MSG_REPLACE) begin
-                if( (idx_found || (h_valid && h_orn == latched_rdata.orn && !h_tombstone)) && ( rep_idx_found || (!rep_h_valid || rep_h_tombstone))) begin
-                    next_state  =   UPDATE;
+                if( (idx_found || (h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone)) && ( rep_idx_found || (!rep_h_entry.valid || rep_h_entry.tombstone))) begin
+                    next_state  =   UPDATE_READ_TBL;
                 end
                 else begin
                     next_state  =   IDX_REQ;
                 end
             end
             else if(is_add_msg(latched_rdata.message_type)) begin
-                if(!h_valid || h_tombstone) begin
-                    next_state  =   UPDATE;
+                if(!h_entry.valid || h_entry.tombstone) begin
+                    next_state  =   UPDATE_READ_TBL;
                 end
                 else begin
                     next_state  =   IDX_REQ;
                 end
             end
             else begin
-                if(h_valid && h_orn == latched_rdata.orn && !h_tombstone) begin
-                    next_state  =   UPDATE;
+                if(h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone) begin
+                    next_state  =   UPDATE_READ_TBL;
                 end
-                else if(!h_valid) begin
-                    next_state  =   IDLE; // not really necessary
+                else if(!h_entry.valid) begin
+                    next_state  =   IDLE;
                 end
                 else begin
                     next_state  =   IDX_REQ;
@@ -254,12 +370,116 @@ always_comb begin
             end
         end
 
-        UPDATE: begin
+        UPDATE_READ_TBL: begin
+            next_state  =   UPDATE_READ_BOOK;
+
+            addr_a      =   lookup_idx;
+
+            bid_addr_a  = lookup_p_idx_wire;
+            ask_addr_a  = lookup_p_idx_wire;
+
+            bid_addr_b  = event_p_idx_wire;
+            ask_addr_b  = event_p_idx_wire;
+        end
+
+        UPDATE_READ_BOOK: begin
+            next_state  =   UPDATE_WRITE;
+        end
+
+        UPDATE_WRITE: begin
             next_state = (latched_rdata.message_type == MSG_REPLACE) ? REPLACE_ADD : BBO_CHUNK_PRIORITY;
+            we_a       = 1'b1;
+
+            if(is_add_msg(latched_rdata.message_type)) begin
+                addr_a          = insert_idx;
+
+                din_a.valid     = 1'b1;
+                din_a.orn       = latched_rdata.orn;
+                din_a.side      = latched_rdata.side;
+                din_a.shares    = latched_rdata.shares;
+                din_a.price     = latched_rdata.price;
+                din_a.tombstone = 1'b0;
+
+                if(latched_rdata.side) begin
+                    bid_we_a   = 1'b1;
+                    bid_addr_a = event_price_idx;
+                    bid_din_a  = latched_event_shares + latched_rdata.shares;
+                end
+                else begin
+                    ask_we_a   = 1'b1;
+                    ask_addr_a = event_price_idx;
+                    ask_din_a  = latched_event_shares + latched_rdata.shares;
+                end
+            end
+            else if(latched_rdata.message_type == MSG_DELETE || latched_rdata.message_type == MSG_REPLACE) begin
+                addr_a          = lookup_idx;
+                din_a           = latched_lookup_entry;
+                din_a.tombstone = 1'b1;
+
+                if(latched_lookup_entry.side) begin
+                    bid_we_a   = 1'b1;
+                    bid_addr_a = latched_lookup_price_idx;
+                    bid_din_a  = latched_book_shares - latched_lookup_entry.shares;
+                end
+                else begin
+                    ask_we_a   = 1'b1;
+                    ask_addr_a = latched_lookup_price_idx;
+                    ask_din_a  = latched_book_shares - latched_lookup_entry.shares;
+                end
+            end
+            else begin
+                addr_a = lookup_idx;
+                din_a  = latched_lookup_entry;
+
+                if(latched_rdata.shares >= latched_lookup_entry.shares) begin
+                    din_a.tombstone = 1'b1;
+                end
+                else begin
+                    din_a.shares = latched_lookup_entry.shares - latched_rdata.shares;
+                end
+                if(latched_lookup_entry.side) begin
+                    bid_we_a   = 1'b1;
+                    bid_addr_a = latched_lookup_price_idx;
+                    bid_din_a  = latched_book_shares - latched_rdata.shares;
+                end
+                else begin
+                    ask_we_a   = 1'b1;
+                    ask_addr_a = latched_lookup_price_idx;
+                    ask_din_a  = latched_book_shares - latched_rdata.shares;
+                end
+            end
         end
 
         REPLACE_ADD: begin
             next_state = BBO_CHUNK_PRIORITY;
+
+            if(event_price_idx == latched_lookup_price_idx) begin
+                tmp_base_shares = latched_book_shares - latched_lookup_entry.shares;
+            end
+            else begin
+                tmp_base_shares = latched_event_shares;
+            end
+
+            we_b            = 1'b1;
+            addr_b          = insert_idx;
+
+            din_b.valid     = 1'b1;
+            din_b.orn       = latched_rdata.updated_orn;
+            din_b.side      = latched_lookup_entry.side;
+            din_b.shares    = latched_rdata.shares;
+            din_b.price     = latched_rdata.price;
+            din_b.tombstone = 1'b0;
+
+            if(latched_lookup_entry.side) begin
+                bid_we_b   = 1'b1;
+                bid_addr_b = event_price_idx;
+                bid_din_b  = tmp_base_shares + latched_rdata.shares;
+            end
+            else begin
+                ask_we_b   = 1'b1;
+                ask_addr_b = event_price_idx;
+                ask_din_b  = tmp_base_shares + latched_rdata.shares;
+            end
         end
 
         BBO_CHUNK_PRIORITY: begin
@@ -267,7 +487,19 @@ always_comb begin
         end
 
         BBO_BIT_PRIORITY: begin
-            next_state = (bid_bit_found && ask_bit_found) ? EMIT : BBO_BIT_PRIORITY;
+            next_state = (bid_bit_found && ask_bit_found) ? FETCH_BBO : BBO_BIT_PRIORITY;
+        end
+
+        FETCH_BBO: begin
+            next_state  =   FETCH_BBO_WAIT;
+            bid_addr_a  = (bid_multiple * 64) + best_bid_idx;
+            ask_addr_a  = (ask_multiple * 64) + best_ask_idx;
+        end
+
+        FETCH_BBO_WAIT: begin
+            bid_addr_a  = (bid_multiple * 64) + best_bid_idx;
+            ask_addr_a  = (ask_multiple * 64) + best_ask_idx;
+            next_state  = EMIT;
         end
 
         EMIT: begin
@@ -280,7 +512,62 @@ always_comb begin
     endcase
 end
 
-// Sequential Logic for both order book and price book - Maybe split this into two clocks?
+// Combinational ram asssignments - split allows for vivado synthesis
+
+assign ram_din_a = din_a;
+assign dout_a    = ram_dout_a;
+
+assign ram_din_b = din_b;
+assign dout_b    = ram_dout_b;
+
+// Sequential Dual-Port BRAM writes
+
+// order table writes
+always_ff @(posedge clk) begin
+    if(we_a) begin
+        order_table[addr_a] <= ram_din_a;
+    end
+    ram_dout_a <= order_table[addr_a];
+end
+
+always_ff @(posedge clk) begin
+    if(we_b) begin
+        order_table[addr_b] <= ram_din_b;
+    end
+    ram_dout_b <= order_table[addr_b];
+end
+
+// bid price book writes
+always_ff @(posedge clk) begin
+    if(bid_we_a) begin
+        bid_price_book[bid_addr_a] <= bid_din_a;
+    end
+    bid_dout_a <= bid_price_book[bid_addr_a];
+end
+
+always_ff @(posedge clk) begin
+    if(bid_we_b) begin
+        bid_price_book[bid_addr_b] <= bid_din_b;
+    end
+    bid_dout_b <= bid_price_book[bid_addr_b];
+end
+
+// ask price book writes
+always_ff @(posedge clk) begin
+    if(ask_we_a) begin
+        ask_price_book[ask_addr_a] <= ask_din_a;
+    end
+    ask_dout_a <= ask_price_book[ask_addr_a];
+end
+
+always_ff @(posedge clk) begin
+    if(ask_we_b) begin
+        ask_price_book[ask_addr_b] <= ask_din_b;
+    end
+    ask_dout_b <= ask_price_book[ask_addr_b];
+end
+
+// Sequential Logic for both order book and price book with states
 always_ff @(posedge clk) begin
 
     if (!rst_n) begin
@@ -302,18 +589,14 @@ always_ff @(posedge clk) begin
         ask_found_comb      <= 1'b0;
     end
     else begin
-        current_state <= next_state;
-        bbo_valid_o <= 1'b0;
+        current_state   <= next_state;
+        bbo_valid_o     <= 1'b0;
 
         case (current_state)
             CLEAR: begin
-                order_table[clear_idx] <= '0;
-
-                if (int'(clear_idx) < BBO_DEPTH) begin
-                    bid_price_book[clear_idx[BBO_W-1:0]] <= '0;
-                    ask_price_book[clear_idx[BBO_W-1:0]] <= '0;
-                    bid_active_bits[clear_idx[BBO_W-1:0]] <= '0;
-                    ask_active_bits[clear_idx[BBO_W-1:0]] <= '0;
+                if (int'(clear_idx) < CHUNK_LEN) begin
+                    bid_active_chunks[clear_idx[5:0]] <= '0;
+                    ask_active_chunks[clear_idx[5:0]] <= '0;
                 end
 
                 if(int'(clear_idx) == 0) begin
@@ -346,20 +629,10 @@ always_ff @(posedge clk) begin
                 end
             end
 
-            IDX_REQ: begin
-               // $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
-                h_orn           <=  order_table[hash_idx].orn;
-                h_valid         <=  order_table[hash_idx].valid;
-                rep_h_valid     <=  order_table[rep_hash_idx].valid;
-                h_tombstone     <=  order_table[hash_idx].tombstone;
-                rep_h_tombstone <=  order_table[rep_hash_idx].tombstone;
-            end
-
             IDX_SEARCH: begin
-               // $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 if(probe < MAX_PROBES || rep_probe < MAX_PROBES) begin
                     if(is_add_msg(latched_rdata.message_type)) begin
-                        if(!h_valid || h_tombstone) begin
+                        if(!h_entry.valid || h_entry.tombstone) begin
                             insert_idx      <=      hash_idx;
                             idx_found       <=      1'b1;
                             rep_idx_found   <=      1'b1;
@@ -372,7 +645,7 @@ always_ff @(posedge clk) begin
                     else if(latched_rdata.message_type == MSG_REPLACE) begin
                         // original idx
                         if(!idx_found) begin
-                            if(h_valid && h_orn == latched_rdata.orn && !h_tombstone) begin
+                            if(h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone) begin
                                 lookup_idx      <=      hash_idx;
                                 idx_found       <=      1'b1;
                             end
@@ -383,7 +656,7 @@ always_ff @(posedge clk) begin
                         end
                         // updated idx
                         if(!rep_idx_found) begin
-                            if(!rep_h_valid || rep_h_tombstone) begin
+                            if(!rep_h_entry.valid || rep_h_entry.tombstone) begin
                                 insert_idx      <=      rep_hash_idx;
                                 rep_idx_found   <=      1'b1;
                             end
@@ -394,7 +667,7 @@ always_ff @(posedge clk) begin
                         end
                     end
                     else begin
-                        if(h_valid && h_orn == latched_rdata.orn && !h_tombstone) begin
+                        if(h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone) begin
                             lookup_idx      <=      hash_idx;
                             idx_found       <=      1'b1;
                             rep_idx_found   <=      1'b1;
@@ -407,123 +680,129 @@ always_ff @(posedge clk) begin
                 end
             end
 
-            UPDATE: begin
-               // $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+            UPDATE_READ_TBL: begin
+                latched_lookup_entry        <=      dout_a;
+            end
+
+            UPDATE_READ_BOOK: begin
+                latched_lookup_price_idx    <=      price_to_idx(latched_lookup_entry.price);
+
+                if(latched_lookup_entry.side) begin
+                    latched_book_shares  <= bid_dout_a;
+                end
+                else begin
+                    latched_book_shares  <= ask_dout_a;
+                end
+
+                if(latched_rdata.message_type == MSG_REPLACE ? latched_lookup_entry.side : latched_rdata.side) begin
+                    latched_event_shares <= bid_dout_b;
+                end
+                else begin
+                    latched_event_shares <= ask_dout_b;
+                end
+            end
+
+            UPDATE_WRITE: begin
                 if (is_add_msg(latched_rdata.message_type)) begin
-                    order_table[insert_idx].valid       <=  1'b1;
-                    order_table[insert_idx].orn         <=  latched_rdata.orn;
-                    order_table[insert_idx].side        <=  latched_rdata.side;
-                    order_table[insert_idx].shares      <=  latched_rdata.shares;
-                    order_table[insert_idx].price       <=  latched_rdata.price;
-                    order_table[insert_idx].tombstone   <=  1'b0;
 
                     if (latched_rdata.side) begin
-                        bid_price_book[event_price_idx]         <=  bid_price_book[event_price_idx] + latched_rdata.shares;
-                        bid_enc_valid[event_price_idx[11:6]]    <=  1'b1;
-                        bid_active_bits[event_price_idx]        <=  1'b1;
-                    end else begin
-                        ask_price_book[event_price_idx]         <=  ask_price_book[event_price_idx] + latched_rdata.shares;
-                        ask_enc_valid[event_price_idx[11:6]]    <=  1'b1;
-                        ask_active_bits[event_price_idx]        <=  1'b1;
+                        bid_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
+                        bid_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
+                    end
+                    else begin
+                        ask_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
+                        ask_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
                     end
                 end
                 else if (is_reduce_msg(latched_rdata.message_type)) begin
-                    if (lookup_entry.side) begin
-                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - latched_rdata.shares;
-                        if(bid_price_book[lookup_price_idx] == latched_rdata.shares) begin
-                            bid_active_bits[lookup_price_idx]       <=  1'b0;
-                        end
-                    end
-                    else begin
-                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - latched_rdata.shares;
-                        if(ask_price_book[lookup_price_idx] == latched_rdata.shares) begin
-                            ask_active_bits[lookup_price_idx]       <=  1'b0;
-                        end
-                    end
 
-                    if (latched_rdata.shares >= lookup_entry.shares) begin
-                        order_table[lookup_idx].tombstone   <=  1'b1;
+                    if (latched_lookup_entry.side) begin
+                        if(latched_book_shares == latched_rdata.shares) begin
+                            bid_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <=  1'b0;
+
+                            if(active_bid_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
+                                bid_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
+                            end
+                        end
                     end
                     else begin
-                        order_table[lookup_idx].shares <= lookup_entry.shares - latched_rdata.shares;
+                        if(latched_book_shares == latched_rdata.shares) begin
+                            ask_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <=  1'b0;
+
+                            if(active_ask_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
+                                ask_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
+                            end
+                        end
                     end
                 end
                 else if(latched_rdata.message_type == MSG_DELETE) begin
-                    if (lookup_entry.side) begin
-                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - lookup_entry.shares;
-                        if(bid_price_book[lookup_price_idx] == lookup_entry.shares) begin
-                            bid_active_bits[lookup_price_idx]       <=  1'b0;
-                            if(active_bid_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
-                                bid_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                    if (latched_lookup_entry.side) begin
+
+                        if(latched_book_shares == latched_lookup_entry.shares) begin
+                            bid_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
+
+                            if(active_bid_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
+                                bid_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
                             end
                         end
                     end
                     else begin
-                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - lookup_entry.shares;
-                        if(ask_price_book[lookup_price_idx] == lookup_entry.shares) begin
-                            ask_active_bits[lookup_price_idx]       <=  1'b0;
-                            if(active_ask_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
-                                ask_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                        if(latched_book_shares == latched_lookup_entry.shares) begin
+                            ask_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
+
+                            if(active_ask_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
+                                ask_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
                             end
                         end
                     end
 
-                    order_table[lookup_idx].tombstone   <=  1'b1;
                 end
                 else if (latched_rdata.message_type == MSG_REPLACE) begin
-                  //  $display("DEBUG REPLACE: old_ref=%d, new_ref=%d, price=%d, shares=%d",
-             // lookup_idx, insert_idx, latched_rdata.price, latched_rdata.shares);
-                    if (lookup_entry.side) begin
-                        bid_price_book[lookup_price_idx] <= bid_price_book[lookup_price_idx] - lookup_entry.shares;
-                        if(bid_price_book[lookup_price_idx] == lookup_entry.shares) begin
-                            bid_active_bits[lookup_price_idx]       <=  1'b0;
-                            if(active_bid_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
-                                bid_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                    if (latched_lookup_entry.side) begin
+
+                        if(latched_book_shares == latched_lookup_entry.shares) begin
+                            bid_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
+
+                            if(active_bid_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
+                                bid_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
                             end
                         end
                     end
                     else begin
-                        ask_price_book[lookup_price_idx] <= ask_price_book[lookup_price_idx] - lookup_entry.shares;
-                        if(ask_price_book[lookup_price_idx] == lookup_entry.shares) begin
-                            ask_active_bits[lookup_price_idx]       <=  1'b0;
-                            if(active_bid_lookup_chunk == (64'h1 << lookup_price_idx[5:0])) begin
-                                bid_enc_valid[lookup_price_idx[11:6]]   <=  1'b0;
+                        if(latched_book_shares == latched_lookup_entry.shares) begin
+                            ask_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
+
+                            if(active_ask_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
+                                ask_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
                             end
                         end
                     end
 
-                    // Keep the inherited side in latched_rdata for the add-new half.
-                    latched_rdata.side <= lookup_entry.side;
-                    order_table[lookup_idx].tombstone   <=  1'b1;
+                    latched_rdata.side <= latched_lookup_entry.side;
                 end
             end
 
             REPLACE_ADD: begin
-              //  $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
-              //  $display("DEBUG REPLACE: old_ref=%d, new_ref=%d, price=%d, shares=%d, event_price_idx=%d",
-            //  hash_idx, insert_idx, latched_rdata.price, latched_rdata.shares, event_price_idx);
-                order_table[insert_idx].valid       <=  1'b1;
-                order_table[insert_idx].orn         <=  latched_rdata.updated_orn;
-                order_table[insert_idx].side        <=  latched_rdata.side;
-                order_table[insert_idx].shares      <=  latched_rdata.shares;
-                order_table[insert_idx].price       <=  latched_rdata.price;
-                order_table[insert_idx].tombstone   <=  1'b0;
 
-                if (latched_rdata.side) begin
-                    bid_price_book[event_price_idx] <= bid_price_book[event_price_idx] + latched_rdata.shares;
-                    bid_enc_valid[event_price_idx[11:6]]    <=  1'b1;
-                    bid_active_bits[event_price_idx]        <=  1'b1;
+                if (event_price_idx == latched_lookup_price_idx) begin
+                    base_add_shares = latched_book_shares - latched_lookup_entry.shares;
+                    end
+                else begin
+                    base_add_shares = latched_event_shares;
+                end
+
+                if (latched_lookup_entry.side) begin
+                    bid_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
+                    bid_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
                 end
                 else begin
-                    ask_price_book[event_price_idx] <= ask_price_book[event_price_idx] + latched_rdata.shares;
-                    ask_enc_valid[event_price_idx[11:6]]    <=  1'b1;
-                    ask_active_bits[event_price_idx]        <=  1'b1;
+                    ask_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
+                    ask_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
                 end
             end
 
             BBO_CHUNK_PRIORITY: begin
 
-             //   $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
                 for(int i = 0; i < CHUNK_LEN; i++) begin
                     if(bid_enc_valid[i] != 0) begin
                         bid_multiple   <=  6'(i);
@@ -539,13 +818,11 @@ always_ff @(posedge clk) begin
             end
 
             BBO_BIT_PRIORITY: begin
-              //  $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
+
                 for(int i = 0; i < CHUNK_LEN; i++) begin
                     if(bid_chunk_bits[i] != 0) begin
                         bid_found_comb      <=  1'b1;
                         best_bid_idx        <=  BBO_W'(i);
-                //        $display("DEBUG BBO: chunk=%d, mask=%b, active_bit_1010=%b",
-       //   i, bid_enc_valid[i], bid_active_bits[1010]);
                     end
                 end
                 for(int j = 63; j >= 0; j--) begin
@@ -558,19 +835,19 @@ always_ff @(posedge clk) begin
                 ask_bit_found       <=  1'b1;
             end
 
-            EMIT: begin
-            //    $display("TIME=%t, STATE=%s, READY=%b, IDX=%d", $time, current_state.name(), ready_o, clear_idx);
-                bbo_valid_o <= 1'b1;
-
+            FETCH_BBO_WAIT: begin
                 bbo_data_o.bid_price  <= bid_found_comb ? (latched_base_price + PRICE_W'((bid_multiple * 64) + best_bid_idx)) : '0;
-                bbo_data_o.bid_shares <= bid_found_comb ? bid_price_book[(bid_multiple * 64) + best_bid_idx] : '0;
+                bbo_data_o.bid_shares <= bid_found_comb ? bid_dout_a : '0;
+
                 bbo_data_o.ask_price  <= ask_found_comb ? (latched_base_price + PRICE_W'((ask_multiple * 64) + best_ask_idx)) : '0;
-                bbo_data_o.ask_shares <= ask_found_comb ? ask_price_book[(ask_multiple * 64) + best_ask_idx] : '0;
+                bbo_data_o.ask_shares <= ask_found_comb ? ask_dout_a : '0;
             end
 
-            default: begin
-                // No memory update.
+            EMIT: begin
+                bbo_valid_o <= 1'b1;
             end
+
+            default: ;
         endcase
     end
 end
