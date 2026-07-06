@@ -14,31 +14,31 @@
 import hdl_header::*;
 
 module mold_deframe (
-  input  logic       clk,
-  input  logic       rst_n,
+  input  wire       clk,
+  input  wire       rst_n,
 
   // AXIS MoldUDP64 datagram input.
-  input  axis_data_t s_axis_tdata_i,
-  input  axis_keep_t s_axis_tkeep_i,
-  input  logic       s_axis_tvalid_i,
-  input  logic       s_axis_tlast_i,
+  input  wire axis_data_t s_axis_tdata_i,
+  input  wire axis_keep_t s_axis_tkeep_i,
+  input  wire       s_axis_tvalid_i,
+  input  wire       s_axis_tlast_i,
   output logic       s_axis_tready_o,
 
   // Datagram metadata from frame_crack. Valid with s_dgram_start_i.
-  input  logic [DGRAM_LEN_W-1:0] s_dgram_len_i,
-  input  logic                   s_dgram_start_i,
+  input  wire [DGRAM_LEN_W-1:0] s_dgram_len_i,
+  input  wire                   s_dgram_start_i,
 
   // AXIS ITCH payload byte stream, with MoldUDP64 length prefixes removed.
   output axis_data_t m_payload_tdata_o,
   output axis_keep_t m_payload_tkeep_o,
   output logic       m_payload_tvalid_o,
   output logic       m_payload_tlast_o,
-  input  logic       m_payload_tready_i,
+  input  wire       m_payload_tready_i,
 
   // Per-message length stream to realign. One item per ITCH payload.
   output logic [MOLD_MSG_LEN_W-1:0] m_msg_len_o,
   output logic                      m_msg_len_valid_o,
-  input  logic                      m_msg_len_ready_i,
+  input  wire                      m_msg_len_ready_i,
 
   // MoldUDP64 header sideband. seq_valid_o pulses once per datagram after the
   // 20-byte MoldUDP64 header is accepted and decoded.

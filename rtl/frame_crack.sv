@@ -14,14 +14,14 @@ module frame_crack #(
   parameter bit          CHECK_DST_PORT    = 1'b0,
   parameter logic [15:0] EXPECTED_DST_PORT = 16'd0
 ) (
-  input  logic       clk,
-  input  logic       rst_n,
+  input  wire       clk,
+  input  wire       rst_n,
 
   // AXIS Ethernet frame input from DMA / testbench.
-  input  axis_data_t s_axis_tdata_i,
-  input  axis_keep_t s_axis_tkeep_i,
-  input  logic       s_axis_tvalid_i,
-  input  logic       s_axis_tlast_i,
+  input  wire axis_data_t s_axis_tdata_i,
+  input  wire axis_keep_t s_axis_tkeep_i,
+  input  wire       s_axis_tvalid_i,
+  input  wire       s_axis_tlast_i,
   output logic       s_axis_tready_o,
 
   // AXIS MoldUDP64 datagram output.
@@ -29,7 +29,7 @@ module frame_crack #(
   output axis_keep_t m_axis_tkeep_o,
   output logic       m_axis_tvalid_o,
   output logic       m_axis_tlast_o,
-  input  logic       m_axis_tready_i,
+  input  wire       m_axis_tready_i,
 
   // Datagram metadata. Valid on the beat where m_dgram_start_o is asserted.
   output logic [DGRAM_LEN_W-1:0] m_dgram_len_o,

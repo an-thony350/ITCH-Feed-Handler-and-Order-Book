@@ -10,21 +10,21 @@ module ingress_top #(
   parameter bit          CHECK_DST_PORT    = 1'b0,
   parameter logic [15:0] EXPECTED_DST_PORT = 16'd0
 ) (
-  input  logic       clk,
-  input  logic       rst_n,
+  input  wire       clk,
+  input  wire       rst_n,
 
   // AXIS Ethernet frame input from PS->PL DMA or the cocotb/xsim driver.
-  input  axis_data_t s_frame_tdata_i,
-  input  axis_keep_t s_frame_tkeep_i,
-  input  logic       s_frame_tvalid_i,
-  input  logic       s_frame_tlast_i,
+  input  wire axis_data_t s_frame_tdata_i,
+  input  wire axis_keep_t s_frame_tkeep_i,
+  input  wire       s_frame_tvalid_i,
+  input  wire       s_frame_tlast_i,
   output logic       s_frame_tready_o,
 
   // AXIS ITCH-message output to data_handler.
   output axis_data_t m_itch_tdata_o,
   output logic       m_itch_tvalid_o,
   output logic       m_itch_tlast_o,
-  input  logic       m_itch_tready_i,
+  input  wire       m_itch_tready_i,
 
   // MoldUDP64 sideband for Phase-4 gap/A-B logic and debug registers.
   output logic [MOLD_SESSION_W-1:0] session_o,
