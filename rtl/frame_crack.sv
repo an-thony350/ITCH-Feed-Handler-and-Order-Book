@@ -265,15 +265,18 @@ module frame_crack #(
                 16'd3: begin
                   ethertype      <= s_axis_tdata_i[31:16];
                   ip_version_ihl <= s_axis_tdata_i[15:8];
+                  beat_idx       <= beat_idx + 16'd1;
                 end
 
                 16'd4: begin
                   ip_total_len <= s_axis_tdata_i[31:16];
+                  beat_idx     <= beat_idx + 16'd1;
                 end
 
                 16'd5: begin
                   ip_flags_frag <= s_axis_tdata_i[31:16];
                   ip_protocol   <= s_axis_tdata_i[7:0];
+                  beat_idx      <= beat_idx + 16'd1;
                 end
 
                 16'd9: begin

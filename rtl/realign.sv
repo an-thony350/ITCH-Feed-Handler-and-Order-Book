@@ -83,17 +83,23 @@ module realign #(
   endfunction
 
   function automatic logic last_keep_is_contiguous(input axis_keep_t keep);
-    case (keep)
-      8'b1000_0000,
-      8'b1100_0000,
-      8'b1110_0000,
-      8'b1111_0000,
-      8'b1111_1000,
-      8'b1111_1100,
-      8'b1111_1110,
-      8'b1111_1111: last_keep_is_contiguous = 1'b1;
-      default:      last_keep_is_contiguous = 1'b0;
-    endcase
+    logic seen_zero;
+    int   lane;
+    begin
+      // Valid bytes are packed from the MSB lane downwards. For the current
+      // 32-bit ingress this accepts 1000, 1100, 1110 and 1111. Keeping this
+      // as a small loop makes it stay correct if AXIS_DATA_W is widened later.
+      seen_zero = 1'b0;
+      last_keep_is_contiguous = (keep != '0);
+
+      for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
+        if (!keep[AXIS_KEEP_W-1-lane]) begin
+          seen_zero = 1'b1;
+        end else if (seen_zero) begin
+          last_keep_is_contiguous = 1'b0;
+        end
+      end
+    end
   endfunction
 
   function automatic logic tkeep_bad(
