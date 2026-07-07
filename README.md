@@ -378,23 +378,3 @@ BBO fields are exported through AXI GPIO:
 | `bbo_valid_o` | `axi_gpio_2` |
 
 The current AXI DMA instance is MM2S-only. There is no S2MM result DMA path in this build.
-
-## Known limitations
-
-- PYNQ-Z1 bring-up uses PS-to-PL DMA, not direct PL Ethernet ingress.
-- The project does not implement live Nasdaq multicast connectivity.
-- No 10G/25G/100G MAC, CMAC, PCS/PMA, SFP+/QSFP, or GT transceiver path is included.
-- Public ITCH sample files are BinaryFILE-style ITCH records, not Ethernet/IP/UDP/MoldUDP64 captures.
-- The network ingress must therefore be tested with encapsulated frames generated from ITCH payloads.
-- The current Vivado design exposes BBO through AXI GPIO, not through S2MM DMA.
-- A/B feed arbitration is not implemented.
-- Duplicate suppression is not implemented.
-- Gap detection and recovery are not implemented.
-- `data_handler.sv` does not currently decode `F` Add-with-MPID.
-- Symbol routing is hard-coded to one locate.
-- Base price is hard-coded in RTL.
-- The order book is a serial multi-cycle FSM, not an II=1 pipelined design.
-- `bbo_t` has no explicit bid/ask valid bits.
-- Full internal order-table and price-level state comparison is not complete in the current cocotb flow.
-- No committed proof is included for verification against real Nasdaq sample data.
-- No PS-side runtime log is included showing DMA input, GPIO BBO readback, and comparison against expected BBO values.
