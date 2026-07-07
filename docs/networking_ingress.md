@@ -153,53 +153,80 @@ The recovered message list must exactly match the original ITCH payload list.
 
 ## Stage 1: `frame_crack`
 
-`frame_crack` strips Ethernet/IP/UDP and emits the UDP payload as an AXI4-Stream datagram.
+`frame_crack` strips the fixed Ethernet II + IPv4 + UDP headers and emits the UDP payload as an AXI4-Stream datagram for `mold_deframe`.
+
+Current implementation assumptions:
+
+- `AXIS_DATA_W == 32`.
+- One complete Ethernet frame is provided per input AXI packet.
+- AXIS byte order is big-endian: byte lane 0 is `tdata[31:24]`.
+- Ethernet is untagged Ethernet II.
+- IPv4 only.
+- IPv4 header length must be IHL = 5, so there are no IP options.
+- UDP only.
+- IPv4 fragments are dropped.
+- UDP payload starts at fixed byte offset 42, so the implementation uses a fixed 2-byte carry aligner rather than a generic byte-lane packer.
 
 Inputs:
 
 ```text
-Ethernet frame AXIS
+Ethernet frame AXI4-Stream
 ```
 
 Outputs:
 
 ```text
-dgram_tdata
-dgram_tkeep
-dgram_tvalid
-dgram_tlast
-dgram_tready
-dgram_len
-dgram_start
+m_axis_tdata
+m_axis_tkeep
+m_axis_tvalid
+m_axis_tlast
+m_axis_tready
+m_dgram_len
+m_dgram_start
 frame_drop
 frame_err
 ```
 
+`m_dgram_len` is valid on the first output beat of a datagram, when `m_dgram_start` is asserted.
+
 Minimum parse policy:
 
-| Layer | Required parsing | Policy |
+| Layer | Required parsing | Current policy |
 |---|---|---|
-| Ethernet II | destination MAC, source MAC, EtherType | Require IPv4 EtherType `0x0800`. VLAN support can be deferred if documented. |
-| IPv4 | version, IHL, total length, flags/fragment offset, protocol | Require IPv4 and UDP. Drop fragments. Support IHL 5 first; IHL > 5 can be added later by skipping options. |
-| UDP | source port, destination port, length | Optionally check destination port using `CHECK_DST_PORT` / `EXPECTED_DST_PORT`. |
-| Checksums | IP/UDP checksums | Skip initially or compute in parallel later. Do not stall the hot path for checksums in the first implementation. |
+| Ethernet II | EtherType at bytes 12..13 | Require IPv4 EtherType `0x0800`. Destination/source MAC are skipped in the current parser. VLAN support is deferred. |
+| IPv4 | version, IHL, total length, flags/fragment offset, protocol | Require IPv4, IHL = 5, and UDP. Drop fragments. IHL > 5 is dropped for now; support can be added later by skipping IP options. |
+| UDP | destination port, UDP length | Optionally check destination port using `CHECK_DST_PORT` / `EXPECTED_DST_PORT`. UDP source port is skipped in the current parser. |
+| Checksums | IP/UDP checksums | Skipped initially. They can be computed in parallel later, but should not stall the hot path. |
+| AXI framing | `tkeep`, `tlast` | Non-final beats must have full `tkeep`. Final-beat `tkeep` must be contiguous from lane 0. Bad `tkeep` drops the frame. |
 
 Error policy:
 
+- Bad `tkeep` -> assert `frame_drop_o` and set `FRAME_ERR_BAD_TKEEP`.
 - Bad EtherType -> assert `frame_drop_o` and set `FRAME_ERR_BAD_ETHERTYPE`.
-- Bad IP version/IHL/protocol -> drop and set the corresponding error bit.
-- Fragmented packet -> drop and set `FRAME_ERR_FRAGMENT`.
-- Bad UDP length/runt frame -> drop and set error.
+- Bad IP version -> drop and set `FRAME_ERR_BAD_IP_VER`.
+- Bad IHL -> drop and set `FRAME_ERR_BAD_IHL`.
+- Non-UDP IPv4 packet -> drop and set `FRAME_ERR_BAD_PROTO`.
+- Fragmented IPv4 packet -> drop and set `FRAME_ERR_FRAGMENT`.
+- Destination-port mismatch -> drop and set `FRAME_ERR_BAD_UDP_PORT`, only when `CHECK_DST_PORT == 1`.
+- Bad UDP length -> drop and set `FRAME_ERR_BAD_UDP_LEN`.
+- Runt frame / early `tlast` before the expected header or payload bytes -> drop and set `FRAME_ERR_RUNT_FRAME`.
 - Dropped frames must not emit partial payload to `mold_deframe`.
 
 Acceptance tests:
 
 1. Valid minimal untagged IPv4/UDP frame emits exactly the UDP payload.
-2. Bad EtherType is dropped.
-3. Non-UDP IPv4 packet is dropped.
-4. Fragmented IPv4 packet is dropped.
-5. Optional destination-port mismatch is dropped only when `CHECK_DST_PORT == 1`.
-6. Backpressure from `mold_deframe` does not lose bytes or corrupt `tlast`.
+2. Valid frame with Ethernet padding emits only the UDP payload and drains the padding.
+3. Zero-length UDP payload emits no payload beats and does not assert an error.
+4. Bad EtherType is dropped.
+5. Bad IPv4 version is dropped.
+6. IHL other than 5 is dropped.
+7. Non-UDP IPv4 packet is dropped.
+8. Fragmented IPv4 packet is dropped.
+9. Bad UDP length / runt frame is dropped.
+10. Optional destination-port mismatch is dropped only when `CHECK_DST_PORT == 1`.
+11. Bad `tkeep` is dropped.
+12. Backpressure from `mold_deframe` does not lose bytes or corrupt `tlast`.
+
 
 ## Stage 2: `mold_deframe`
 
