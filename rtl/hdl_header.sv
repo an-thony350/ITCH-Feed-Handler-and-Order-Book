@@ -72,7 +72,7 @@ package hdl_header;
     localparam int BBO_T_W    = $bits(bbo_t);     // 128
 
     // Phase-3 ingress AXI4-Stream conventions
-    parameter int AXIS_DATA_W = 64;
+    parameter int AXIS_DATA_W = 32;
     parameter int AXIS_KEEP_W = AXIS_DATA_W / 8;
 
     typedef logic [AXIS_DATA_W-1:0] axis_data_t;

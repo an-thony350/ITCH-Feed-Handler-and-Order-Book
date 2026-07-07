@@ -1,9 +1,15 @@
 // Contract:
 // - Input is one complete Ethernet frame per AXI packet.
-// - 64-bit AXIS uses big-endian byte order: byte lane 0 is tdata[63:56].
+// - 32-bit AXIS uses big-endian byte order: byte lane 0 is tdata[31:24].
 // - This phase assumes untagged Ethernet, IPv4 IHL=5, UDP, no fragmentation.
 // - Output is the UDP payload, i.e. the MoldUDP64 datagram.
 // - m_dgram_len_o is valid on the first output beat when m_dgram_start_o=1.
+//
+// Timing note:
+// - This rewrite avoids the previous byte-lane loop and generic byte packer.
+// - For the current 32-bit ingress, the fixed Ethernet+IPv4+UDP header is
+//   42 bytes, so the UDP payload always starts at lane 2 of beat 10.
+// - The output path is therefore just a fixed 2-byte carry aligner.
 
 `timescale 1ns/1ps
 `default_nettype none
@@ -22,7 +28,7 @@ module frame_crack #(
   input  wire axis_keep_t s_axis_tkeep_i,
   input  wire       s_axis_tvalid_i,
   input  wire       s_axis_tlast_i,
-  output logic       s_axis_tready_o,
+  output wire       s_axis_tready_o,
 
   // AXIS MoldUDP64 datagram output.
   output axis_data_t m_axis_tdata_o,
@@ -40,62 +46,69 @@ module frame_crack #(
   output logic [FRAME_ERR_W-1:0] frame_err_o
 );
 
-  // impl notes:
-  // - latch EtherType at absolute bytes 12..13;
-  // - latch IPv4 version/IHL at byte 14, total length at 16..17,
-  //   flags/fragment offset at 20..21, protocol at 23;
-  // - latch UDP dst port at 36..37 and UDP length at 38..39;
-  // - validate fields, suppress output for bad frames, and forward bytes
-  //   from absolute byte offset L2_L4_HDR_BYTES to frame end.
+  // This module is intentionally specialised to the current ingress width.
+  // If AXIS_DATA_W changes, rewrite the fixed-offset aligner for that width.
+  initial begin
+    if (AXIS_DATA_W != 32) begin
+      $error("frame_crack rewrite currently supports AXIS_DATA_W == 32 only");
+    end
+  end
 
-  localparam int HDR_FIELD_BYTES = 40; // enough to validate through UDP length
+  typedef enum logic [1:0] {
+    ST_HEADER,
+    ST_FIRST_PAYLOAD,
+    ST_PAYLOAD,
+    ST_DRAIN
+  } state_t;
 
-  logic [15:0] byte_idx;
+  state_t state;
+
+  // Beat index within the Ethernet frame. With 32-bit beats:
+  //   beat 3  carries bytes 12..15  (EtherType and IPv4 version/IHL)
+  //   beat 4  carries bytes 16..19  (IPv4 total length)
+  //   beat 5  carries bytes 20..23  (flags/fragment and protocol)
+  //   beat 9  carries bytes 36..39  (UDP dst port and UDP length)
+  //   beat 10 carries bytes 40..43  (UDP checksum and first 2 payload bytes)
+  logic [15:0] beat_idx;
 
   logic [15:0] ethertype;
   logic [7:0]  ip_version_ihl;
   logic [15:0] ip_total_len;
   logic [15:0] ip_flags_frag;
   logic [7:0]  ip_protocol;
-  logic [15:0] udp_dst_port;
-  logic [15:0] udp_len;
-
-  logic        header_checked;
-  logic        frame_good;
-  logic        frame_bad;
 
   logic [DGRAM_LEN_W-1:0] dgram_len;
   logic [DGRAM_LEN_W-1:0] payload_left;
-  logic                   dgram_start_pending;
-  logic                   final_flush_pending;
 
-  axis_data_t pack_data;
-  axis_keep_t pack_keep;
-  logic [3:0] pack_count;
+  // Carry bytes waiting to be emitted at the head of the next output beat.
+  // carry_bytes[15:8] is the older byte, carry_bytes[7:0] is the newer byte.
+  logic [15:0] carry_bytes;
+  logic [1:0]  carry_count;
 
-  assign s_axis_tready_o = rst_n && !final_flush_pending && (!m_axis_tvalid_o || m_axis_tready_i);
+  logic        start_pending;
+  logic        flush_pending;
+  logic        reset_after_flush;
+
+  wire out_ready;
+  wire input_fire;
+
+  assign out_ready       = (!m_axis_tvalid_o || m_axis_tready_i);
+  assign s_axis_tready_o = rst_n && out_ready && !flush_pending;
+  assign input_fire      = s_axis_tvalid_i && s_axis_tready_o;
   assign m_dgram_len_o   = dgram_len;
 
   // utility functions
-  function automatic logic lane_valid(input axis_keep_t keep, input int lane);
-    lane_valid = keep[AXIS_KEEP_W-1-lane];
-  endfunction
-
   function automatic logic [7:0] lane_byte(input axis_data_t data, input int lane);
     lane_byte = data[AXIS_DATA_W-1-(8*lane) -: 8];
   endfunction
 
   function automatic logic last_keep_is_contiguous(input axis_keep_t keep);
     case (keep)
-      8'b1000_0000,
-      8'b1100_0000,
-      8'b1110_0000,
-      8'b1111_0000,
-      8'b1111_1000,
-      8'b1111_1100,
-      8'b1111_1110,
-      8'b1111_1111: last_keep_is_contiguous = 1'b1;
-      default:      last_keep_is_contiguous = 1'b0;
+      4'b1000,
+      4'b1100,
+      4'b1110,
+      4'b1111: last_keep_is_contiguous = 1'b1;
+      default: last_keep_is_contiguous = 1'b0;
     endcase
   endfunction
 
@@ -110,295 +123,411 @@ module frame_crack #(
     end
   endfunction
 
-  function automatic logic [3:0] keep_count(input axis_keep_t keep);
-    logic [3:0] count;
-
-    count = 4'd0;
-    for (int lane = 0; lane < AXIS_KEEP_W; lane++) begin
-      if (lane_valid(keep, lane)) begin
-        count++;
-      end
-    end
-
-    keep_count = count;
+  function automatic logic [2:0] keep_count(input axis_keep_t keep);
+    case (keep)
+      4'b1000: keep_count = 3'd1;
+      4'b1100: keep_count = 3'd2;
+      4'b1110: keep_count = 3'd3;
+      4'b1111: keep_count = 3'd4;
+      default: keep_count = 3'd0;
+    endcase
   endfunction
 
-  task automatic flag_drop(
-    input  logic [FRAME_ERR_W-1:0] err_bits,
-    inout  logic                   frame_bad_v,
-    inout  logic                   frame_good_v
-  );
-    if (!frame_bad_v) begin
+  function automatic axis_keep_t keep_from_count(input logic [2:0] count);
+    case (count)
+      3'd1: keep_from_count = 4'b1000;
+      3'd2: keep_from_count = 4'b1100;
+      3'd3: keep_from_count = 4'b1110;
+      3'd4: keep_from_count = 4'b1111;
+      default: keep_from_count = 4'b0000;
+    endcase
+  endfunction
+
+  task automatic clear_frame_state();
+    begin
+      state             <= ST_HEADER;
+      beat_idx          <= '0;
+      ethertype         <= '0;
+      ip_version_ihl    <= '0;
+      ip_total_len      <= '0;
+      ip_flags_frag     <= '0;
+      ip_protocol       <= '0;
+      payload_left      <= '0;
+      carry_bytes       <= '0;
+      carry_count       <= '0;
+      start_pending     <= 1'b0;
+      flush_pending     <= 1'b0;
+      reset_after_flush <= 1'b0;
+    end
+  endtask
+
+  task automatic flag_drop(input logic [FRAME_ERR_W-1:0] err_bits);
+    begin
       frame_drop_o <= 1'b1;
       frame_err_o  <= err_bits;
     end
-
-    frame_bad_v  = 1'b1;
-    frame_good_v = 1'b0;
   endtask
 
+  task automatic emit_word(
+    input axis_data_t data,
+    input axis_keep_t keep,
+    input logic       last
+  );
+    begin
+      m_axis_tdata_o  <= data;
+      m_axis_tkeep_o  <= keep;
+      m_axis_tvalid_o <= 1'b1;
+      m_axis_tlast_o  <= last;
+      m_dgram_start_o <= start_pending;
+      start_pending   <= 1'b0;
+    end
+  endtask
 
-  // main logic
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      byte_idx             <= '0;
-      ethertype            <= '0;
-      ip_version_ihl       <= '0;
-      ip_total_len         <= '0;
-      ip_flags_frag        <= '0;
-      ip_protocol          <= '0;
-      udp_dst_port         <= '0;
-      udp_len              <= '0;
-      header_checked       <= 1'b0;
-      frame_good           <= 1'b0;
-      frame_bad            <= 1'b0;
-      dgram_len            <= '0;
-      payload_left         <= '0;
-      dgram_start_pending  <= 1'b0;
-      final_flush_pending  <= 1'b0;
-      pack_data            <= '0;
-      pack_keep            <= '0;
-      pack_count           <= '0;
-      m_axis_tdata_o       <= '0;
-      m_axis_tkeep_o       <= '0;
-      m_axis_tvalid_o      <= 1'b0;
-      m_axis_tlast_o       <= 1'b0;
-      m_dgram_start_o      <= 1'b0;
-      frame_drop_o         <= 1'b0;
-      frame_err_o          <= '0;
+      state             <= ST_HEADER;
+      beat_idx          <= '0;
+      ethertype         <= '0;
+      ip_version_ihl    <= '0;
+      ip_total_len      <= '0;
+      ip_flags_frag     <= '0;
+      ip_protocol       <= '0;
+      dgram_len         <= '0;
+      payload_left      <= '0;
+      carry_bytes       <= '0;
+      carry_count       <= '0;
+      start_pending     <= 1'b0;
+      flush_pending     <= 1'b0;
+      reset_after_flush <= 1'b0;
+      m_axis_tdata_o    <= '0;
+      m_axis_tkeep_o    <= '0;
+      m_axis_tvalid_o   <= 1'b0;
+      m_axis_tlast_o    <= 1'b0;
+      m_dgram_start_o   <= 1'b0;
+      frame_drop_o      <= 1'b0;
+      frame_err_o       <= '0;
     end else begin
-      logic [15:0] ethertype_v;
-      logic [7:0]  ip_version_ihl_v;
-      logic [15:0] ip_total_len_v;
-      logic [15:0] ip_flags_frag_v;
-      logic [7:0]  ip_protocol_v;
-      logic [15:0] udp_dst_port_v;
-      logic [15:0] udp_len_v;
-
-      logic [15:0] byte_idx_v;
-      logic        header_checked_v;
-      logic        frame_good_v;
-      logic        frame_bad_v;
-      logic [DGRAM_LEN_W-1:0] dgram_len_v;
-      logic [DGRAM_LEN_W-1:0] payload_left_v;
-      logic                   dgram_start_pending_v;
-      logic                   final_flush_pending_v;
-      axis_data_t             pack_data_v;
-      axis_keep_t             pack_keep_v;
-      logic [3:0]             pack_count_v;
-
-      logic [FRAME_ERR_W-1:0] err_bits;
-      logic                   emitted;
-
       frame_drop_o <= 1'b0;
       frame_err_o  <= '0;
 
-      // latch outputs on valid handshake
       if (m_axis_tvalid_o && m_axis_tready_i) begin
         m_axis_tvalid_o <= 1'b0;
         m_axis_tlast_o  <= 1'b0;
         m_dgram_start_o <= 1'b0;
       end
 
-      // latch inputs on valid handshake
-      if (final_flush_pending && (!m_axis_tvalid_o || m_axis_tready_i)) begin
-        m_axis_tdata_o       <= pack_data;
-        m_axis_tkeep_o       <= pack_keep;
-        m_axis_tvalid_o      <= 1'b1;
-        m_axis_tlast_o       <= 1'b1;
-        m_dgram_start_o      <= 1'b0;
-        pack_data            <= '0;
-        pack_keep            <= '0;
-        pack_count           <= '0;
-        final_flush_pending  <= 1'b0;
-      end else if (s_axis_tvalid_i && s_axis_tready_o) begin
-        ethertype_v           = ethertype;
-        ip_version_ihl_v      = ip_version_ihl;
-        ip_total_len_v        = ip_total_len;
-        ip_flags_frag_v       = ip_flags_frag;
-        ip_protocol_v         = ip_protocol;
-        udp_dst_port_v        = udp_dst_port;
-        udp_len_v             = udp_len;
-        byte_idx_v            = byte_idx;
-        header_checked_v      = header_checked;
-        frame_good_v          = frame_good;
-        frame_bad_v           = frame_bad;
-        dgram_len_v           = dgram_len;
-        payload_left_v        = payload_left;
-        dgram_start_pending_v = dgram_start_pending;
-        final_flush_pending_v = final_flush_pending;
-        pack_data_v           = pack_data;
-        pack_keep_v           = pack_keep;
-        pack_count_v          = pack_count;
-        emitted               = 1'b0;
+      // Emit a final partial beat that is already held in carry_bytes.
+      // No input is accepted while this is pending.
+      if (flush_pending && out_ready) begin
+        axis_data_t flush_data;
+        axis_keep_t flush_keep;
+
+        flush_data = '0;
+        flush_keep = keep_from_count({1'b0, carry_count});
+
+        case (carry_count)
+          2'd1: flush_data = {carry_bytes[15:8], 24'h0};
+          2'd2: flush_data = {carry_bytes, 16'h0};
+          default: flush_data = '0;
+        endcase
+
+        emit_word(flush_data, flush_keep, 1'b1);
+
+        carry_bytes   <= '0;
+        carry_count   <= '0;
+        flush_pending <= 1'b0;
+
+        if (reset_after_flush) begin
+          clear_frame_state();
+        end else begin
+          state <= ST_DRAIN;
+        end
+      end else if (input_fire) begin
+        logic [FRAME_ERR_W-1:0] err_bits;
+
+        err_bits = '0;
 
         if (tkeep_bad(s_axis_tkeep_i, s_axis_tlast_i)) begin
-          err_bits = '0;
           err_bits[FRAME_ERR_BAD_TKEEP] = 1'b1;
-          flag_drop(err_bits, frame_bad_v, frame_good_v);
-        end
+          flag_drop(err_bits);
 
-        // process each lane of the AXIS beat
-        for (int lane = 0; lane < AXIS_KEEP_W; lane++) begin
-          if (lane_valid(s_axis_tkeep_i, lane)) begin
-            logic [15:0] abs_idx;
-            logic [7:0]  b;
+          if (s_axis_tlast_i) begin
+            clear_frame_state();
+          end else begin
+            state <= ST_DRAIN;
+          end
+        end else begin
+          case (state)
+            ST_HEADER: begin
+              // Fixed-offset field capture. This avoids the previous per-byte
+              // loop through every lane of every beat.
+              case (beat_idx)
+                16'd3: begin
+                  ethertype      <= s_axis_tdata_i[31:16];
+                  ip_version_ihl <= s_axis_tdata_i[15:8];
+                end
 
-            abs_idx = byte_idx_v;
-            b       = lane_byte(s_axis_tdata_i, lane);
+                16'd4: begin
+                  ip_total_len <= s_axis_tdata_i[31:16];
+                end
 
-            case (abs_idx)
-              16'd12: ethertype_v[15:8]      = b;
-              16'd13: ethertype_v[7:0]       = b;
-              16'd14: ip_version_ihl_v       = b;
-              16'd16: ip_total_len_v[15:8]   = b;
-              16'd17: ip_total_len_v[7:0]    = b;
-              16'd20: ip_flags_frag_v[15:8]  = b;
-              16'd21: ip_flags_frag_v[7:0]   = b;
-              16'd23: ip_protocol_v          = b;
-              16'd36: udp_dst_port_v[15:8]   = b;
-              16'd37: udp_dst_port_v[7:0]    = b;
-              16'd38: udp_len_v[15:8]        = b;
-              16'd39: udp_len_v[7:0]         = b;
-              default: ;
-            endcase
+                16'd5: begin
+                  ip_flags_frag <= s_axis_tdata_i[31:16];
+                  ip_protocol   <= s_axis_tdata_i[7:0];
+                end
 
-            // forward payload bytes to output AXIS
-            if (header_checked_v && frame_good_v && (abs_idx >= L2_L4_HDR_BYTES) && (payload_left_v != '0)) begin
-              pack_data_v[AXIS_DATA_W-1-(8*pack_count_v) -: 8] = b;
-              pack_keep_v[AXIS_KEEP_W-1-pack_count_v]          = 1'b1;
-              pack_count_v++;
-              payload_left_v--;
+                16'd9: begin
+                  logic [15:0] ethertype_v;
+                  logic [7:0]  ip_version_ihl_v;
+                  logic [15:0] ip_total_len_v;
+                  logic [15:0] ip_flags_frag_v;
+                  logic [7:0]  ip_protocol_v;
+                  logic [15:0] udp_dst_port_v;
+                  logic [15:0] udp_len_v;
+                  logic [DGRAM_LEN_W-1:0] dgram_len_v;
 
-              if ((pack_count_v == AXIS_KEEP_W) || (payload_left_v == '0)) begin
-                if (!emitted) begin
-                  m_axis_tdata_o  <= pack_data_v;
-                  m_axis_tkeep_o  <= pack_keep_v;
-                  m_axis_tvalid_o <= 1'b1;
-                  m_axis_tlast_o  <= (payload_left_v == '0);
-                  m_dgram_start_o <= dgram_start_pending_v;
+                  ethertype_v      = ethertype;
+                  ip_version_ihl_v = ip_version_ihl;
+                  ip_total_len_v   = ip_total_len;
+                  ip_flags_frag_v  = ip_flags_frag;
+                  ip_protocol_v    = ip_protocol;
+                  udp_dst_port_v   = s_axis_tdata_i[31:16];
+                  udp_len_v        = s_axis_tdata_i[15:0];
+                  dgram_len_v      = udp_len_v - UDP_HDR_BYTES;
 
-                  dgram_start_pending_v = 1'b0;
-                  pack_data_v           = '0;
-                  pack_keep_v           = '0;
-                  pack_count_v          = '0;
-                  emitted               = 1'b1;
-                end else if (payload_left_v == '0) begin
-                  // This beat already produced one output beat. The remaining
-                  // bytes are the final partial beat, so emit them next cycle.
-                  final_flush_pending_v = 1'b1;
+                  if (ethertype_v != ETHERTYPE_IPV4) begin
+                    err_bits[FRAME_ERR_BAD_ETHERTYPE] = 1'b1;
+                  end
+
+                  if (ip_version_ihl_v[7:4] != 4'd4) begin
+                    err_bits[FRAME_ERR_BAD_IP_VER] = 1'b1;
+                  end
+
+                  if (ip_version_ihl_v[3:0] != IPV4_IHL_MIN) begin
+                    err_bits[FRAME_ERR_BAD_IHL] = 1'b1;
+                  end
+
+                  if (ip_flags_frag_v[13] || (ip_flags_frag_v[12:0] != 13'd0)) begin
+                    err_bits[FRAME_ERR_FRAGMENT] = 1'b1;
+                  end
+
+                  if (ip_protocol_v != IP_PROTO_UDP) begin
+                    err_bits[FRAME_ERR_BAD_PROTO] = 1'b1;
+                  end
+
+                  if (CHECK_DST_PORT && (udp_dst_port_v != EXPECTED_DST_PORT)) begin
+                    err_bits[FRAME_ERR_BAD_UDP_PORT] = 1'b1;
+                  end
+
+                  if ((udp_len_v < UDP_HDR_BYTES) ||
+                      (ip_total_len_v < (IPV4_MIN_HDR_BYTES + UDP_HDR_BYTES)) ||
+                      (udp_len_v > (ip_total_len_v - IPV4_MIN_HDR_BYTES))) begin
+                    err_bits[FRAME_ERR_BAD_UDP_LEN] = 1'b1;
+                    dgram_len_v = '0;
+                  end
+
+                  if (s_axis_tlast_i) begin
+                    // Beat 9 ends at byte 39; a valid frame still needs the
+                    // UDP checksum bytes at 40..41.
+                    err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
+                  end
+
+                  if (err_bits != '0) begin
+                    flag_drop(err_bits);
+                    if (s_axis_tlast_i) begin
+                      clear_frame_state();
+                    end else begin
+                      state <= ST_DRAIN;
+                    end
+                  end else begin
+                    dgram_len     <= dgram_len_v;
+                    payload_left  <= dgram_len_v;
+                    start_pending <= (dgram_len_v != '0);
+                    state         <= ST_FIRST_PAYLOAD;
+                    beat_idx      <= beat_idx + 16'd1;
+                  end
+                end
+
+                default: begin
+                  beat_idx <= beat_idx + 16'd1;
+                end
+              endcase
+
+              if (s_axis_tlast_i && (beat_idx != 16'd9)) begin
+                err_bits = '0;
+                err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
+                flag_drop(err_bits);
+                clear_frame_state();
+              end
+            end
+
+            ST_FIRST_PAYLOAD: begin
+              // Beat 10: bytes 40..41 are the UDP checksum. Payload starts at
+              // bytes 42..43, i.e. lane 2/lane 3 of this 32-bit beat.
+              logic [2:0] valid_bytes;
+              logic [2:0] first_payload_avail;
+              logic [2:0] take;
+              logic [DGRAM_LEN_W-1:0] left_after;
+
+              valid_bytes = keep_count(s_axis_tkeep_i);
+
+              if (valid_bytes < 3'd2) begin
+                first_payload_avail = 3'd0;
+              end else begin
+                first_payload_avail = valid_bytes - 3'd2;
+              end
+
+              if (payload_left < first_payload_avail) begin
+                take = payload_left[2:0];
+              end else begin
+                take = first_payload_avail;
+              end
+
+              left_after = payload_left - take;
+
+              if (s_axis_tlast_i && (left_after != '0)) begin
+                err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
+                flag_drop(err_bits);
+                clear_frame_state();
+              end else begin
+                case (take)
+                  3'd0: begin
+                    carry_bytes <= '0;
+                    carry_count <= 2'd0;
+                  end
+
+                  3'd1: begin
+                    carry_bytes <= {lane_byte(s_axis_tdata_i, 2), 8'h00};
+                    carry_count <= 2'd1;
+                  end
+
+                  default: begin
+                    carry_bytes <= {lane_byte(s_axis_tdata_i, 2), lane_byte(s_axis_tdata_i, 3)};
+                    carry_count <= 2'd2;
+                  end
+                endcase
+
+                payload_left <= left_after;
+
+                if (left_after == '0) begin
+                  if (take != 3'd0) begin
+                    flush_pending     <= 1'b1;
+                    reset_after_flush <= s_axis_tlast_i;
+                    state             <= ST_FIRST_PAYLOAD;
+                  end else if (s_axis_tlast_i) begin
+                    clear_frame_state();
+                  end else begin
+                    state <= ST_DRAIN;
+                  end
+                end else begin
+                  state    <= ST_PAYLOAD;
+                  beat_idx <= beat_idx + 16'd1;
                 end
               end
             end
 
-            byte_idx_v++;
-          end
+            ST_PAYLOAD: begin
+              // Each new input beat lets us emit one aligned output beat:
+              // old carry bytes followed by lane 0/lane 1 of the current beat.
+              // lane 2/lane 3 become the next carry if they belong to the UDP
+              // payload.
+              logic [2:0] valid_bytes;
+              logic [2:0] take;
+              logic [DGRAM_LEN_W-1:0] left_after;
+              logic [2:0] out_count;
+              logic [1:0] new_carry_count;
+              logic [15:0] new_carry_bytes;
+              axis_data_t out_data;
+              axis_keep_t out_keep;
+              logic       out_last;
+
+              valid_bytes = keep_count(s_axis_tkeep_i);
+
+              if (payload_left < valid_bytes) begin
+                take = payload_left[2:0];
+              end else begin
+                take = valid_bytes;
+              end
+
+              left_after = payload_left - take;
+
+              if (s_axis_tlast_i && (left_after != '0)) begin
+                err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
+                flag_drop(err_bits);
+                clear_frame_state();
+              end else begin
+                out_data        = '0;
+                new_carry_bytes = '0;
+                new_carry_count = 2'd0;
+
+                // Output is always the existing carry plus up to the first two
+                // bytes of this beat.
+                case (take)
+                  3'd0: begin
+                    out_count = {1'b0, carry_count};
+                    out_data  = {carry_bytes, 16'h0};
+                  end
+
+                  3'd1: begin
+                    out_count = {1'b0, carry_count} + 3'd1;
+                    out_data  = {carry_bytes, lane_byte(s_axis_tdata_i, 0), 8'h0};
+                  end
+
+                  default: begin
+                    out_count = {1'b0, carry_count} + 3'd2;
+                    out_data  = {carry_bytes, lane_byte(s_axis_tdata_i, 0), lane_byte(s_axis_tdata_i, 1)};
+                  end
+                endcase
+
+                // Any current-beat payload bytes beyond lane 1 are held as the
+                // carry for the next output beat.
+                if (take >= 3'd3) begin
+                  new_carry_bytes[15:8] = lane_byte(s_axis_tdata_i, 2);
+                  new_carry_count       = 2'd1;
+                end
+
+                if (take >= 3'd4) begin
+                  new_carry_bytes[7:0] = lane_byte(s_axis_tdata_i, 3);
+                  new_carry_count      = 2'd2;
+                end
+
+                out_keep = keep_from_count(out_count);
+                out_last = ((left_after == '0) && (new_carry_count == 2'd0));
+
+                emit_word(out_data, out_keep, out_last);
+
+                payload_left <= left_after;
+                carry_bytes  <= new_carry_bytes;
+                carry_count  <= new_carry_count;
+                beat_idx     <= beat_idx + 16'd1;
+
+                if (left_after == '0) begin
+                  if (new_carry_count != 2'd0) begin
+                    flush_pending     <= 1'b1;
+                    reset_after_flush <= s_axis_tlast_i;
+                    state             <= ST_PAYLOAD;
+                  end else if (s_axis_tlast_i) begin
+                    clear_frame_state();
+                  end else begin
+                    state <= ST_DRAIN;
+                  end
+                end
+              end
+            end
+
+            ST_DRAIN: begin
+              // Drop or ignore the rest of the frame. This also covers Ethernet
+              // padding after the UDP payload has already been forwarded.
+              if (s_axis_tlast_i) begin
+                clear_frame_state();
+              end
+            end
+
+            default: begin
+              clear_frame_state();
+            end
+          endcase
         end
-
-        // check header fields after all header bytes have been received
-        if (!header_checked_v && (byte_idx_v >= HDR_FIELD_BYTES)) begin
-          err_bits = '0;
-
-          if (ethertype_v != ETHERTYPE_IPV4) begin
-            err_bits[FRAME_ERR_BAD_ETHERTYPE] = 1'b1;
-          end
-
-          if (ip_version_ihl_v[7:4] != 4'd4) begin
-            err_bits[FRAME_ERR_BAD_IP_VER] = 1'b1;
-          end
-
-          if (ip_version_ihl_v[3:0] != IPV4_IHL_MIN) begin
-            err_bits[FRAME_ERR_BAD_IHL] = 1'b1;
-          end
-
-          if (ip_flags_frag_v[13] || (ip_flags_frag_v[12:0] != 13'd0)) begin
-            err_bits[FRAME_ERR_FRAGMENT] = 1'b1;
-          end
-
-          if (ip_protocol_v != IP_PROTO_UDP) begin
-            err_bits[FRAME_ERR_BAD_PROTO] = 1'b1;
-          end
-
-          if (CHECK_DST_PORT && (udp_dst_port_v != EXPECTED_DST_PORT)) begin
-            err_bits[FRAME_ERR_BAD_UDP_PORT] = 1'b1;
-          end
-
-          if ((udp_len_v < UDP_HDR_BYTES) ||
-              (ip_total_len_v < (IPV4_MIN_HDR_BYTES + UDP_HDR_BYTES)) ||
-              (udp_len_v > (ip_total_len_v - IPV4_MIN_HDR_BYTES))) begin
-            err_bits[FRAME_ERR_BAD_UDP_LEN] = 1'b1;
-          end
-
-          header_checked_v = 1'b1;
-
-          // set frame_good/frame_bad and datagram length/payload_left
-          if (err_bits != '0) begin
-            flag_drop(err_bits, frame_bad_v, frame_good_v);
-            dgram_len_v           = '0;
-            payload_left_v        = '0;
-            dgram_start_pending_v = 1'b0;
-          end else if (!frame_bad_v) begin
-            frame_good_v          = 1'b1;
-            dgram_len_v           = udp_len_v - UDP_HDR_BYTES;
-            payload_left_v        = udp_len_v - UDP_HDR_BYTES;
-            dgram_start_pending_v = ((udp_len_v - UDP_HDR_BYTES) != 16'd0);
-          end else begin
-            dgram_len_v           = '0;
-            payload_left_v        = '0;
-            dgram_start_pending_v = 1'b0;
-          end
-        end
-
-        // check for runt frame on last beat
-        if (s_axis_tlast_i) begin
-          if (!header_checked_v || (byte_idx_v < L2_L4_HDR_BYTES) ||
-              (frame_good_v && (payload_left_v != '0))) begin
-            err_bits = '0;
-            err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
-            flag_drop(err_bits, frame_bad_v, frame_good_v);
-          end
-
-          if (frame_bad_v) begin
-            dgram_len_v    = '0;
-            payload_left_v = '0;
-            pack_data_v    = '0;
-            pack_keep_v    = '0;
-            pack_count_v   = '0;
-            final_flush_pending_v = 1'b0;
-          end
-
-          byte_idx_v            = '0;
-          ethertype_v           = '0;
-          ip_version_ihl_v      = '0;
-          ip_total_len_v        = '0;
-          ip_flags_frag_v       = '0;
-          ip_protocol_v         = '0;
-          udp_dst_port_v        = '0;
-          udp_len_v             = '0;
-          header_checked_v      = 1'b0;
-          frame_good_v          = 1'b0;
-          frame_bad_v           = 1'b0;
-          dgram_start_pending_v = 1'b0;
-        end
-
-        ethertype           <= ethertype_v;
-        ip_version_ihl      <= ip_version_ihl_v;
-        ip_total_len        <= ip_total_len_v;
-        ip_flags_frag       <= ip_flags_frag_v;
-        ip_protocol         <= ip_protocol_v;
-        udp_dst_port        <= udp_dst_port_v;
-        udp_len             <= udp_len_v;
-        byte_idx            <= byte_idx_v;
-        header_checked      <= header_checked_v;
-        frame_good          <= frame_good_v;
-        frame_bad           <= frame_bad_v;
-        dgram_len           <= dgram_len_v;
-        payload_left        <= payload_left_v;
-        dgram_start_pending <= dgram_start_pending_v;
-        final_flush_pending <= final_flush_pending_v;
-        pack_data           <= pack_data_v;
-        pack_keep           <= pack_keep_v;
-        pack_count          <= pack_count_v;
       end
     end
   end
