@@ -80,7 +80,7 @@ state_t current_state, next_state;
 
 always_comb begin
     case(current_state)
-    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[31:24] == 8'h41) ? ADD_CAP:
+    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[31:24] == 8'h41 || s_tdata_i[31:24] == 8'h46) ?
                                                                 (s_tdata_i[31:24] == 8'h43 || s_tdata_i[31:24] == 8'h55 ||
                                                                  s_tdata_i[31:24] == 8'h44 || s_tdata_i[31:24] == 8'h58 ||
                                                                  s_tdata_i[31:24] == 8'h45)
@@ -116,7 +116,7 @@ always_ff @(posedge clk) begin
                 word_count        <= '0;
 
                 if(s_tdata_i[31:24] != 8'h55) data.updated_orn <= '0;
-                if(s_tdata_i[31:24] != 8'h41) begin
+                if(s_tdata_i[31:24] != 8'h41 && s_tdata_i[31:24] != 8'h46) begin
                     data.side   <= '0;
                     data.price  <= '0;
                 end
