@@ -15,6 +15,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Fix IDLE decode for A/F and use tlast for message completion
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +27,7 @@ This module has the following assumptions (which we can fix later depending on w
 - Assumes that we are taking in data using the MoldUDP64 Protocal - More specifcally we are taking in data in 8-byte packets
 - Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and the only inputed bytes are the ITCH bytes
 - We are only parsing data from sections 1.3 & 1.4 - all other data is irrelevant
-- For adding orders to the book, we are using No MPID attribution (section 1.3.1) - extra byte is unecessary & wastes logic
+- For adding orders to the book, we now treat both A and F as ADD. F's MPID field is ignored for book state.
 - For order executed, we are including price message - (using section 1.4.2)
 
 
@@ -67,33 +68,79 @@ module data_handler#(
 
 logic [3:0] word_count;
 data_t data;
+logic input_fire;
 
 // State Machine for state data is recieved in
 
-typedef enum {  IDLE, ADD_CAP, MOD_CAP, SEND } state_t;
+typedef enum {  IDLE, ADD_CAP, MOD_CAP, SKIP, SEND } state_t;
 
 state_t current_state, next_state;
 
+localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
+localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
+localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
+localparam logic [MSG_W-1:0] MSG_EXEC_PX  = 8'h43; // C
+localparam logic [MSG_W-1:0] MSG_DELETE   = 8'h44; // D
+localparam logic [MSG_W-1:0] MSG_REPLACE  = 8'h55; // U
+localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
+
+function automatic logic is_add_msg(input logic [MSG_W-1:0] msg);
+    return (msg == MSG_ADD_A) || (msg == MSG_ADD_F);
+endfunction
+
+function automatic logic is_modify_msg(input logic [MSG_W-1:0] msg);
+    return (msg == MSG_EXEC) || (msg == MSG_EXEC_PX) ||
+           (msg == MSG_DELETE) || (msg == MSG_REPLACE) ||
+           (msg == MSG_CANCEL);
+endfunction
+
+assign input_fire = s_tvalid_i && s_tready_o;
+
 // Case logic for next state
 
-// 8'h41 = "A", 8'h43 = "C", 8'h44 = "D", 8'h45 = "E", 8'h55 = "U", 8'h58 = "X" - Maybe add local integers?
-
 always_comb begin
+    next_state = current_state;
+
     case(current_state)
-    IDLE:           next_state = s_tvalid_i                ? (  (s_tdata_i[31:24] == 8'h41 || s_tdata_i[31:24] == 8'h46) ?
-                                                                (s_tdata_i[31:24] == 8'h43 || s_tdata_i[31:24] == 8'h55 ||
-                                                                 s_tdata_i[31:24] == 8'h44 || s_tdata_i[31:24] == 8'h58 ||
-                                                                 s_tdata_i[31:24] == 8'h45)
-                                                                ? MOD_CAP: IDLE) : IDLE;
-    ADD_CAP:        next_state = (word_count == 4'd8)      ? SEND       : ADD_CAP;
-    MOD_CAP: begin
-                if(data.message_type == 8'h44)      next_state = (word_count == 4'd4) ? SEND : MOD_CAP;
-                else if(data.message_type == 8'h58) next_state = (word_count == 4'd5) ? SEND : MOD_CAP;
-                else if(data.message_type == 8'h45) next_state = (word_count == 4'd7) ? SEND : MOD_CAP;
-                else                                next_state = (word_count == 4'd8) ? SEND : MOD_CAP;
-    end
-    SEND:           next_state = ready_i                   ? IDLE       : SEND;
-    default:        next_state = IDLE;
+        IDLE: begin
+            if(input_fire) begin
+                if(is_add_msg(s_tdata_i[31:24])) begin
+                    next_state = s_tlast_i ? SEND : ADD_CAP;
+                end
+                else if(is_modify_msg(s_tdata_i[31:24])) begin
+                    next_state = s_tlast_i ? SEND : MOD_CAP;
+                end
+                else begin
+                    next_state = s_tlast_i ? IDLE : SKIP;
+                end
+            end
+        end
+
+        ADD_CAP: begin
+            if(input_fire && s_tlast_i) begin
+                next_state = SEND;
+            end
+        end
+
+        MOD_CAP: begin
+            if(input_fire && s_tlast_i) begin
+                next_state = SEND;
+            end
+        end
+
+        SKIP: begin
+            if(input_fire && s_tlast_i) begin
+                next_state = IDLE;
+            end
+        end
+
+        SEND: begin
+            if(ready_i) begin
+                next_state = IDLE;
+            end
+        end
+
+        default: next_state = IDLE;
     endcase
 end
 
@@ -110,20 +157,23 @@ always_ff @(posedge clk) begin
         current_state <= next_state;
 
         if(current_state == IDLE) begin
-            if(s_tvalid_i) begin
+            if(input_fire) begin
                 data.message_type <= s_tdata_i[31:24];
                 data.stock_locate <= { s_tdata_i[23:16], s_tdata_i[15:8] };
                 word_count        <= '0;
 
-                if(s_tdata_i[31:24] != 8'h55) data.updated_orn <= '0;
-                if(s_tdata_i[31:24] != 8'h41 && s_tdata_i[31:24] != 8'h46) begin
+                if(s_tdata_i[31:24] != MSG_REPLACE) begin
+                    data.updated_orn <= '0;
+                end
+
+                if(!is_add_msg(s_tdata_i[31:24])) begin
                     data.side   <= '0;
                     data.price  <= '0;
                 end
             end
         end
         else if(current_state == ADD_CAP) begin
-            if(s_tvalid_i) begin
+            if(input_fire) begin
                 word_count <= word_count + 1;
                 case(word_count)
 
@@ -145,7 +195,7 @@ always_ff @(posedge clk) begin
             end
         end
         else if(current_state == MOD_CAP) begin
-            if(s_tvalid_i) begin
+            if(input_fire) begin
                 word_count <= word_count + 1;
                 case(word_count)
 
@@ -155,28 +205,28 @@ always_ff @(posedge clk) begin
 
                     4'd3: begin
                         data.orn[23:0]  <=  s_tdata_i[31:8];
-                        if(data.message_type == 8'h55) data.updated_orn[63:56]  <= { s_tdata_i[7:0] };
-                        else if (data.message_type != 8'h44) data.shares[31:24] <= { s_tdata_i[7:0] };
+                        if(data.message_type == MSG_REPLACE) data.updated_orn[63:56]  <= { s_tdata_i[7:0] };
+                        else if (data.message_type != MSG_DELETE) data.shares[31:24] <= { s_tdata_i[7:0] };
                     end
                     4'd4: begin
-                        if(data.message_type == 8'h55) data.updated_orn[55:24]  <= { s_tdata_i };
-                        else if (data.message_type != 8'h44) data.shares[23:0]  <= { s_tdata_i[31:8] };
+                        if(data.message_type == MSG_REPLACE) data.updated_orn[55:24]  <= { s_tdata_i };
+                        else if (data.message_type != MSG_DELETE) data.shares[23:0]  <= { s_tdata_i[31:8] };
                     end
                     4'd5: begin
-                        if(data.message_type == 8'h55) begin
+                        if(data.message_type == MSG_REPLACE) begin
                             data.updated_orn[23:0]   <= { s_tdata_i[31:8] };
                             data.shares[31:24]       <= { s_tdata_i[7:0]  };
                         end
                     end
                     4'd6: begin
-                        if(data.message_type == 8'h55) begin
+                        if(data.message_type == MSG_REPLACE) begin
                             data.shares[23:0]        <= { s_tdata_i[31:8] };
                             data.price[31:24]        <= { s_tdata_i[7:0] };
                         end
                     end
                     4'd7: begin
-                        if(data.message_type == 8'h55)      data.price[23:0] <= { s_tdata_i[31:8] };
-                        else if(data.message_type == 8'h43) data.price       <= { s_tdata_i };
+                        if(data.message_type == MSG_REPLACE)      data.price[23:0] <= { s_tdata_i[31:8] };
+                        else if(data.message_type == MSG_EXEC_PX) data.price       <= { s_tdata_i };
                     end
 
                     default: ;
