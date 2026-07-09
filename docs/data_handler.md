@@ -43,11 +43,22 @@ Our sequential logic allows us to parse 4-bytes of data per clock cycle, allowin
 
 In this block, we have determined how the data will arrive in each cycle looking at the specification. Then, given that the data is given in Big-Endian format, we have sliced each packet to ensure that we obtain the corrext data in each cycle.
 
+This is done through a `word_count` which increments at each clock cycle (giving a worst case latency of 8 cycles).
+
 
 ---
 
 ## Testing
 
+In testing, we used a SystemVerilog testbench, `data_handler_tb.sv`, to test every single type of message we allow through the data handler. The testbenches follow a `task` (function) call which each test a seperate type of call.
+
+In testing, we achieved 100% accuracy, passing all tests and ensuring that relevant packets sent to the data handler will be parsed correctly.
+
 ---
 
 ## Updates
+
+We are planning to have the following updates to this module:
+
+- Update the packet width to 64, allowing for a higher data input per clock cycle.
+- Add more messages noted in the spec, such as "start message" and "end of day" etc.
