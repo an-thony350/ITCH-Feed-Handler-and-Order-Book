@@ -6,7 +6,7 @@
 // - Message boundaries are carried on a separate length stream. A msg_len item
 //   must be accepted before the first payload byte of that message is emitted.
 // - m_payload_tlast_o marks end of MoldUDP64 datagram, not end of ITCH message.
-// - session/seq/count sideband is extraction only; gap/A-B comparison is Phase 4.
+// - session/seq/count sideband feeds mold_seq_guard for Phase-4 A/B + gap policy.
 
 `timescale 1ns/1ps
 `default_nettype none
@@ -49,6 +49,13 @@ module mold_deframe (
   output logic                      seq_valid_o,
   output logic                      heartbeat_o,
   output logic                      eos_o,
+  output logic                      in_order_o,
+  output logic                      duplicate_o,
+  output logic                      gap_o,
+  output logic                      stale_o,
+  output logic [MOLD_SEQ_W-1:0]     expected_seq_o,
+  output logic [MOLD_SEQ_W-1:0]     gap_start_o,
+  output logic [MOLD_SEQ_W-1:0]     gap_end_o,
 
   // Error/status.
   output logic                      mold_drop_o,
@@ -84,6 +91,17 @@ module mold_deframe (
   axis_data_t payload_pack_data;
   axis_keep_t payload_pack_keep;
   logic [3:0] payload_pack_count;
+
+  logic                      guard_seq_valid;
+  logic [MOLD_SEQ_W-1:0]     guard_seq;
+  logic [MOLD_COUNT_W-1:0]   guard_count;
+  logic                      guard_accept_packet;
+  logic                      guard_drop_packet;
+  logic                      guard_in_order;
+  logic                      guard_duplicate;
+  logic                      guard_gap;
+  logic                      guard_heartbeat;
+  logic                      guard_eos;
 
   assign s_axis_tready_o = rst_n && !beat_valid && !m_payload_tvalid_o && !m_msg_len_valid_o;
 
@@ -125,6 +143,41 @@ module mold_deframe (
       tkeep_bad = (keep != {AXIS_KEEP_W{1'b1}});
     end
   endfunction
+
+  // Present the complete MoldUDP64 header to the sequence guard on the cycle
+  // the final count byte is being consumed. seq_o already contains bytes 10..17;
+  // count_o[15:8] already contains byte 18; the current lane is byte 19.
+  assign guard_seq_valid = beat_valid
+                         && !dropping
+                         && lane_valid(beat_keep, beat_lane)
+                         && (state == ST_HEADER)
+                         && (dgram_byte_idx == 16'd19);
+
+  assign guard_seq   = seq_o;
+  assign guard_count = {count_o[15:8], lane_byte(beat_data, beat_lane)};
+
+  mold_seq_guard #(
+    .SEQ_W   (MOLD_SEQ_W),
+    .COUNT_W (MOLD_COUNT_W)
+  ) u_mold_seq_guard (
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .seq_valid_i     (guard_seq_valid),
+    .seq_i           (guard_seq),
+    .count_i         (guard_count),
+    .clear_stale_i   (1'b0),
+    .accept_packet_o (guard_accept_packet),
+    .drop_packet_o   (guard_drop_packet),
+    .in_order_o      (guard_in_order),
+    .duplicate_o     (guard_duplicate),
+    .gap_o           (guard_gap),
+    .heartbeat_o     (guard_heartbeat),
+    .eos_o           (guard_eos),
+    .stale_o         (stale_o),
+    .expected_seq_o  (expected_seq_o),
+    .gap_start_o     (gap_start_o),
+    .gap_end_o       (gap_end_o)
+  );
 
   task automatic flag_drop(input logic [MOLD_ERR_W-1:0] err_bits);
     if (!dropping) begin
@@ -180,12 +233,18 @@ module mold_deframe (
       seq_valid_o          <= 1'b0;
       heartbeat_o          <= 1'b0;
       eos_o                <= 1'b0;
+      in_order_o           <= 1'b0;
+      duplicate_o          <= 1'b0;
+      gap_o                <= 1'b0;
       mold_drop_o          <= 1'b0;
       mold_err_o           <= '0;
     end else begin
       seq_valid_o <= 1'b0;
       heartbeat_o <= 1'b0;
       eos_o       <= 1'b0;
+      in_order_o  <= 1'b0;
+      duplicate_o <= 1'b0;
+      gap_o       <= 1'b0;
       mold_drop_o <= 1'b0;
       mold_err_o  <= '0;
 
@@ -287,30 +346,39 @@ module mold_deframe (
                     logic [MOLD_COUNT_W-1:0] count_v;
                     logic [MOLD_ERR_W-1:0]   err_bits;
 
-                    count_v = {count_o[15:8], b};
+                    count_v = guard_count;
                     count_o         <= count_v;
                     expected_next_o <= seq_o + count_v;
                     seq_valid_o     <= 1'b1;
+                    heartbeat_o     <= guard_heartbeat;
+                    eos_o           <= guard_eos;
+                    in_order_o      <= guard_in_order;
+                    duplicate_o     <= guard_duplicate;
+                    gap_o           <= guard_gap;
 
-                    if (count_v == MOLD_COUNT_HEARTBEAT) begin
-                      heartbeat_o <= 1'b1;
-                      state       <= ST_DRAIN;
-                      if (dgram_len != MOLD_HDR_BYTES) begin
-                        err_bits = '0;
-                        err_bits[MOLD_ERR_EOS_PAYLOAD] = 1'b1;
-                        flag_drop(err_bits);
-                      end
-                    end else if (count_v == MOLD_COUNT_EOS) begin
-                      eos_o <= 1'b1;
+                    if (guard_heartbeat) begin
                       state <= ST_DRAIN;
                       if (dgram_len != MOLD_HDR_BYTES) begin
                         err_bits = '0;
                         err_bits[MOLD_ERR_EOS_PAYLOAD] = 1'b1;
                         flag_drop(err_bits);
                       end
-                    end else begin
+                    end else if (guard_eos) begin
+                      state <= ST_DRAIN;
+                      if (dgram_len != MOLD_HDR_BYTES) begin
+                        err_bits = '0;
+                        err_bits[MOLD_ERR_EOS_PAYLOAD] = 1'b1;
+                        flag_drop(err_bits);
+                      end
+                    end else if (guard_accept_packet) begin
                       messages_left <= count_v;
                       state         <= ST_MSG_LEN_HI;
+                    end else begin
+                      // Duplicate/late datagram: consume the rest of this AXIS
+                      // packet, but emit no msg_len item, no payload, and no
+                      // malformed-Mold error. The duplicate_o pulse is the status.
+                      dropping <= 1'b1;
+                      state    <= ST_DRAIN;
                     end
                   end
                 end
