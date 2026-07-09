@@ -6,7 +6,7 @@ The Data Handler parses the data taken in the form detailled in the [Nasdaq Tota
 
 ## Format
 
-The Data Handler is composed of 3 files in system verilog (excluding the `hdl_header` file containing relevant parameter and struct definitions for this module). Their names, and purpose are detailed below:
+The Data Handler is composed of 3 files in SystemVerilog (excluding the `hdl_header` file containing relevant parameter and struct definitions for this module). Their names, and purpose are detailed below:
 
 | File name | Purpose |
 | - | - |
