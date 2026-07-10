@@ -37,6 +37,13 @@ module mold_deframe_tb;
   logic                      seq_valid_o;
   logic                      heartbeat_o;
   logic                      eos_o;
+  logic                      in_order_o;
+  logic                      duplicate_o;
+  logic                      gap_o;
+  logic                      stale_o;
+  logic [MOLD_SEQ_W-1:0]     expected_seq_o;
+  logic [MOLD_SEQ_W-1:0]     gap_start_o;
+  logic [MOLD_SEQ_W-1:0]     gap_end_o;
 
   logic                      mold_drop_o;
   logic [MOLD_ERR_W-1:0]     mold_err_o;
@@ -48,6 +55,10 @@ module mold_deframe_tb;
   int unsigned seq_pulses;
   int unsigned heartbeat_pulses;
   int unsigned eos_pulses;
+  int unsigned in_order_pulses;
+  int unsigned duplicate_pulses;
+  int unsigned gap_pulses;
+
   logic [MOLD_SESSION_W-1:0] last_session;
   logic [MOLD_SEQ_W-1:0]     last_seq;
   logic [MOLD_COUNT_W-1:0]   last_count;
@@ -86,6 +97,13 @@ module mold_deframe_tb;
     .seq_valid_o        (seq_valid_o),
     .heartbeat_o        (heartbeat_o),
     .eos_o              (eos_o),
+    .in_order_o         (in_order_o),
+    .duplicate_o        (duplicate_o),
+    .gap_o              (gap_o),
+    .stale_o            (stale_o),
+    .expected_seq_o     (expected_seq_o),
+    .gap_start_o        (gap_start_o),
+    .gap_end_o          (gap_end_o),
 
     .mold_drop_o        (mold_drop_o),
     .mold_err_o         (mold_err_o)
@@ -129,6 +147,18 @@ module mold_deframe_tb;
       eos_pulses++;
     end
 
+    if (rst_n && in_order_o) begin
+      in_order_pulses++;
+    end
+
+    if (rst_n && duplicate_o) begin
+      duplicate_pulses++;
+    end
+
+    if (rst_n && gap_o) begin
+      gap_pulses++;
+    end
+
     if (rst_n && mold_drop_o) begin
       drop_pulses++;
       last_drop_err <= mold_err_o;
@@ -143,6 +173,9 @@ module mold_deframe_tb;
     seq_pulses         = 0;
     heartbeat_pulses   = 0;
     eos_pulses         = 0;
+    in_order_pulses    = 0;
+    duplicate_pulses   = 0;
+    gap_pulses         = 0;
     last_session       = '0;
     last_seq           = '0;
     last_count         = '0;
@@ -203,6 +236,7 @@ module mold_deframe_tb;
   endtask
 
   task automatic build_one_msg_dgram(
+    input  logic [MOLD_SEQ_W-1:0] seq,
     input  byte unsigned msg0[],
     output byte unsigned dgram[]
   );
@@ -214,7 +248,7 @@ module mold_deframe_tb;
     msg0_len = msg0.size();
 
     write_session(dgram, idx, TEST_SESSION);
-    write_u64_be(dgram, idx, TEST_SEQ);
+    write_u64_be(dgram, idx, seq);
     write_u16_be(dgram, idx, 16'd1);
     write_u16_be(dgram, idx, msg0_len);
 
@@ -225,6 +259,7 @@ module mold_deframe_tb;
   endtask
 
   task automatic build_two_msg_dgram(
+    input  logic [MOLD_SEQ_W-1:0] seq,
     input  byte unsigned msg0[],
     input  byte unsigned msg1[],
     output byte unsigned dgram[]
@@ -239,7 +274,7 @@ module mold_deframe_tb;
     msg1_len = msg1.size();
 
     write_session(dgram, idx, TEST_SESSION);
-    write_u64_be(dgram, idx, TEST_SEQ);
+    write_u64_be(dgram, idx, seq);
     write_u16_be(dgram, idx, 16'd2);
     write_u16_be(dgram, idx, msg0_len);
 
@@ -257,6 +292,7 @@ module mold_deframe_tb;
   endtask
 
   task automatic build_control_dgram(
+    input  logic [MOLD_SEQ_W-1:0] seq,
     input  logic [15:0] count,
     output byte unsigned dgram[]
   );
@@ -266,18 +302,21 @@ module mold_deframe_tb;
     idx = 0;
 
     write_session(dgram, idx, TEST_SESSION);
-    write_u64_be(dgram, idx, TEST_SEQ);
+    write_u64_be(dgram, idx, seq);
     write_u16_be(dgram, idx, count);
   endtask
 
-  task automatic build_bad_len_dgram(output byte unsigned dgram[]);
+  task automatic build_bad_len_dgram(
+    input  logic [MOLD_SEQ_W-1:0] seq,
+    output byte unsigned dgram[]
+  );
     int unsigned idx;
 
     dgram = new[MOLD_HDR_BYTES + 2 + 3];
     idx = 0;
 
     write_session(dgram, idx, TEST_SESSION);
-    write_u64_be(dgram, idx, TEST_SEQ);
+    write_u64_be(dgram, idx, seq);
     write_u16_be(dgram, idx, 16'd1);
     write_u16_be(dgram, idx, 16'd10); // Declares 10 bytes but only carries 3.
 
@@ -307,6 +346,16 @@ module mold_deframe_tb;
     foreach (msg1[i]) begin
       expected[idx] = msg1[i];
       idx++;
+    end
+  endtask
+
+  task automatic copy_msg(
+    input  byte unsigned msg[],
+    output byte unsigned expected[]
+  );
+    expected = new[msg.size()];
+    foreach (msg[i]) begin
+      expected[i] = msg[i];
     end
   endtask
 
@@ -359,7 +408,7 @@ module mold_deframe_tb;
     int unsigned cycles;
 
     cycles = 0;
-    while ((rx_payload_packets < target_packets) && (cycles < 2000)) begin
+    while ((rx_payload_packets < target_packets) && (cycles < 3000)) begin
       cycles++;
       @(posedge clk);
     end
@@ -397,6 +446,15 @@ module mold_deframe_tb;
     end
   endtask
 
+  task automatic wait_no_payload();
+    repeat (40) @(posedge clk);
+
+    if ((rx_payload_packets != 0) || (rx_payload.size() != 0) || (msg_lens.size() != 0)) begin
+      $fatal(1, "Expected no payload/msg_len output, got payload_packets=%0d bytes=%0d msg_lens=%0d",
+             rx_payload_packets, rx_payload.size(), msg_lens.size());
+    end
+  endtask
+
   task automatic expect_payload(input byte unsigned expected[]);
     if (rx_payload.size() != expected.size()) begin
       $fatal(1, "Payload byte count mismatch: got %0d expected %0d", rx_payload.size(), expected.size());
@@ -430,7 +488,10 @@ module mold_deframe_tb;
     end
   endtask
 
-  task automatic expect_seq_sideband(input logic [15:0] expected_count);
+  task automatic expect_seq_sideband(
+    input logic [MOLD_SEQ_W-1:0]   expected_seq,
+    input logic [MOLD_COUNT_W-1:0] expected_count
+  );
     if (seq_pulses != 1) begin
       $fatal(1, "Expected exactly one seq_valid pulse, got %0d", seq_pulses);
     end
@@ -439,17 +500,65 @@ module mold_deframe_tb;
       $fatal(1, "Session mismatch: got 0x%020x expected 0x%020x", last_session, TEST_SESSION);
     end
 
-    if (last_seq !== TEST_SEQ) begin
-      $fatal(1, "Sequence mismatch: got 0x%016x expected 0x%016x", last_seq, TEST_SEQ);
+    if (last_seq !== expected_seq) begin
+      $fatal(1, "Sequence mismatch: got 0x%016x expected 0x%016x", last_seq, expected_seq);
     end
 
     if (last_count !== expected_count) begin
       $fatal(1, "Count mismatch: got 0x%04x expected 0x%04x", last_count, expected_count);
     end
 
-    if (last_expected_next !== (TEST_SEQ + expected_count)) begin
+    if (last_expected_next !== (expected_seq + expected_count)) begin
       $fatal(1, "expected_next mismatch: got 0x%016x expected 0x%016x",
-             last_expected_next, TEST_SEQ + expected_count);
+             last_expected_next, expected_seq + expected_count);
+    end
+  endtask
+
+  task automatic expect_status_counts(
+    input int unsigned exp_in_order,
+    input int unsigned exp_duplicate,
+    input int unsigned exp_gap,
+    input int unsigned exp_heartbeat,
+    input int unsigned exp_eos,
+    input int unsigned exp_drop
+  );
+    if (in_order_pulses != exp_in_order) begin
+      $fatal(1, "in_order pulse mismatch: got %0d expected %0d", in_order_pulses, exp_in_order);
+    end
+    if (duplicate_pulses != exp_duplicate) begin
+      $fatal(1, "duplicate pulse mismatch: got %0d expected %0d", duplicate_pulses, exp_duplicate);
+    end
+    if (gap_pulses != exp_gap) begin
+      $fatal(1, "gap pulse mismatch: got %0d expected %0d", gap_pulses, exp_gap);
+    end
+    if (heartbeat_pulses != exp_heartbeat) begin
+      $fatal(1, "heartbeat pulse mismatch: got %0d expected %0d", heartbeat_pulses, exp_heartbeat);
+    end
+    if (eos_pulses != exp_eos) begin
+      $fatal(1, "eos pulse mismatch: got %0d expected %0d", eos_pulses, exp_eos);
+    end
+    if (drop_pulses != exp_drop) begin
+      $fatal(1, "mold_drop pulse mismatch: got %0d expected %0d err=0x%04x", drop_pulses, exp_drop, last_drop_err);
+    end
+  endtask
+
+  task automatic expect_seq_guard_state(
+    input logic             exp_stale,
+    input logic [MOLD_SEQ_W-1:0] exp_expected_seq,
+    input logic [MOLD_SEQ_W-1:0] exp_gap_start,
+    input logic [MOLD_SEQ_W-1:0] exp_gap_end
+  );
+    if (stale_o !== exp_stale) begin
+      $fatal(1, "stale mismatch: got %0b expected %0b", stale_o, exp_stale);
+    end
+    if (expected_seq_o !== exp_expected_seq) begin
+      $fatal(1, "expected_seq_o mismatch: got 0x%016x expected 0x%016x", expected_seq_o, exp_expected_seq);
+    end
+    if (gap_start_o !== exp_gap_start) begin
+      $fatal(1, "gap_start_o mismatch: got 0x%016x expected 0x%016x", gap_start_o, exp_gap_start);
+    end
+    if (gap_end_o !== exp_gap_end) begin
+      $fatal(1, "gap_end_o mismatch: got 0x%016x expected 0x%016x", gap_end_o, exp_gap_end);
     end
   endtask
 
@@ -460,7 +569,6 @@ module mold_deframe_tb;
     byte unsigned expected[];
 
     $display("TEST MoldUDP64 datagram with two ITCH messages");
-    clear_scoreboard();
 
     msg0 = new[3];
     msg0[0] = 8'h41;
@@ -472,7 +580,7 @@ module mold_deframe_tb;
       msg1[i] = byte'(8'h80 + i);
     end
 
-    build_two_msg_dgram(msg0, msg1, dgram);
+    build_two_msg_dgram(TEST_SEQ, msg0, msg1, dgram);
     concat_two(msg0, msg1, expected);
 
     send_dgram(dgram);
@@ -480,78 +588,197 @@ module mold_deframe_tb;
 
     expect_payload(expected);
     expect_two_msg_lens(msg0.size(), msg1.size());
-    expect_seq_sideband(16'd2);
+    expect_seq_sideband(TEST_SEQ, 16'd2);
+    expect_status_counts(1, 0, 0, 0, 0, 0);
+    expect_seq_guard_state(1'b0, TEST_SEQ + 64'd2, 64'd0, 64'd0);
+  endtask
 
-    if ((heartbeat_pulses != 0) || (eos_pulses != 0) || (drop_pulses != 0)) begin
-      $fatal(1, "Unexpected status on valid two-message datagram: heartbeat=%0d eos=%0d drop=%0d err=0x%04x",
-             heartbeat_pulses, eos_pulses, drop_pulses, last_drop_err);
+  task automatic test_duplicate_suppressed();
+    byte unsigned first_msg[];
+    byte unsigned dup_msg[];
+    byte unsigned dgram[];
+    byte unsigned expected[];
+    logic [MOLD_SEQ_W-1:0] seq;
+
+    $display("TEST duplicate datagram is suppressed before msg_len/payload output");
+
+    seq = 64'd1000;
+
+    first_msg = new[4];
+    foreach (first_msg[i]) begin
+      first_msg[i] = byte'(8'ha0 + i);
     end
+
+    build_one_msg_dgram(seq, first_msg, dgram);
+    copy_msg(first_msg, expected);
+    send_dgram(dgram);
+    wait_for_payload_packets(1);
+    expect_payload(expected);
+    expect_one_msg_len(first_msg.size());
+    expect_seq_sideband(seq, 16'd1);
+    expect_status_counts(1, 0, 0, 0, 0, 0);
+    expect_seq_guard_state(1'b0, seq + 64'd1, 64'd0, 64'd0);
+
+    clear_scoreboard();
+
+    dup_msg = new[4];
+    foreach (dup_msg[i]) begin
+      dup_msg[i] = byte'(8'hf0 + i);
+    end
+
+    build_one_msg_dgram(seq, dup_msg, dgram);
+    send_dgram(dgram);
+    wait_for_seq_pulses(1);
+    wait_no_payload();
+
+    expect_seq_sideband(seq, 16'd1);
+    expect_status_counts(0, 1, 0, 0, 0, 0);
+    expect_seq_guard_state(1'b0, seq + 64'd1, 64'd0, 64'd0);
+  endtask
+
+  task automatic test_gap_accepts_and_late_drops();
+    byte unsigned msg0[];
+    byte unsigned msg_gap[];
+    byte unsigned msg_late[];
+    byte unsigned dgram[];
+    byte unsigned expected[];
+    logic [MOLD_SEQ_W-1:0] base_seq;
+    logic [MOLD_SEQ_W-1:0] gap_seq;
+    logic [MOLD_SEQ_W-1:0] late_seq;
+
+    $display("TEST gap packet is accepted/stale, then late packet is suppressed");
+
+    base_seq = 64'd2000;
+    gap_seq  = 64'd2005;
+    late_seq = 64'd2001;
+
+    msg0 = new[3];
+    foreach (msg0[i]) begin
+      msg0[i] = byte'(8'h30 + i);
+    end
+
+    build_one_msg_dgram(base_seq, msg0, dgram);
+    send_dgram(dgram);
+    wait_for_payload_packets(1);
+    expect_seq_guard_state(1'b0, base_seq + 64'd1, 64'd0, 64'd0);
+
+    clear_scoreboard();
+
+    msg_gap = new[5];
+    foreach (msg_gap[i]) begin
+      msg_gap[i] = byte'(8'h60 + i);
+    end
+
+    build_one_msg_dgram(gap_seq, msg_gap, dgram);
+    copy_msg(msg_gap, expected);
+    send_dgram(dgram);
+    wait_for_payload_packets(1);
+
+    expect_payload(expected);
+    expect_one_msg_len(msg_gap.size());
+    expect_seq_sideband(gap_seq, 16'd1);
+    expect_status_counts(0, 0, 1, 0, 0, 0);
+    expect_seq_guard_state(1'b1, gap_seq + 64'd1, base_seq + 64'd1, gap_seq - 64'd1);
+
+    clear_scoreboard();
+
+    msg_late = new[2];
+    msg_late[0] = 8'hee;
+    msg_late[1] = 8'hef;
+
+    build_one_msg_dgram(late_seq, msg_late, dgram);
+    send_dgram(dgram);
+    wait_for_seq_pulses(1);
+    wait_no_payload();
+
+    expect_seq_sideband(late_seq, 16'd1);
+    expect_status_counts(0, 1, 0, 0, 0, 0);
+    expect_seq_guard_state(1'b1, gap_seq + 64'd1, base_seq + 64'd1, gap_seq - 64'd1);
   endtask
 
   task automatic test_heartbeat();
     byte unsigned dgram[];
+    logic [MOLD_SEQ_W-1:0] seq;
 
     $display("TEST MoldUDP64 heartbeat datagram");
-    clear_scoreboard();
 
-    build_control_dgram(MOLD_COUNT_HEARTBEAT, dgram);
+    seq = 64'd3000;
+    build_control_dgram(seq, MOLD_COUNT_HEARTBEAT, dgram);
     send_dgram(dgram);
     wait_for_seq_pulses(1);
-    repeat (20) @(posedge clk);
+    wait_no_payload();
 
-    expect_seq_sideband(MOLD_COUNT_HEARTBEAT);
+    expect_seq_sideband(seq, MOLD_COUNT_HEARTBEAT);
+    expect_status_counts(0, 0, 0, 1, 0, 0);
+    expect_seq_guard_state(1'b0, seq, 64'd0, 64'd0);
+  endtask
 
-    if (heartbeat_pulses != 1) begin
-      $fatal(1, "Expected one heartbeat pulse, got %0d", heartbeat_pulses);
+  task automatic test_heartbeat_gap();
+    byte unsigned msg0[];
+    byte unsigned dgram[];
+    logic [MOLD_SEQ_W-1:0] base_seq;
+    logic [MOLD_SEQ_W-1:0] heartbeat_seq;
+
+    $display("TEST heartbeat can report a missing sequence range without payload output");
+
+    base_seq      = 64'd4000;
+    heartbeat_seq = 64'd4005;
+
+    msg0 = new[4];
+    foreach (msg0[i]) begin
+      msg0[i] = byte'(8'h40 + i);
     end
 
-    if ((eos_pulses != 0) || (rx_payload_packets != 0) || (rx_payload.size() != 0) ||
-        (msg_lens.size() != 0) || (drop_pulses != 0)) begin
-      $fatal(1, "Heartbeat produced unexpected output/status");
-    end
+    build_one_msg_dgram(base_seq, msg0, dgram);
+    send_dgram(dgram);
+    wait_for_payload_packets(1);
+    expect_seq_guard_state(1'b0, base_seq + 64'd1, 64'd0, 64'd0);
+
+    clear_scoreboard();
+
+    build_control_dgram(heartbeat_seq, MOLD_COUNT_HEARTBEAT, dgram);
+    send_dgram(dgram);
+    wait_for_seq_pulses(1);
+    wait_no_payload();
+
+    expect_seq_sideband(heartbeat_seq, MOLD_COUNT_HEARTBEAT);
+    expect_status_counts(0, 0, 1, 1, 0, 0);
+    expect_seq_guard_state(1'b1, heartbeat_seq, base_seq + 64'd1, heartbeat_seq - 64'd1);
   endtask
 
   task automatic test_eos();
     byte unsigned dgram[];
+    logic [MOLD_SEQ_W-1:0] seq;
 
     $display("TEST MoldUDP64 EOS datagram");
-    clear_scoreboard();
 
-    build_control_dgram(MOLD_COUNT_EOS, dgram);
+    seq = 64'd5000;
+    build_control_dgram(seq, MOLD_COUNT_EOS, dgram);
     send_dgram(dgram);
     wait_for_seq_pulses(1);
-    repeat (20) @(posedge clk);
+    wait_no_payload();
 
-    expect_seq_sideband(MOLD_COUNT_EOS);
-
-    if (eos_pulses != 1) begin
-      $fatal(1, "Expected one eos pulse, got %0d", eos_pulses);
-    end
-
-    if ((heartbeat_pulses != 0) || (rx_payload_packets != 0) || (rx_payload.size() != 0) ||
-        (msg_lens.size() != 0) || (drop_pulses != 0)) begin
-      $fatal(1, "EOS produced unexpected output/status");
-    end
+    expect_seq_sideband(seq, MOLD_COUNT_EOS);
+    expect_status_counts(0, 0, 0, 0, 1, 0);
+    expect_seq_guard_state(1'b0, seq, 64'd0, 64'd0);
   endtask
 
   task automatic test_msg_len_backpressure();
     byte unsigned msg0[];
     byte unsigned dgram[];
     byte unsigned expected[];
+    logic [MOLD_SEQ_W-1:0] seq;
 
     $display("TEST msg_len backpressure stalls payload emission");
-    clear_scoreboard();
 
+    seq = 64'd6000;
     msg0 = new[4];
     foreach (msg0[i]) begin
       msg0[i] = byte'(8'hb0 + i);
     end
-    expected = new[msg0.size()];
-    foreach (msg0[i]) begin
-      expected[i] = msg0[i];
-    end
+    copy_msg(msg0, expected);
 
-    build_one_msg_dgram(msg0, dgram);
+    build_one_msg_dgram(seq, msg0, dgram);
     m_msg_len_ready_i <= 1'b0;
 
     fork
@@ -576,7 +803,8 @@ module mold_deframe_tb;
     wait_for_payload_packets(1);
     expect_payload(expected);
     expect_one_msg_len(msg0.size());
-    expect_seq_sideband(16'd1);
+    expect_seq_sideband(seq, 16'd1);
+    expect_status_counts(1, 0, 0, 0, 0, 0);
   endtask
 
   task automatic test_payload_backpressure();
@@ -586,20 +814,18 @@ module mold_deframe_tb;
     axis_data_t   saved_data;
     axis_keep_t   saved_keep;
     logic         saved_last;
+    logic [MOLD_SEQ_W-1:0] seq;
 
     $display("TEST payload backpressure holds output beat stable");
-    clear_scoreboard();
 
+    seq = 64'd7000;
     msg0 = new[12];
     foreach (msg0[i]) begin
       msg0[i] = byte'(8'hc0 + i);
     end
-    expected = new[msg0.size()];
-    foreach (msg0[i]) begin
-      expected[i] = msg0[i];
-    end
+    copy_msg(msg0, expected);
 
-    build_one_msg_dgram(msg0, dgram);
+    build_one_msg_dgram(seq, msg0, dgram);
     m_payload_tready_i <= 1'b0;
 
     fork
@@ -632,16 +858,18 @@ module mold_deframe_tb;
     wait_for_payload_packets(1);
     expect_payload(expected);
     expect_one_msg_len(msg0.size());
-    expect_seq_sideband(16'd1);
+    expect_seq_sideband(seq, 16'd1);
+    expect_status_counts(1, 0, 0, 0, 0, 0);
   endtask
 
   task automatic test_length_overrun_drop();
     byte unsigned dgram[];
+    logic [MOLD_SEQ_W-1:0] seq;
 
     $display("TEST declared message length overrun is dropped");
-    clear_scoreboard();
 
-    build_bad_len_dgram(dgram);
+    seq = 64'd8000;
+    build_bad_len_dgram(seq, dgram);
     send_dgram(dgram);
     wait_for_drop(1);
     repeat (20) @(posedge clk);
@@ -657,12 +885,30 @@ module mold_deframe_tb;
 
   initial begin
     reset_dut();
-
     test_two_messages();
+
+    reset_dut();
+    test_duplicate_suppressed();
+
+    reset_dut();
+    test_gap_accepts_and_late_drops();
+
+    reset_dut();
     test_heartbeat();
+
+    reset_dut();
+    test_heartbeat_gap();
+
+    reset_dut();
     test_eos();
+
+    reset_dut();
     test_msg_len_backpressure();
+
+    reset_dut();
     test_payload_backpressure();
+
+    reset_dut();
     test_length_overrun_drop();
 
     $display("mold_deframe_tb PASS");
