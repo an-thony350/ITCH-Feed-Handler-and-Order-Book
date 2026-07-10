@@ -7,7 +7,7 @@ from typing import Any
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
 from .layout import pack_data_t
 from .scoreboard import signal_value_to_int
@@ -126,6 +126,7 @@ async def drive_order_book_event(
 
     return await wait_bbo_valid(dut, timeout_cycles=timeout_cycles)
 
+
 async def drive_order_book_events(
     dut: Any,
     events: Iterable[dict[str, Any]],
@@ -148,59 +149,108 @@ async def drive_order_book_events(
     return bbo_words
 
 
-def itch_payload_to_64b_words(payload: bytes | bytearray | memoryview) -> list[tuple[int, bool]]:
-    """Split one ITCH payload into 64-bit big-endian words.
+def itch_payload_to_words(
+    payload: bytes | bytearray | memoryview,
+    *,
+    word_bytes: int,
+) -> list[tuple[int, bool]]:
+    """Split one ITCH payload into fixed-width big-endian words.
 
     Returns:
         list of ``(word, tlast)`` pairs.
 
-    The first payload byte is placed in bits [63:56], matching data_handler.sv.
-    The final word is zero-padded on the right if the payload length is not a
-    multiple of 8 bytes.
+    The first payload byte is placed in the most-significant byte lane, matching
+    the byte ordering used by data_handler.sv. The final word is zero-padded on
+    the right when the payload length is not a multiple of ``word_bytes``.
     """
+
+    if word_bytes <= 0:
+        raise ValueError(f"word_bytes must be positive, got {word_bytes}")
 
     data = bytes(payload)
     if not data:
         raise ValueError("cannot drive an empty ITCH payload")
 
     words: list[tuple[int, bool]] = []
-    for offset in range(0, len(data), 8):
-        chunk = data[offset : offset + 8]
-        padded = chunk.ljust(8, b"\x00")
+    for offset in range(0, len(data), word_bytes):
+        chunk = data[offset : offset + word_bytes]
+        padded = chunk.ljust(word_bytes, b"\x00")
         word = int.from_bytes(padded, byteorder="big")
-        tlast = offset + 8 >= len(data)
+        tlast = offset + word_bytes >= len(data)
         words.append((word, tlast))
 
     return words
+
+
+def itch_payload_to_64b_words(
+    payload: bytes | bytearray | memoryview,
+) -> list[tuple[int, bool]]:
+    """Compatibility wrapper for callers that explicitly require 64-bit words."""
+
+    return itch_payload_to_words(payload, word_bytes=8)
 
 
 async def drive_data_handler_payload(
     dut: Any,
     payload: bytes | bytearray | memoryview,
     *,
+    wait_for_output: bool = True,
     timeout_cycles: int = 10_000,
-) -> int:
+) -> int | None:
     """Drive one already-split ITCH payload into data_handler.sv.
 
     The payload must start at the ITCH message type byte. It must not include the
     two-byte BinaryFILE length prefix.
 
+    Each beat is changed on a falling edge and held through the following rising
+    edge. Sampling ``s_tready_o`` before that rising edge removes delta-cycle
+    ambiguity about whether the beat was accepted.
+
     Return:
-        packed RTL data_t word emitted on rdata_o.
+        packed RTL data_t word when ``wait_for_output`` is True, otherwise None.
     """
 
-    for word, tlast in itch_payload_to_64b_words(payload):
-        await wait_ready(dut, "s_tready_o", timeout_cycles=timeout_cycles)
+    input_width_bits = len(dut.s_tdata_i)
+    if input_width_bits % 8 != 0:
+        raise ValueError(
+            f"s_tdata_i width must be byte-aligned, got {input_width_bits} bits"
+        )
 
-        dut.s_tdata_i.value = word
-        dut.s_tlast_i.value = int(tlast)
-        dut.s_tvalid_i.value = 1
+    words = itch_payload_to_words(
+        payload,
+        word_bytes=input_width_bits // 8,
+    )
 
-        await RisingEdge(dut.clk)
+    for word, tlast in words:
+        accepted = False
 
-        dut.s_tvalid_i.value = 0
-        dut.s_tlast_i.value = 0
-        dut.s_tdata_i.value = 0
+        for _ in range(timeout_cycles):
+            await FallingEdge(dut.clk)
+
+            dut.s_tdata_i.value = word
+            dut.s_tlast_i.value = int(tlast)
+            dut.s_tvalid_i.value = 1
+
+            ready_before_edge = signal_value_to_int(dut.s_tready_o.value)
+            await RisingEdge(dut.clk)
+
+            if ready_before_edge == 1:
+                accepted = True
+                break
+
+        if not accepted:
+            raise TimeoutError("timed out waiting for s_tready_o during payload")
+
+    # Remove the final beat away from the active sampling edge. This also allows
+    # the post-handshake SEND/IDLE state outputs to settle before the caller
+    # observes valid_o or starts the next message.
+    await FallingEdge(dut.clk)
+    dut.s_tvalid_i.value = 0
+    dut.s_tlast_i.value = 0
+    dut.s_tdata_i.value = 0
+
+    if not wait_for_output:
+        return None
 
     return await wait_data_handler_valid(dut, timeout_cycles=timeout_cycles)
 
@@ -210,11 +260,15 @@ async def wait_data_handler_valid(
     *,
     timeout_cycles: int = 10_000,
 ) -> int:
-    """Wait for data_handler valid_o and return packed rdata_o."""
+    """Wait for data_handler valid_o and return the packed rdata_o word."""
 
     for _ in range(timeout_cycles):
-        await RisingEdge(dut.clk)
+        # ReadOnly samples the fully-settled value for the current clock cycle.
+        # Checking before the next RisingEdge is important because SEND may be
+        # consumed on that edge when ready_i is already high.
+        await ReadOnly()
         if signal_value_to_int(dut.valid_o.value) == 1:
             return signal_value_to_int(dut.rdata_o.value)
+        await RisingEdge(dut.clk)
 
     raise TimeoutError("timed out waiting for data_handler valid_o")

@@ -18,6 +18,12 @@ $(REPO_ROOT)/rtl/ingress_top.sv
 
 MODULE ?= test_ingress
 
+else ifeq ($(TOPLEVEL),data_handler)
+VERILOG_SOURCES += \
+$(REPO_ROOT)/rtl/data_handler.sv
+
+MODULE ?= test_data_handler
+
 else ifeq ($(TOPLEVEL),order_book)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/order_book.sv
@@ -25,7 +31,7 @@ $(REPO_ROOT)/rtl/order_book.sv
 MODULE ?= test_order_book
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: order_book, ingress_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: data_handler, order_book, ingress_top)
 endif
 
 export PYTHONPATH := $(PWD):$(REPO_ROOT):$(PYTHONPATH)
@@ -50,14 +56,18 @@ else
 .DEFAULT_GOAL := test-all
 endif
 
-.PHONY: test-all test-golden test-rtl test-order-book test-ingress clean-all
+.PHONY: test-all test-golden test-rtl test-data-handler test-order-book test-ingress clean-all
 
 test-all: test-golden test-rtl
 
 test-golden:
 	cd $(REPO_ROOT) && scripts/run_golden.sh
 
-test-rtl: test-order-book test-ingress
+test-rtl: test-data-handler test-order-book test-ingress
+
+test-data-handler:
+	$(MAKE) clean TOPLEVEL=data_handler MODULE=test_data_handler
+	$(MAKE) results.xml TOPLEVEL=data_handler MODULE=test_data_handler
 
 test-order-book:
 	$(MAKE) clean TOPLEVEL=order_book MODULE=test_order_book
@@ -68,7 +78,7 @@ test-ingress:
 	$(MAKE) results.xml TOPLEVEL=ingress_top MODULE=test_ingress
 
 clean-all:
-	$(MAKE) clean TOPLEVEL=order_book MODULE=test_order_book
+	$(MAKE) clean TOPLEVEL=data_handler MODULE=test_data_handler
 	rm -f results.xml
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
