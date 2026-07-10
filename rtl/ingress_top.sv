@@ -26,7 +26,7 @@ module ingress_top #(
   output logic       m_itch_tlast_o,
   input  wire       m_itch_tready_i,
 
-  // MoldUDP64 sideband for Phase-4 gap/A-B logic and debug registers.
+  // MoldUDP64 sideband and A/B + gap status for debug/CSR wiring.
   output logic [MOLD_SESSION_W-1:0] session_o,
   output logic [MOLD_SEQ_W-1:0]     seq_o,
   output logic [MOLD_COUNT_W-1:0]   count_o,
@@ -34,6 +34,13 @@ module ingress_top #(
   output logic                      seq_valid_o,
   output logic                      heartbeat_o,
   output logic                      eos_o,
+  output logic                      in_order_o,
+  output logic                      duplicate_o,
+  output logic                      gap_o,
+  output logic                      stale_o,
+  output logic [MOLD_SEQ_W-1:0]     expected_seq_o,
+  output logic [MOLD_SEQ_W-1:0]     gap_start_o,
+  output logic [MOLD_SEQ_W-1:0]     gap_end_o,
 
   // Status/error outputs. These can later be latched into AXI-Lite CSRs.
   output logic                      frame_drop_o,
@@ -117,6 +124,13 @@ module ingress_top #(
     .seq_valid_o         (seq_valid_o),
     .heartbeat_o         (heartbeat_o),
     .eos_o               (eos_o),
+    .in_order_o          (in_order_o),
+    .duplicate_o         (duplicate_o),
+    .gap_o               (gap_o),
+    .stale_o             (stale_o),
+    .expected_seq_o      (expected_seq_o),
+    .gap_start_o         (gap_start_o),
+    .gap_end_o           (gap_end_o),
 
     .mold_drop_o         (mold_drop_o),
     .mold_err_o          (mold_err_o)
