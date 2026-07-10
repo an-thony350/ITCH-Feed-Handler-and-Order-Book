@@ -3,8 +3,9 @@
 // Ethernet frame input
 //   -> ingress_top
 //   -> data_handler
-//   -> symbol_router
-//   -> order_book
+//   -> order_book_top
+//        -> symbol_router
+//        -> order_book
 //   -> BBO output
 
 `timescale 1ns/1ps
@@ -18,6 +19,10 @@ module feed_handler_top #(
 ) (
     input  logic       clk,
     input  logic       rst_n,
+
+    // Order-book configuration from the PS, normally driven by AXI GPIO.
+    input  logic [STOCK_W-1:0] target_locate_i,
+    input  logic [PRICE_W-1:0] base_price_i,
 
     // AXI4-Stream Ethernet frame input from PS->PL DMA or a testbench.
     input  axis_data_t s_frame_tdata_i,
@@ -62,16 +67,10 @@ module feed_handler_top #(
     logic       itch_tlast;
     logic       itch_tready;
 
-    // data_handler -> symbol_router
+    // data_handler -> order_book_top
     data_t decoded_data;
     logic  decoded_valid;
     logic  decoded_ready;
-
-    // symbol_router -> order_book
-    o_data_t            routed_data;
-    logic [PRICE_W-1:0] routed_base_price;
-    logic               routed_valid;
-    logic               book_ready;
 
     ingress_top #(
         .CHECK_DST_PORT    (CHECK_DST_PORT),
@@ -129,31 +128,19 @@ module feed_handler_top #(
         .valid_o    (decoded_valid)
     );
 
-    symbol_router u_symbol_router (
+    order_book_top u_order_book_top (
         .clk             (clk),
         .rst_n           (rst_n),
+
+        .target_locate_i (target_locate_i),
+        .base_price_i    (base_price_i),
 
         .rdata_i         (decoded_data),
         .valid_i         (decoded_valid),
         .ready_o         (decoded_ready),
 
-        .ready_i         (book_ready),
-        .rdata_o         (routed_data),
-        .base_price_o    (routed_base_price),
-        .valid_stock0_o  (routed_valid)
-    );
-
-    order_book u_order_book (
-        .clk          (clk),
-        .rst_n        (rst_n),
-
-        .rdata_i      (routed_data),
-        .valid_i      (routed_valid),
-        .base_price_i (routed_base_price),
-        .ready_o      (book_ready),
-
-        .bbo_data_o   (bbo_data_o),
-        .bbo_valid_o  (bbo_valid_o)
+        .bbo_data_o      (bbo_data_o),
+        .bbo_valid_o     (bbo_valid_o)
     );
 
 endmodule
