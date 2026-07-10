@@ -81,22 +81,22 @@ module order_book_top_tb;
         input logic                side,
         input logic [SHARES_W-1:0] shares,
         input logic [PRICE_W-1:0]  price,
-        output data_t              event
+        output data_t              evt
     );
-        event.message_type = 8'h41;
-        event.stock_locate = locate;
-        event.orn          = orn;
-        event.updated_orn  = '0;
-        event.side         = side;
-        event.shares       = shares;
-        event.price        = price;
+        evt.message_type = 8'h41;
+        evt.stock_locate = locate;
+        evt.orn          = orn;
+        evt.updated_orn  = '0;
+        evt.side         = side;
+        evt.shares       = shares;
+        evt.price        = price;
     endtask
 
-    task automatic send_event(input data_t event);
+    task automatic send_event(input data_t evt);
         int unsigned cycles;
 
         @(negedge clk);
-        rdata_i = event;
+        rdata_i = evt;
         valid_i = 1'b1;
 
         cycles = 0;
@@ -148,29 +148,29 @@ module order_book_top_tb;
     endtask
 
     initial begin
-        data_t event;
+        data_t evt;
         int unsigned pulses_before;
 
         reset_dut();
 
         $display("TEST order_book_top drops non-target symbols");
-        make_add_event(16'd99, 64'd1, 1'b1, 32'd900, BASE_PRICE + 32'd50, event);
+        make_add_event(16'd99, 64'd1, 1'b1, 32'd900, BASE_PRICE + 32'd50, evt);
         pulses_before = bbo_pulses;
-        send_event(event);
+        send_event(evt);
         repeat (100) @(posedge clk);
         if (bbo_pulses != pulses_before) begin
             $fatal(1, "Non-target event mutated the order book");
         end
 
         $display("TEST order_book_top forwards configured base price for a target bid");
-        make_add_event(TARGET_LOCATE, 64'd100, 1'b1, 32'd500, BASE_PRICE + 32'd100, event);
-        send_event(event);
+        make_add_event(TARGET_LOCATE, 64'd100, 1'b1, 32'd500, BASE_PRICE + 32'd100, evt);
+        send_event(evt);
         wait_for_bbo_count(pulses_before + 1);
         expect_bbo(BASE_PRICE + 32'd100, 32'd500, 32'd0, 32'd0);
 
         $display("TEST order_book_top routes a target ask into the same book");
-        make_add_event(TARGET_LOCATE, 64'd101, 1'b0, 32'd250, BASE_PRICE + 32'd200, event);
-        send_event(event);
+        make_add_event(TARGET_LOCATE, 64'd101, 1'b0, 32'd250, BASE_PRICE + 32'd200, evt);
+        send_event(evt);
         wait_for_bbo_count(pulses_before + 2);
         expect_bbo(BASE_PRICE + 32'd100, 32'd500,
                    BASE_PRICE + 32'd200, 32'd250);
