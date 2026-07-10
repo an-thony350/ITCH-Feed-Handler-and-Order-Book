@@ -15,6 +15,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Add configurable target locate/base price and align router ports
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -22,19 +23,23 @@
 import hdl_header::*;
 
 module order_book_top(
-    input   logic               clk,
-    input   logic               rst_n,
+    input   logic                   clk,
+    input   logic                   rst_n,
+
+    // configuration inputs from PS, normally driven by AXI GPIO
+    input   logic   [STOCK_W-1:0]   target_locate_i,
+    input   logic   [PRICE_W-1:0]   base_price_i,
 
     // inputs from data handler
-    input   data_t              rdata_i,
-    input   logic               valid_i,
+    input   data_t                  rdata_i,
+    input   logic                   valid_i,
 
     // output to data handler - from symbol router
-    output  logic               ready_o,
+    output  logic                   ready_o,
 
     // output to next block
-    output  bbo_t               bbo_data_o,
-    output  logic               bbo_valid_o
+    output  bbo_t                   bbo_data_o,
+    output  logic                   bbo_valid_o
 );
 
 // Internal registers sr + ob regs
@@ -47,34 +52,33 @@ logic               ob_sr_valid_stock0;
 // Data Handler -> Symbol Router
 
 symbol_router router(
-    .clk(clk),
-    .rst_n(rst_n),
-    .rdata_i(rdata_i),
-    .valid_i(valid_i),
-    .ready_o(ready_o),
-    .ready_i(sr_ob_ready),
-    .rdata_o(ob_sr_rdata),
-    .base_price_o(ob_sr_base_price),
-    .valid_stock0_o(ob_sr_valid_stock0),
-    .valid_stock1_o(ob_sr_valid_stock1),
-    .valid_stock2_o(ob_sr_valid_stock2),
-    .valid_stock3_o(ob_sr_valid_stock3)
+    .clk             (clk),
+    .rst_n           (rst_n),
+
+    .target_locate_i (target_locate_i),
+    .base_price_i    (base_price_i),
+
+    .rdata_i         (rdata_i),
+    .valid_i         (valid_i),
+    .ready_o         (ready_o),
+
+    .ready_i         (sr_ob_ready),
+    .rdata_o         (ob_sr_rdata),
+    .base_price_o    (ob_sr_base_price),
+    .valid_stock0_o  (ob_sr_valid_stock0)
 );
 
 // Symbol Router -> Order Book
 
-// Stock 1
-
 order_book ob_stock0(
-    .clk(clk),
-    .rst_n(rst_n),
-    .rdata_i(ob_sr_rdata),
-    .valid_i(ob_sr_valid_stock0),
-    .base_price_i(ob_sr_base_price),
-    .ready_o(sr_ob_ready),
-    .bbo_data_o(bbo_data_o),
-    .bbo_valid_o(bbo_valid_o)
+    .clk          (clk),
+    .rst_n        (rst_n),
+    .rdata_i      (ob_sr_rdata),
+    .valid_i      (ob_sr_valid_stock0),
+    .base_price_i (ob_sr_base_price),
+    .ready_o      (sr_ob_ready),
+    .bbo_data_o   (bbo_data_o),
+    .bbo_valid_o  (bbo_valid_o)
 );
-
 
 endmodule
