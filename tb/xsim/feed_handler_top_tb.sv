@@ -139,13 +139,14 @@ module feed_handler_top_tb;
         repeat (8) @(posedge clk);
         rst_n = 1'b1;
 
-        // Wait for the order-book memory clear before injecting traffic.
+        // Wait for the order-book memory clear inside order_book_top before
+        // injecting traffic. ready_o can be high for an invalid input while clear runs.
         cycles = 0;
-        while (!dut.book_ready && (cycles < 5000)) begin
+        while (!dut.u_order_book_top.sr_ob_ready && (cycles < 5000)) begin
             cycles++;
             @(posedge clk);
         end
-        if (!dut.book_ready) begin
+        if (!dut.u_order_book_top.sr_ob_ready) begin
             $fatal(1, "Timed out waiting for the order book to become ready");
         end
 
@@ -449,7 +450,7 @@ module feed_handler_top_tb;
 
         reset_dut();
 
-        $display("TEST feed_handler_top frame -> ingress -> decoder -> router -> book");
+        $display("TEST feed_handler_top frame -> ingress -> decoder -> order_book_top");
         build_add_message(TARGET_LOCATE, 64'd100, 1'b1, 32'd500,
                           BASE_PRICE + 32'd100, bid_msg);
         build_add_message(TARGET_LOCATE, 64'd101, 1'b0, 32'd250,
