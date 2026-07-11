@@ -359,3 +359,110 @@ async def wait_order_book_top_bbo(
         await FallingEdge(dut.clk)
 
     raise TimeoutError("timed out waiting for order_book_top bbo_valid_o")
+
+
+
+def axis_bytes_to_words(
+    payload: bytes | bytearray | memoryview,
+    *,
+    word_bytes: int,
+) -> list[tuple[int, int, bool]]:
+    """Split bytes into big-endian AXI4-Stream data/keep/last beats.
+
+    Byte zero occupies the most-significant byte lane. The final ``tkeep`` is
+    MSB-contiguous, matching the Ethernet input convention used by ingress_top:
+
+        1 valid byte  -> 1000 for a 32-bit stream
+        2 valid bytes -> 1100
+        3 valid bytes -> 1110
+        4 valid bytes -> 1111
+    """
+
+    if word_bytes <= 0:
+        raise ValueError(f"word_bytes must be positive, got {word_bytes}")
+
+    data = bytes(payload)
+    if not data:
+        raise ValueError("cannot drive an empty AXI4-Stream packet")
+
+    keep_width = word_bytes
+    words: list[tuple[int, int, bool]] = []
+
+    for offset in range(0, len(data), word_bytes):
+        chunk = data[offset : offset + word_bytes]
+        valid_bytes = len(chunk)
+
+        word = int.from_bytes(chunk.ljust(word_bytes, b"\x00"), byteorder="big")
+        keep = ((1 << valid_bytes) - 1) << (keep_width - valid_bytes)
+        last = offset + word_bytes >= len(data)
+
+        words.append((word, keep, last))
+
+    return words
+
+
+async def drive_axis_frame(
+    dut: Any,
+    frame: bytes | bytearray | memoryview,
+    *,
+    timeout_cycles: int = 500_000,
+) -> None:
+    """Drive one Ethernet frame into a DUT exposing ``s_frame_*`` AXIS ports.
+
+    Each beat is changed on a falling edge and held through the following
+    rising edge. Ready is sampled before that rising edge, so a beat is removed
+    only after an unambiguous valid/ready handshake. Accepted beats remain
+    contiguous at one beat per clock whenever the DUT stays ready.
+    """
+
+    data_width_bits = len(dut.s_frame_tdata_i)
+    keep_width_bits = len(dut.s_frame_tkeep_i)
+
+    if data_width_bits % 8 != 0:
+        raise ValueError(
+            f"s_frame_tdata_i width must be byte-aligned, got {data_width_bits} bits"
+        )
+
+    word_bytes = data_width_bits // 8
+    if keep_width_bits != word_bytes:
+        raise ValueError(
+            "s_frame_tkeep_i width must equal the number of tdata byte lanes: "
+            f"got keep={keep_width_bits}, byte_lanes={word_bytes}"
+        )
+
+    words = axis_bytes_to_words(frame, word_bytes=word_bytes)
+
+    await FallingEdge(dut.clk)
+
+    for word, keep, last in words:
+        dut.s_frame_tdata_i.value = word
+        dut.s_frame_tkeep_i.value = keep
+        dut.s_frame_tlast_i.value = int(last)
+        dut.s_frame_tvalid_i.value = 1
+
+        accepted = False
+        for _ in range(timeout_cycles):
+            await ReadOnly()
+            ready_before_edge = signal_value_to_int(dut.s_frame_tready_o.value)
+
+            await RisingEdge(dut.clk)
+
+            if ready_before_edge == 1:
+                accepted = True
+                break
+
+            await FallingEdge(dut.clk)
+
+        if not accepted:
+            raise TimeoutError(
+                "timed out waiting for s_frame_tready_o during Ethernet frame"
+            )
+
+        # Move to the falling edge before either replacing this beat with the
+        # next beat or deasserting valid after the final beat.
+        await FallingEdge(dut.clk)
+
+    dut.s_frame_tvalid_i.value = 0
+    dut.s_frame_tlast_i.value = 0
+    dut.s_frame_tdata_i.value = 0
+    dut.s_frame_tkeep_i.value = 0
