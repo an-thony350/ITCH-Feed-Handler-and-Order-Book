@@ -9,7 +9,13 @@ TOPLEVEL ?= order_book
 VERILOG_SOURCES = \
 $(REPO_ROOT)/rtl/hdl_header.sv
 
-ifeq ($(TOPLEVEL),ingress_top)
+ifeq ($(TOPLEVEL),mold_seq_guard)
+VERILOG_SOURCES += \
+$(REPO_ROOT)/rtl/mold_seq_guard.sv
+
+MODULE ?= test_mold_seq_guard
+
+else ifeq ($(TOPLEVEL),ingress_top)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/frame_crack.sv \
 $(REPO_ROOT)/rtl/mold_seq_guard.sv \
@@ -55,7 +61,7 @@ $(REPO_ROOT)/rtl/order_book.sv
 MODULE ?= test_order_book
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: data_handler, order_book, order_book_top, ingress_top, feed_handler_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: mold_seq_guard, data_handler, order_book, order_book_top, ingress_top, feed_handler_top)
 endif
 
 export PYTHONPATH := $(PWD):$(REPO_ROOT):$(PYTHONPATH)
@@ -80,14 +86,18 @@ else
 .DEFAULT_GOAL := test-all
 endif
 
-.PHONY: test-all test-golden test-rtl test-data-handler test-order-book test-order-book-top test-ingress test-feed-handler-top clean-all
+.PHONY: test-all test-golden test-rtl test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-feed-handler-top clean-all
 
 test-all: test-golden test-rtl
 
 test-golden:
 	cd $(REPO_ROOT) && scripts/run_golden.sh
 
-test-rtl: test-data-handler test-order-book test-order-book-top test-ingress
+test-rtl: test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-feed-handler-top
+
+test-mold-seq-guard:
+	$(MAKE) clean TOPLEVEL=mold_seq_guard MODULE=test_mold_seq_guard
+	$(MAKE) results.xml TOPLEVEL=mold_seq_guard MODULE=test_mold_seq_guard
 
 test-data-handler:
 	$(MAKE) clean TOPLEVEL=data_handler MODULE=test_data_handler
@@ -105,7 +115,7 @@ test-ingress:
 	$(MAKE) clean TOPLEVEL=ingress_top MODULE=test_ingress
 	$(MAKE) results.xml TOPLEVEL=ingress_top MODULE=test_ingress
 
-# G3.1 remains an explicit gate until it has passed on the local RTL tree.
+# Full G3/G4 network-to-book regression.
 test-feed-handler-top:
 	$(MAKE) clean TOPLEVEL=feed_handler_top MODULE=test_feed_handler_top
 	$(MAKE) results.xml TOPLEVEL=feed_handler_top MODULE=test_feed_handler_top

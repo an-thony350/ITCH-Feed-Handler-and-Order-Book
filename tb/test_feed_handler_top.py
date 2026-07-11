@@ -14,6 +14,8 @@ G4.1 injects duplicate and A/B-copy packets and proves first-copy-wins
 suppression without duplicate order-book mutations.
 G4.2 injects an out-of-order sequence range, verifies gap/stale reporting,
 accepts the post-gap packet, and suppresses the later missing packet.
+G4.3 verifies that heartbeat and EOS packets are status-only through the
+complete feed-handler chain, including heartbeat-driven gap reporting.
 """
 
 from __future__ import annotations
@@ -570,6 +572,67 @@ def directed_frames(
 
     return frames, metadata
 
+
+
+def directed_control_frame(
+    *,
+    seq: int,
+    heartbeat: bool = False,
+    eos: bool = False,
+) -> tuple[bytes, JsonRecord]:
+    """Build exactly one heartbeat or EOS Ethernet frame."""
+
+    if heartbeat == eos:
+        raise ValueError("select exactly one of heartbeat or eos")
+
+    frames_buffer = BytesIO()
+    metadata_buffer = StringIO()
+
+    stats = encapsulate_bytes(
+        b"",
+        frames_out=frames_buffer,
+        meta_out=metadata_buffer,
+        messages_per_packet=1,
+        seq_start=seq,
+        session=SESSION,
+        src_port=SRC_PORT,
+        dst_port=DST_PORT,
+        emit_heartbeat=heartbeat,
+        emit_eos=eos,
+    )
+
+    metadata = [
+        json.loads(line)
+        for line in metadata_buffer.getvalue().splitlines()
+        if line.strip()
+    ]
+
+    assert stats.source_messages_seen == 0
+    assert stats.messages_written == 0
+    assert stats.frames_written == 1
+    assert stats.data_frames_written == 0
+    assert stats.frames_dropped == 0
+    assert stats.final_seq == seq
+    assert len(metadata) == 1
+
+    record = metadata[0]
+    frame = frames_buffer.getvalue()
+
+    assert int(record["frame_index"]) == 0
+    assert int(record["seq"]) == seq
+    assert int(record["frame_length"]) == len(frame)
+    assert record["message_indices"] == []
+    assert record["payload_lengths"] == []
+    assert record["heartbeat"] is heartbeat
+    assert record["eos"] is eos
+
+    if heartbeat:
+        assert int(record["count"]) == 0
+    else:
+        assert int(record["count"]) == 0xFFFF
+
+    return frame, record
+
 @cocotb.test()
 async def test_feed_handler_top_one_message_per_packet_matches_golden(
     dut: Any,
@@ -765,4 +828,271 @@ async def test_feed_handler_top_gap_marks_stale_and_late_packet_is_dropped(
     dut._log.info(
         "G4.2 passed: arrival_seq=[100,102,101] gap=101..101 "
         "accepted_bbos=2 late_duplicates=1 expected_final_seq=103 stale=1"
+    )
+
+
+@cocotb.test()
+async def test_feed_handler_top_heartbeat_and_eos_are_status_only(
+    dut: Any,
+) -> None:
+    """G4.3a: in-order heartbeat/EOS frames must not mutate the order book."""
+
+    first_payload = directed_add_order_payload(
+        3001,
+        side="B",
+        shares=100,
+        price=10_000,
+        tracking=1,
+        timestamp_ns=1,
+    )
+    second_payload = directed_add_order_payload(
+        3002,
+        side="S",
+        shares=50,
+        price=10_020,
+        tracking=2,
+        timestamp_ns=2,
+    )
+
+    first_frames, _ = directed_frames([first_payload], seq_start=500)
+    heartbeat_frame, heartbeat_meta = directed_control_frame(
+        seq=501,
+        heartbeat=True,
+    )
+    second_frames, _ = directed_frames([second_payload], seq_start=501)
+    eos_frame, eos_meta = directed_control_frame(
+        seq=502,
+        eos=True,
+    )
+
+    assert heartbeat_meta["expected_next"] == 501
+    assert eos_meta["expected_next"] == 502
+
+    frames = [
+        first_frames[0],
+        heartbeat_frame,
+        second_frames[0],
+        eos_frame,
+    ]
+
+    await initialise_feed_handler(dut)
+
+    monitor = FeedHandlerMonitor(dut)
+    monitor_task = cocotb.start_soon(monitor.run())
+    driver_task = cocotb.start_soon(drive_frames(dut, frames))
+
+    await driver_task
+    await monitor.wait_for_counts(
+        expected_bbos=2,
+        expected_seq_samples=4,
+    )
+    await clock_cycles(dut, QUIET_CYCLES)
+
+    monitor.stop()
+    await monitor_task
+
+    expected_states = [
+        {
+            "msg_index": "heartbeat-before",
+            "bbo": {
+                "bid_price": 10_000,
+                "bid_size": 100,
+                "ask_price": None,
+                "ask_size": None,
+            },
+        },
+        {
+            "msg_index": "heartbeat-after",
+            "bbo": {
+                "bid_price": 10_000,
+                "bid_size": 100,
+                "ask_price": 10_020,
+                "ask_size": 50,
+            },
+        },
+    ]
+
+    assert len(monitor.bbo_words) == len(expected_states)
+    for word, state in zip(monitor.bbo_words, expected_states, strict=True):
+        assert_bbo_matches_word(word, state)
+
+    assert len(monitor.seq_samples) == 4
+    first, heartbeat, second, eos = monitor.seq_samples
+
+    assert first["seq"] == 500
+    assert first["count"] == 1
+    assert first["in_order"] == 1
+    assert first["heartbeat"] == 0
+    assert first["eos"] == 0
+    assert first["expected_seq"] == 501
+
+    assert heartbeat["seq"] == 501
+    assert heartbeat["count"] == 0
+    assert heartbeat["in_order"] == 0
+    assert heartbeat["duplicate"] == 0
+    assert heartbeat["gap"] == 0
+    assert heartbeat["heartbeat"] == 1
+    assert heartbeat["eos"] == 0
+    assert heartbeat["stale"] == 0
+    assert heartbeat["expected_next"] == 501
+    assert heartbeat["expected_seq"] == 501
+
+    assert second["seq"] == 501
+    assert second["count"] == 1
+    assert second["in_order"] == 1
+    assert second["heartbeat"] == 0
+    assert second["eos"] == 0
+    assert second["expected_seq"] == 502
+
+    assert eos["seq"] == 502
+    assert eos["count"] == 0xFFFF
+    assert eos["in_order"] == 0
+    assert eos["duplicate"] == 0
+    assert eos["gap"] == 0
+    assert eos["heartbeat"] == 0
+    assert eos["eos"] == 1
+    assert eos["stale"] == 0
+
+    # expected_next_o is the raw seq+count header sideband. The sequence guard
+    # correctly keeps expected_seq_o at 502 because EOS carries no messages.
+    assert eos["expected_next"] == 502 + 0xFFFF
+    assert eos["expected_seq"] == 502
+
+    assert signal_value_to_int(dut.expected_seq_o.value) == 502
+    assert signal_value_to_int(dut.stale_o.value) == 0
+
+    assert monitor.frame_drop_errs == []
+    assert monitor.mold_drop_errs == []
+    assert monitor.realign_errs == []
+    assert monitor.stale_seen is False
+
+    dut._log.info(
+        "G4.3a passed: data=2 heartbeat=1 eos=1 matched_bbos=2 "
+        "expected_final_seq=502 stale=0"
+    )
+
+
+@cocotb.test()
+async def test_feed_handler_top_heartbeat_gap_is_status_only(
+    dut: Any,
+) -> None:
+    """G4.3b: a future heartbeat reports a gap but emits no book event."""
+
+    first_payload = directed_add_order_payload(
+        4001,
+        side="B",
+        shares=80,
+        price=10_000,
+        tracking=1,
+        timestamp_ns=1,
+    )
+    post_gap_payload = directed_add_order_payload(
+        4002,
+        side="S",
+        shares=25,
+        price=10_030,
+        tracking=2,
+        timestamp_ns=2,
+    )
+
+    first_frames, _ = directed_frames([first_payload], seq_start=700)
+    heartbeat_frame, _ = directed_control_frame(
+        seq=704,
+        heartbeat=True,
+    )
+    post_gap_frames, _ = directed_frames([post_gap_payload], seq_start=704)
+
+    frames = [
+        first_frames[0],
+        heartbeat_frame,
+        post_gap_frames[0],
+    ]
+
+    await initialise_feed_handler(dut)
+
+    monitor = FeedHandlerMonitor(dut)
+    monitor_task = cocotb.start_soon(monitor.run())
+    driver_task = cocotb.start_soon(drive_frames(dut, frames))
+
+    await driver_task
+    await monitor.wait_for_counts(
+        expected_bbos=2,
+        expected_seq_samples=3,
+    )
+    await clock_cycles(dut, QUIET_CYCLES)
+
+    monitor.stop()
+    await monitor_task
+
+    expected_states = [
+        {
+            "msg_index": "heartbeat-gap-before",
+            "bbo": {
+                "bid_price": 10_000,
+                "bid_size": 80,
+                "ask_price": None,
+                "ask_size": None,
+            },
+        },
+        {
+            "msg_index": "heartbeat-gap-after",
+            "bbo": {
+                "bid_price": 10_000,
+                "bid_size": 80,
+                "ask_price": 10_030,
+                "ask_size": 25,
+            },
+        },
+    ]
+
+    assert len(monitor.bbo_words) == len(expected_states)
+    for word, state in zip(monitor.bbo_words, expected_states, strict=True):
+        assert_bbo_matches_word(word, state)
+
+    assert len(monitor.seq_samples) == 3
+    first, heartbeat, post_gap = monitor.seq_samples
+
+    assert first["seq"] == 700
+    assert first["count"] == 1
+    assert first["in_order"] == 1
+    assert first["expected_seq"] == 701
+    assert first["stale"] == 0
+
+    assert heartbeat["seq"] == 704
+    assert heartbeat["count"] == 0
+    assert heartbeat["heartbeat"] == 1
+    assert heartbeat["eos"] == 0
+    assert heartbeat["in_order"] == 0
+    assert heartbeat["duplicate"] == 0
+    assert heartbeat["gap"] == 1
+    assert heartbeat["stale"] == 1
+    assert heartbeat["gap_start"] == 701
+    assert heartbeat["gap_end"] == 703
+    assert heartbeat["expected_seq"] == 704
+
+    assert post_gap["seq"] == 704
+    assert post_gap["count"] == 1
+    assert post_gap["in_order"] == 1
+    assert post_gap["duplicate"] == 0
+    assert post_gap["gap"] == 0
+    assert post_gap["heartbeat"] == 0
+    assert post_gap["eos"] == 0
+    assert post_gap["stale"] == 1
+    assert post_gap["gap_start"] == 701
+    assert post_gap["gap_end"] == 703
+    assert post_gap["expected_seq"] == 705
+
+    assert signal_value_to_int(dut.expected_seq_o.value) == 705
+    assert signal_value_to_int(dut.stale_o.value) == 1
+    assert signal_value_to_int(dut.gap_start_o.value) == 701
+    assert signal_value_to_int(dut.gap_end_o.value) == 703
+
+    assert monitor.frame_drop_errs == []
+    assert monitor.mold_drop_errs == []
+    assert monitor.realign_errs == []
+    assert monitor.stale_seen is True
+
+    dut._log.info(
+        "G4.3b passed: heartbeat_gap=701..703 matched_bbos=2 "
+        "expected_final_seq=705 stale=1"
     )
