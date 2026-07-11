@@ -5,12 +5,11 @@ import hdl_header::*;
 
 module order_book_top_tb;
 
-    localparam logic [STOCK_W-1:0] TARGET_LOCATE = 16'd42;
-    localparam logic [PRICE_W-1:0] BASE_PRICE    = 32'd1_500_000;
+    localparam logic [STOCK_W-1:0] ROUTED_LOCATE = 16'd1;
+    localparam logic [PRICE_W-1:0] BASE_PRICE    = 32'd28_000;
 
     logic                   clk;
     logic                   rst_n;
-    logic [STOCK_W-1:0]     target_locate_i;
     logic [PRICE_W-1:0]     base_price_i;
     data_t                  rdata_i;
     logic                   valid_i;
@@ -24,7 +23,6 @@ module order_book_top_tb;
     order_book_top dut (
         .clk             (clk),
         .rst_n           (rst_n),
-        .target_locate_i (target_locate_i),
         .base_price_i    (base_price_i),
         .rdata_i         (rdata_i),
         .valid_i         (valid_i),
@@ -52,11 +50,10 @@ module order_book_top_tb;
     task automatic reset_dut();
         int unsigned cycles;
 
-        rst_n           = 1'b0;
-        target_locate_i = TARGET_LOCATE;
-        base_price_i    = BASE_PRICE;
-        rdata_i         = '0;
-        valid_i         = 1'b0;
+        rst_n        = 1'b0;
+        base_price_i = BASE_PRICE;
+        rdata_i      = '0;
+        valid_i      = 1'b0;
 
         repeat (6) @(posedge clk);
         rst_n = 1'b1;
@@ -153,8 +150,8 @@ module order_book_top_tb;
 
         reset_dut();
 
-        $display("TEST order_book_top drops non-target symbols");
-        make_add_event(16'd99, 64'd1, 1'b1, 32'd900, BASE_PRICE + 32'd50, evt);
+        $display("TEST order_book_top drops locates other than notebook-normalised locate 1");
+        make_add_event(16'd2, 64'd1, 1'b1, 32'd900, BASE_PRICE + 32'd5, evt);
         pulses_before = bbo_pulses;
         send_event(evt);
         repeat (100) @(posedge clk);
@@ -162,18 +159,18 @@ module order_book_top_tb;
             $fatal(1, "Non-target event mutated the order book");
         end
 
-        $display("TEST order_book_top forwards configured base price for a target bid");
-        make_add_event(TARGET_LOCATE, 64'd100, 1'b1, 32'd500, BASE_PRICE + 32'd100, evt);
+        $display("TEST order_book_top forwards the GPIO base price for a locate-1 bid");
+        make_add_event(ROUTED_LOCATE, 64'd100, 1'b1, 32'd500, BASE_PRICE + 32'd1, evt);
         send_event(evt);
         wait_for_bbo_count(pulses_before + 1);
-        expect_bbo(BASE_PRICE + 32'd100, 32'd500, 32'd0, 32'd0);
+        expect_bbo(BASE_PRICE + 32'd1, 32'd500, 32'd0, 32'd0);
 
-        $display("TEST order_book_top routes a target ask into the same book");
-        make_add_event(TARGET_LOCATE, 64'd101, 1'b0, 32'd250, BASE_PRICE + 32'd200, evt);
+        $display("TEST order_book_top routes a locate-1 ask into the same book");
+        make_add_event(ROUTED_LOCATE, 64'd101, 1'b0, 32'd250, BASE_PRICE + 32'd2, evt);
         send_event(evt);
         wait_for_bbo_count(pulses_before + 2);
-        expect_bbo(BASE_PRICE + 32'd100, 32'd500,
-                   BASE_PRICE + 32'd200, 32'd250);
+        expect_bbo(BASE_PRICE + 32'd1, 32'd500,
+                   BASE_PRICE + 32'd2, 32'd250);
 
         $display("PASS: order_book_top_tb");
         $finish;

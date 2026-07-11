@@ -9,13 +9,14 @@ module feed_handler_top_tb;
     localparam logic [15:0]               TEST_SRC_PORT = 16'd40000;
     localparam logic [15:0]               TEST_DST_PORT = 16'd50000;
 
-    localparam logic [STOCK_W-1:0] TARGET_LOCATE = 16'd42;
-    localparam logic [PRICE_W-1:0] BASE_PRICE    = 32'd1_500_000;
+    // The PS notebook filters the selected symbol and rewrites its locate to 1.
+    // Prices and base price are both in cents after the notebook's Price(4) / 100 conversion.
+    localparam logic [STOCK_W-1:0] ROUTED_LOCATE = 16'd1;
+    localparam logic [PRICE_W-1:0] BASE_PRICE    = 32'd28_000;
 
     logic       clk;
     logic       rst_n;
 
-    logic [STOCK_W-1:0] target_locate_i;
     logic [PRICE_W-1:0] base_price_i;
 
     axis_data_t s_frame_tdata_i;
@@ -61,7 +62,6 @@ module feed_handler_top_tb;
         .clk               (clk),
         .rst_n             (rst_n),
 
-        .target_locate_i   (target_locate_i),
         .base_price_i      (base_price_i),
 
         .s_frame_tdata_i   (s_frame_tdata_i),
@@ -129,7 +129,6 @@ module feed_handler_top_tb;
         int unsigned cycles;
 
         rst_n              = 1'b0;
-        target_locate_i    = TARGET_LOCATE;
         base_price_i       = BASE_PRICE;
         s_frame_tdata_i    = '0;
         s_frame_tkeep_i    = '0;
@@ -451,17 +450,17 @@ module feed_handler_top_tb;
         reset_dut();
 
         $display("TEST feed_handler_top frame -> ingress -> decoder -> order_book_top");
-        build_add_message(TARGET_LOCATE, 64'd100, 1'b1, 32'd500,
-                          BASE_PRICE + 32'd100, bid_msg);
-        build_add_message(TARGET_LOCATE, 64'd101, 1'b0, 32'd250,
-                          BASE_PRICE + 32'd200, ask_msg);
+        build_add_message(ROUTED_LOCATE, 64'd100, 1'b1, 32'd500,
+                          BASE_PRICE + 32'd1, bid_msg);
+        build_add_message(ROUTED_LOCATE, 64'd101, 1'b0, 32'd250,
+                          BASE_PRICE + 32'd2, ask_msg);
         build_two_msg_dgram(64'd100, bid_msg, ask_msg, dgram);
         build_eth_ipv4_udp_frame(dgram, frame);
 
         send_frame(frame);
         wait_for_bbo_count(2);
-        expect_bbo(BASE_PRICE + 32'd100, 32'd500,
-                   BASE_PRICE + 32'd200, 32'd250);
+        expect_bbo(BASE_PRICE + 32'd1, 32'd500,
+                   BASE_PRICE + 32'd2, 32'd250);
         expect_no_errors();
 
         $display("TEST feed_handler_top duplicate packet creates no extra book updates");
@@ -475,9 +474,9 @@ module feed_handler_top_tb;
             $fatal(1, "Expected one duplicate pulse, saw %0d", duplicate_pulses);
         end
 
-        $display("TEST feed_handler_top accepts but filters a non-target symbol");
-        build_add_message(TARGET_LOCATE + 16'd1, 64'd200, 1'b1, 32'd900,
-                          BASE_PRICE + 32'd300, non_target_msg);
+        $display("TEST feed_handler_top accepts but filters a non-1 symbol locate");
+        build_add_message(16'd2, 64'd200, 1'b1, 32'd900,
+                          BASE_PRICE + 32'd3, non_target_msg);
         build_one_msg_dgram(64'd102, non_target_msg, dgram);
         build_eth_ipv4_udp_frame(dgram, frame);
 
@@ -488,15 +487,15 @@ module feed_handler_top_tb;
         end
 
         $display("TEST feed_handler_top continues after the filtered symbol");
-        build_add_message(TARGET_LOCATE, 64'd102, 1'b1, 32'd100,
-                          BASE_PRICE + 32'd150, higher_bid_msg);
+        build_add_message(ROUTED_LOCATE, 64'd102, 1'b1, 32'd100,
+                          BASE_PRICE + 32'd2, higher_bid_msg);
         build_one_msg_dgram(64'd103, higher_bid_msg, dgram);
         build_eth_ipv4_udp_frame(dgram, frame);
 
         send_frame(frame);
         wait_for_bbo_count(pulses_before + 1);
-        expect_bbo(BASE_PRICE + 32'd150, 32'd100,
-                   BASE_PRICE + 32'd200, 32'd250);
+        expect_bbo(BASE_PRICE + 32'd2, 32'd100,
+                   BASE_PRICE + 32'd2, 32'd250);
 
         if (expected_seq_o !== 64'd104) begin
             $fatal(1, "Expected next sequence 104, got %0d", expected_seq_o);

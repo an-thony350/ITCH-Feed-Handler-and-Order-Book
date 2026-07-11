@@ -16,6 +16,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Make target locate and base price configurable from the top level
+// Revision 0.03 - Restore fixed locate-1 routing and keep only PS-configurable base price
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -28,8 +29,7 @@ module symbol_router(
     input   logic                   clk,
     input   logic                   rst_n,
 
-    // configuration inputs from PS, normally driven by AXI GPIO
-    input   logic   [STOCK_W-1:0]   target_locate_i,
+    // base-price configuration from PS, normally driven by AXI GPIO
     input   logic   [PRICE_W-1:0]   base_price_i,
 
     // inputs from data handler
@@ -50,10 +50,15 @@ module symbol_router(
     output  logic                   valid_stock0_o
 );
 
+localparam logic [STOCK_W-1:0] ROUTED_LOCATE = STOCK_W'(1);
+
 logic locate_match;
 
-assign locate_match = (rdata_i.stock_locate == target_locate_i);
-assign ready_o      = (!valid_i) || (!locate_match) || ready_i;
+assign locate_match = (rdata_i.stock_locate == ROUTED_LOCATE);
+
+// Non-target messages are consumed and dropped without inheriting order-book
+// backpressure. The notebook rewrites the selected symbol's locate to 1.
+assign ready_o = (!valid_i) || (!locate_match) || ready_i;
 
 always_ff@(posedge clk) begin
     if(!rst_n) begin

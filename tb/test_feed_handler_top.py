@@ -188,7 +188,6 @@ async def initialise_feed_handler(dut: Any) -> None:
 
     await start_clock(dut)
 
-    dut.target_locate_i.value = TARGET_LOCATE
     dut.base_price_i.value = BASE_PRICE
 
     dut.s_frame_tdata_i.value = 0

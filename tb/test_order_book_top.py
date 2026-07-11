@@ -129,7 +129,6 @@ async def initialise_order_book_top(
 
     dut.rdata_i.value = 0
     dut.valid_i.value = 0
-    dut.target_locate_i.value = target_locate
     dut.base_price_i.value = base_price
 
     await reset_dut(dut, cycles=RESET_CYCLES)

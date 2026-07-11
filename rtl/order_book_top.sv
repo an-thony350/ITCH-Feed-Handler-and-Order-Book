@@ -16,6 +16,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Add configurable target locate/base price and align router ports
+// Revision 0.03 - Restore fixed locate-1 routing and retain only base-price control
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -26,8 +27,7 @@ module order_book_top(
     input   logic                   clk,
     input   logic                   rst_n,
 
-    // configuration inputs from PS, normally driven by AXI GPIO
-    input   logic   [STOCK_W-1:0]   target_locate_i,
+    // base-price configuration from PS, normally driven by AXI GPIO
     input   logic   [PRICE_W-1:0]   base_price_i,
 
     // inputs from data handler
@@ -55,7 +55,6 @@ symbol_router router(
     .clk             (clk),
     .rst_n           (rst_n),
 
-    .target_locate_i (target_locate_i),
     .base_price_i    (base_price_i),
 
     .rdata_i         (rdata_i),
