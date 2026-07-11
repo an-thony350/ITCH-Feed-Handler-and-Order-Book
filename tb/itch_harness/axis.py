@@ -9,7 +9,7 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
-from .layout import pack_data_t
+from .layout import pack_data_t, pack_decoder_data_t
 from .scoreboard import signal_value_to_int
 
 
@@ -272,3 +272,90 @@ async def wait_data_handler_valid(
         await RisingEdge(dut.clk)
 
     raise TimeoutError("timed out waiting for data_handler valid_o")
+
+
+async def drive_order_book_top_event(
+    dut: Any,
+    event: dict[str, Any],
+    *,
+    wait_for_bbo: bool = True,
+    timeout_cycles: int = 100_000,
+) -> int | None:
+    """Drive one golden event into order_book_top.sv.
+
+    ``order_book_top.ready_o`` depends on ``valid_i`` because the symbol router
+    accepts non-matching locates immediately while applying downstream
+    backpressure to matching events. Therefore this driver asserts valid first,
+    then holds the packed 217-bit data_t stable until a real valid/ready
+    handshake occurs.
+
+    Return:
+        packed bbo_data_o word when ``wait_for_bbo`` is True, otherwise None.
+    """
+
+    packed = pack_decoder_data_t(event)
+
+    if len(dut.rdata_i) != 217:
+        raise ValueError(
+            f"order_book_top.rdata_i must be 217 bits, got {len(dut.rdata_i)}"
+        )
+
+    await FallingEdge(dut.clk)
+
+    dut.rdata_i.value = packed
+    dut.valid_i.value = 1
+
+    accepted = False
+    for _ in range(timeout_cycles):
+        # The event is already stable from the falling edge. ReadOnly allows the
+        # combinational router ready path to settle before the active edge.
+        await ReadOnly()
+        ready_before_edge = signal_value_to_int(dut.ready_o.value)
+
+        await RisingEdge(dut.clk)
+
+        if ready_before_edge == 1:
+            accepted = True
+            break
+
+        await FallingEdge(dut.clk)
+
+    if not accepted:
+        raise TimeoutError(
+            "timed out waiting for order_book_top ready_o with valid_i asserted"
+        )
+
+    # Remove the accepted event away from the active sampling edge.
+    await FallingEdge(dut.clk)
+    dut.valid_i.value = 0
+    dut.rdata_i.value = 0
+
+    if not wait_for_bbo:
+        return None
+
+    return await wait_order_book_top_bbo(
+        dut,
+        timeout_cycles=timeout_cycles,
+    )
+
+
+async def wait_order_book_top_bbo(
+    dut: Any,
+    *,
+    timeout_cycles: int = 100_000,
+) -> int:
+    """Wait for order_book_top bbo_valid_o and return bbo_data_o.
+
+    Sampling on the falling half-cycle avoids delta-cycle races with the
+    order-book FSM's registered EMIT pulse.
+    """
+
+    for _ in range(timeout_cycles):
+        await ReadOnly()
+        if signal_value_to_int(dut.bbo_valid_o.value) == 1:
+            return signal_value_to_int(dut.bbo_data_o.value)
+
+        await RisingEdge(dut.clk)
+        await FallingEdge(dut.clk)
+
+    raise TimeoutError("timed out waiting for order_book_top bbo_valid_o")
