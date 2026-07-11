@@ -148,9 +148,7 @@ logic [HASH_W-1:0]  clear_idx;
 logic [HASH_W-1:0]  lookup_idx;
 logic [HASH_W-1:0]  hash_idx;
 logic [HASH_W-1:0]  rep_hash_idx;
-logic [BBO_W-1:0]   event_price_idx;
 logic [BBO_W-1:0]   lookup_p_idx_wire;
-logic [BBO_W-1:0]   event_p_idx_wire;
 logic [HASH_W-1:0]  insert_idx;
 logic [BBO_W-1:0]   best_bid_idx;
 logic [BBO_W-1:0]   best_ask_idx;
@@ -172,7 +170,8 @@ order_entry_t h_entry;
 order_entry_t rep_h_entry;
 
 
-// Replacement Add register
+// Replacement Add registers
+logic                rep_same_price;
 logic [SHARES_W-1:0] base_add_shares;
 logic [SHARES_W-1:0] tmp_base_shares;
 
@@ -184,6 +183,9 @@ logic [PRICE_W-1:0]     latched_base_price;
 logic [SHARES_W-1:0]    latched_book_shares;
 logic [SHARES_W-1:0]    latched_event_shares;
 logic [BBO_W-1:0]       latched_lookup_price_idx;
+logic [BBO_W-1:0]       latched_event_price_idx;
+logic                   latched_bid_valid_rst;
+logic                   latched_ask_valid_rst;
 
 
 // Price book & BBO output registers
@@ -198,8 +200,16 @@ logic [CHUNK_LEN-1:0]    bid_active_chunks [CHUNK_LEN-1:0];
 logic [CHUNK_LEN-1:0]    ask_active_chunks [CHUNK_LEN-1:0];
 logic [CHUNK_LEN-1:0]    bid_chunk_bits;
 logic [CHUNK_LEN-1:0]    ask_chunk_bits;
-logic [CHUNK_LEN-1:0]    active_bid_lookup_chunk;
-logic [CHUNK_LEN-1:0]    active_ask_lookup_chunk;
+
+// registers heping reduce fanout in state calculation
+
+(* max_fanout = 64 *) logic   [CHUNK_LEN-1:0]    bid_row_we;
+(* max_fanout = 64 *) logic   [CHUNK_LEN-1:0]    ask_row_we;
+                      logic   [BBO_W-1:0]        chosen_row;
+                      logic                      target_val;
+                      logic                      target_side;
+                      logic                      we_en;
+                      logic                      level_depleted;
 
 
 
@@ -261,15 +271,11 @@ endfunction
 // Combinational assignments
 
 // idx assignments
-assign event_price_idx          =   price_to_idx(latched_rdata.price);
 assign lookup_p_idx_wire        =   price_to_idx(dout_a.price);
-assign event_p_idx_wire         =   price_to_idx(latched_rdata.price);
 
 // chunck assignments
 assign bid_chunk_bits           =   bid_active_chunks[bid_multiple];
 assign ask_chunk_bits           =   ask_active_chunks[ask_multiple];
-assign active_bid_lookup_chunk  =   bid_active_chunks[latched_lookup_price_idx[11:6]];
-assign active_ask_lookup_chunk  =   ask_active_chunks[latched_lookup_price_idx[11:6]];
 
 // hashed data assignments
 assign h_entry                  =   dout_a;
@@ -305,6 +311,56 @@ always_comb begin
     ask_we_b   = 1'b0;
     ask_addr_b = clear_idx[BBO_W-1:0];
     ask_din_b  = '0;
+
+    bid_row_we = '0;
+    ask_row_we = '0;
+
+    level_depleted = is_reduce_msg(latched_rdata.message_type) ?
+                     (latched_book_shares == latched_rdata.shares) :
+                     (latched_book_shares == latched_lookup_entry.shares);
+
+    tmp_base_shares = (latched_event_price_idx == latched_lookup_price_idx) ?
+                      (latched_book_shares - latched_lookup_entry.shares) :
+                      latched_event_shares;
+
+    if(current_state == UPDATE_WRITE && is_add_msg(latched_rdata.message_type)) begin
+        target_val  =       1'b1;
+        chosen_row  =       latched_event_price_idx;
+        target_side =       latched_rdata.side;
+        we_en       =       1'b1;
+    end
+    else if(current_state == REPLACE_ADD) begin
+        target_val  =       1'b1;
+        chosen_row  =       latched_event_price_idx;
+        target_side =       latched_lookup_entry.side;
+        we_en       =       1'b1;
+    end
+    else if(current_state == UPDATE_WRITE && (is_reduce_msg(latched_rdata.message_type) ||
+                                            latched_rdata.message_type == MSG_DELETE    ||
+                                            latched_rdata.message_type == MSG_REPLACE))begin
+        target_val  =       1'b0;
+        chosen_row  =       latched_lookup_price_idx;
+        target_side =       latched_lookup_entry.side;
+        we_en       =       level_depleted;
+    end
+    else begin
+        target_val  =       1'b0;
+        chosen_row  =       '0;
+        target_side =       '0;
+        we_en       =       1'b0;
+    end
+
+
+    if(target_side && we_en) begin
+        for(int i = 0; i < CHUNK_LEN; i++) begin
+            bid_row_we[i]   =   (chosen_row[11:6] == 6'(i));
+        end
+    end
+    else if(we_en) begin
+        for(int j = 0; j < CHUNK_LEN; j++) begin
+            ask_row_we[j]   =   (chosen_row[11:6] == 6'(j));
+        end
+    end
 
     case (current_state)
         CLEAR: begin
@@ -378,12 +434,12 @@ always_comb begin
             bid_addr_a  = lookup_p_idx_wire;
             ask_addr_a  = lookup_p_idx_wire;
 
-            bid_addr_b  = event_p_idx_wire;
-            ask_addr_b  = event_p_idx_wire;
+            bid_addr_b  = latched_event_price_idx;
+            ask_addr_b  = latched_event_price_idx;
         end
 
         UPDATE_READ_BOOK: begin
-            next_state  =   UPDATE_WRITE;
+            next_state      =   UPDATE_WRITE;
         end
 
         UPDATE_WRITE: begin
@@ -402,12 +458,12 @@ always_comb begin
 
                 if(latched_rdata.side) begin
                     bid_we_a   = 1'b1;
-                    bid_addr_a = event_price_idx;
+                    bid_addr_a = latched_event_price_idx;
                     bid_din_a  = latched_event_shares + latched_rdata.shares;
                 end
                 else begin
                     ask_we_a   = 1'b1;
-                    ask_addr_a = event_price_idx;
+                    ask_addr_a = latched_event_price_idx;
                     ask_din_a  = latched_event_shares + latched_rdata.shares;
                 end
             end
@@ -453,12 +509,6 @@ always_comb begin
         REPLACE_ADD: begin
             next_state = BBO_CHUNK_PRIORITY;
 
-            if(event_price_idx == latched_lookup_price_idx) begin
-                tmp_base_shares = latched_book_shares - latched_lookup_entry.shares;
-            end
-            else begin
-                tmp_base_shares = latched_event_shares;
-            end
 
             we_b            = 1'b1;
             addr_b          = insert_idx;
@@ -472,12 +522,12 @@ always_comb begin
 
             if(latched_lookup_entry.side) begin
                 bid_we_b   = 1'b1;
-                bid_addr_b = event_price_idx;
+                bid_addr_b = latched_event_price_idx;
                 bid_din_b  = tmp_base_shares + latched_rdata.shares;
             end
             else begin
                 ask_we_b   = 1'b1;
-                ask_addr_b = event_price_idx;
+                ask_addr_b = latched_event_price_idx;
                 ask_din_b  = tmp_base_shares + latched_rdata.shares;
             end
         end
@@ -629,6 +679,10 @@ always_ff @(posedge clk) begin
                 end
             end
 
+            IDX_REQ: begin
+                latched_event_price_idx     <=      price_to_idx(latched_rdata.price);
+            end
+
             IDX_SEARCH: begin
                 if(probe < MAX_PROBES || rep_probe < MAX_PROBES) begin
                     if(is_add_msg(latched_rdata.message_type)) begin
@@ -682,10 +736,13 @@ always_ff @(posedge clk) begin
 
             UPDATE_READ_TBL: begin
                 latched_lookup_entry        <=      dout_a;
+                latched_lookup_price_idx    <=      price_to_idx(dout_a.price);
             end
 
             UPDATE_READ_BOOK: begin
-                latched_lookup_price_idx    <=      price_to_idx(latched_lookup_entry.price);
+                rep_same_price              <=      (latched_event_price_idx == latched_lookup_price_idx);
+                latched_bid_valid_rst       <=      (bid_active_chunks[latched_lookup_price_idx[11:6]] == (64'h1 << latched_lookup_price_idx[5:0]));
+                latched_ask_valid_rst       <=      (ask_active_chunks[latched_lookup_price_idx[11:6]] == (64'h1 << latched_lookup_price_idx[5:0]));
 
                 if(latched_lookup_entry.side) begin
                     latched_book_shares  <= bid_dout_a;
@@ -703,102 +760,38 @@ always_ff @(posedge clk) begin
             end
 
             UPDATE_WRITE: begin
-                if (is_add_msg(latched_rdata.message_type)) begin
 
-                    if (latched_rdata.side) begin
-                        bid_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
-                        bid_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
-                    end
-                    else begin
-                        ask_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
-                        ask_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
-                    end
-                end
-                else if (is_reduce_msg(latched_rdata.message_type)) begin
+                for(int i = 0; i < CHUNK_LEN; i++) begin
+                    if(bid_row_we[i]) begin
+                        bid_active_chunks[i][chosen_row[5:0]]   <=  target_val;
 
-                    if (latched_lookup_entry.side) begin
-                        if(latched_book_shares == latched_rdata.shares) begin
-                            bid_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <=  1'b0;
-
-                            if(active_bid_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
-                                bid_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
-                            end
-                        end
-                    end
-                    else begin
-                        if(latched_book_shares == latched_rdata.shares) begin
-                            ask_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <=  1'b0;
-
-                            if(active_ask_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
-                                ask_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
-                            end
-                        end
-                    end
-                end
-                else if(latched_rdata.message_type == MSG_DELETE) begin
-                    if (latched_lookup_entry.side) begin
-
-                        if(latched_book_shares == latched_lookup_entry.shares) begin
-                            bid_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
-
-                            if(active_bid_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
-                                bid_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
-                            end
-                        end
-                    end
-                    else begin
-                        if(latched_book_shares == latched_lookup_entry.shares) begin
-                            ask_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
-
-                            if(active_ask_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
-                                ask_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
-                            end
-                        end
+                        if(target_val || latched_bid_valid_rst) bid_enc_valid[i]   <=  target_val;
                     end
 
-                end
-                else if (latched_rdata.message_type == MSG_REPLACE) begin
-                    if (latched_lookup_entry.side) begin
+                    if(ask_row_we[i]) begin
+                        ask_active_chunks[i][chosen_row[5:0]]   <=  target_val;
 
-                        if(latched_book_shares == latched_lookup_entry.shares) begin
-                            bid_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
-
-                            if(active_bid_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
-                                bid_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
-                            end
-                        end
+                        if(target_val || latched_ask_valid_rst) ask_enc_valid[i]   <=  target_val;
                     end
-                    else begin
-                        if(latched_book_shares == latched_lookup_entry.shares) begin
-                            ask_active_chunks[latched_lookup_price_idx[11:6]][latched_lookup_price_idx[5:0]] <= 1'b0;
-
-                            if(active_ask_lookup_chunk == (64'h1 << latched_lookup_price_idx[5:0])) begin
-                                ask_enc_valid[latched_lookup_price_idx[11:6]]   <=  1'b0;
-                            end
-                        end
-                    end
-
-                    latched_rdata.side <= latched_lookup_entry.side;
                 end
             end
 
             REPLACE_ADD: begin
 
-                if (event_price_idx == latched_lookup_price_idx) begin
-                    base_add_shares = latched_book_shares - latched_lookup_entry.shares;
+                for(int i = 0; i < CHUNK_LEN; i++) begin
+                    if(bid_row_we[i]) begin
+                        bid_active_chunks[i][chosen_row[5:0]]   <=  target_val;
+
+                        if(target_val || latched_bid_valid_rst) bid_enc_valid[i]   <=  target_val;
                     end
-                else begin
-                    base_add_shares = latched_event_shares;
+
+                    if(ask_row_we[i]) begin
+                        ask_active_chunks[i][chosen_row[5:0]]   <=  target_val;
+
+                        if(target_val || latched_ask_valid_rst) ask_enc_valid[i]   <=  target_val;
+                    end
                 end
 
-                if (latched_lookup_entry.side) begin
-                    bid_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
-                    bid_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
-                end
-                else begin
-                    ask_enc_valid[event_price_idx[11:6]]                            <=  1'b1;
-                    ask_active_chunks[event_price_idx[11:6]][event_price_idx[5:0]]  <=  1'b1;
-                end
             end
 
             BBO_CHUNK_PRIORITY: begin
