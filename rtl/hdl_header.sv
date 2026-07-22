@@ -35,7 +35,7 @@ package hdl_header;
     parameter int  MSG_W        =   8;
     parameter int  HASH_W       =   12;
     parameter int  FIFO_W       =   11;
-    parameter int  BBO_W        =   12;
+    parameter int  BBO_W        =   14;
     parameter int  CHUNK_W      =   6;
     parameter int  MAX_PROBES   =   16;
 
