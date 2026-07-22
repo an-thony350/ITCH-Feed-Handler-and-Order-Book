@@ -369,11 +369,7 @@
     <spirit:fileSet>
       <spirit:name>xilinx_verilogsynthesis_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>hdl/data_handler_v2_0_S00_AXIS.v</spirit:name>
-        <spirit:fileType>systemVerilogSource</spirit:fileType>
-      </spirit:file>
-      <spirit:file>
-        <spirit:name>src/header.sv</spirit:name>
+        <spirit:name>src/data_handler_v2_0_S00_AXIS.v</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
@@ -386,7 +382,7 @@
         <spirit:userFileType>CHECKSUM_c9ee9bd4</spirit:userFileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>hdl/data_handler_v2_0.v</spirit:name>
+        <spirit:name>src/data_handler_v2_0.v</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
         <spirit:userFileType>CHECKSUM_daefaf26</spirit:userFileType>
       </spirit:file>
@@ -394,11 +390,7 @@
     <spirit:fileSet>
       <spirit:name>xilinx_verilogbehavioralsimulation_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>hdl/data_handler_v2_0_S00_AXIS.v</spirit:name>
-        <spirit:fileType>systemVerilogSource</spirit:fileType>
-      </spirit:file>
-      <spirit:file>
-        <spirit:name>src/header.sv</spirit:name>
+        <spirit:name>src/data_handler_v2_0_S00_AXIS.v</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
@@ -410,7 +402,7 @@
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>hdl/data_handler_v2_0.v</spirit:name>
+        <spirit:name>src/data_handler_v2_0.v</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
     </spirit:fileSet>

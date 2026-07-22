@@ -223,11 +223,11 @@
     <spirit:fileSet>
       <spirit:name>xilinx_anylanguagesynthesis_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>order_book.srcs/sources_1/new/order_book.sv</spirit:name>
+        <spirit:name>src/order_book.sv</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>order_book.srcs/sources_1/new/symbol_router.sv</spirit:name>
+        <spirit:name>src/symbol_router.sv</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
@@ -236,7 +236,7 @@
         <spirit:userFileType>CHECKSUM_c9ee9bd4</spirit:userFileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>order_book.srcs/sources_1/new/order_book_top.sv</spirit:name>
+        <spirit:name>src/order_book_top.sv</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
         <spirit:userFileType>CHECKSUM_6b9e5701</spirit:userFileType>
       </spirit:file>
@@ -244,11 +244,11 @@
     <spirit:fileSet>
       <spirit:name>xilinx_anylanguagebehavioralsimulation_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>order_book.srcs/sources_1/new/order_book.sv</spirit:name>
+        <spirit:name>src/order_book.sv</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>order_book.srcs/sources_1/new/symbol_router.sv</spirit:name>
+        <spirit:name>src/symbol_router.sv</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
@@ -256,7 +256,7 @@
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>order_book.srcs/sources_1/new/order_book_top.sv</spirit:name>
+        <spirit:name>src/order_book_top.sv</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
     </spirit:fileSet>

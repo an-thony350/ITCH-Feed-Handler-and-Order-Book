@@ -534,7 +534,7 @@
         <spirit:userFileType>CHECKSUM_bc189141</spirit:userFileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>hdl/network_ingress_v1_0.v</spirit:name>
+        <spirit:name>src/network_ingress_v1_0.v</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
         <spirit:userFileType>CHECKSUM_57eeb76e</spirit:userFileType>
       </spirit:file>
@@ -566,7 +566,7 @@
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
       <spirit:file>
-        <spirit:name>hdl/network_ingress_v1_0.v</spirit:name>
+        <spirit:name>src/network_ingress_v1_0.v</spirit:name>
         <spirit:fileType>systemVerilogSource</spirit:fileType>
       </spirit:file>
     </spirit:fileSet>

@@ -1,6 +1,6 @@
 
 `timescale 1 ns / 1 ps
-import header::*;
+import hdl_header::*;
 
 	module data_handler_v2_0_S00_AXIS #
 	(
