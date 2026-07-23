@@ -1,15 +1,17 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
+// Company: N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
 //
 // Create Date: 27.06.2026 16:18:27
-// Design Name:
+// Design Name: Data Handler
 // Module Name: data_handler
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: PYNQ-Z1
+// Tool Versions: Vivado 2023.2
+//
+// Description: The Data Handler parses the data taken in the form detailled in the
+//              Nasdaq TotalView-ITCH 5.0 specification
 //
 // Dependencies:
 //
@@ -17,23 +19,20 @@
 // Revision 0.01 - File Created
 // Revision 0.02 - Fix IDLE decode for A/F and use tlast for message completion
 // Additional Comments:
+// This module has the following assumptions (which we can fix later
+// depending on what we decide)
+//
+// - Assumes that we are taking in data using the MoldUDP64 Protocal - More
+//   specifcally we are taking in data in 8-byte packets
+// - Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and
+//   the only inputed bytes are the ITCH bytes
+// - We are only parsing data from sections 1.3 & 1.4 - all other data is irrelevant
+// - For adding orders to the book, we now treat both A and F as ADD. F's MPID field
+//   is ignored for book state.
+// - For order executed, we are including price message - (using section 1.4.2)
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-
-/*
-This module has the following assumptions (which we can fix later depending on what we decide)
-
-- Assumes that we are taking in data using the MoldUDP64 Protocal - More specifcally we are taking in data in 8-byte packets
-- Assumes we have a block before this, that slices out Ethernet/UDP/IPV4 bytes and the only inputed bytes are the ITCH bytes
-- We are only parsing data from sections 1.3 & 1.4 - all other data is irrelevant
-- For adding orders to the book, we now treat both A and F as ADD. F's MPID field is ignored for book state.
-- For order executed, we are including price message - (using section 1.4.2)
-
-
-- Test bench must be updated
-
-*/
 import hdl_header::*;
 
 
