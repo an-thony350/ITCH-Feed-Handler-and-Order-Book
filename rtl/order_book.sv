@@ -1,48 +1,56 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
+// Company: N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
 //
 // Create Date: 29.06.2026 15:15:19
-// Design Name:
+// Design Name: Order Book
 // Module Name: order_book
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: PYNQ-Z1
+// Tool Versions: Vivado 2023.2
+//
+// Description: The order book carries both combinational and sequential logic
+// through a Mealy model state machne of 14 states allowing for both accurate data
+// capture of orders for a specific stock, as well as two price books determining the
+// best buy and sell prices
 //
 // Dependencies:
 //
 // Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
+// Revision 0.01 - File Created & base structure formed
+// Revision 0.02 - All instructions except for Replace
+// Revision 0.10 - Valid/ready handshake & replacement state added
+// Revision 1.00 - Addition of base price logic (with symbol router) & pipelined
+//                 registers for the price books
+// Revision 1.01 - Addition of delta price functions, and explicit bit specification
+//                 to remove verilator warinings
+// Revision 1.02 - Latching of multiple registers, avoiding hash collisions
+// Revision 1.10 - Compatibility with symbol router & top module
+// Revision 2.00 - Change of hash collision traversal - using probe searching
+//                 rather than linked list traversal (see note [1] in comments)
+// Revision 2.01 - Addition of header package file (hdl_header), cleaning up data IO
+// Revision 2.10 - Chunk/bit priority encoders for BBO output traversal & tombstone
+//                 additions in probe searching logic to fix key hashing collision
+//                 faults introduced with probe searching
+// Revision 2.11 - debug & cleanup
+// Revision 3.00 - Change of how three books are written to, implemented as True-Port
+//                 BRAM, ensuring design is synthesizable in Vivado w/o high LUT use
+// Revision 3.10 - Pipelining and replicating registers to optimise timing
+// Revision 3.11 - Increasing price window by increasing BBO_W and relevent logic
 //
+// Additional Comments:
+// [1]: In the previous design, a Linked List was formed to determine hash entries
+//      and indexes. If a hash index was already in use, it would have a reference
+//      index which pointed to another index in the order book. This would allow
+//      the traversal of indexes until the correct ORN is found. Given the heavy
+//      data requirement, we have chosen to change this to a probe seaching method
+//      this method effectively works on spacial locality, where in a hash collision
+//      the index will increase by 1 and look into the new address to se if a slot
+//      is free. If so, the hash index for that ORN is updated accordingly. This is
+//      less heavy on resources and faster, but will cause data to be lost if there
+//      are no free slots in range [hash_idx, hash_idx + MAX_PROBES)
 //////////////////////////////////////////////////////////////////////////////////
-
-
-// To do list:
-// - BBO  & Price Level Memory Block
-// - test bench
-
-/*
-Notes about the states:
-
-- RD_MEM - 1st bram cycle for reading hash id
-- EVAL_MEM - 2nd bram cycle determining the ITCH type byte
-- ALLOC - used for the specific case where we need to use fifo to assign a hash id in an Add ITCH type
-- EDR - For 'E' 'D' 'C' and 'X' ITCH types (stands for execute, delete, remove)
-- REP - For 'U' ITCH type (replace)
-
-- Fifo starts at address 8912 of the book because the hash ids are all 13 bit integers, hence extra space is
-used for the "overflow" when another node is needed in the linked list (also kept separate which is great)
-
-- (Linked List) structure where read_ptr points to the nodes of value orn
-- all nodes have a next_ptr value as a link to another node which can create a list of nodes in this case
-
-
-- v1 - order book structure
-- v2 - valid/ready handshake + rep state completion
-*/
 
 import hdl_header::*;
 
@@ -260,7 +268,7 @@ function automatic logic [HASH_W-1:0] hash_orn(input logic [ORN_W-1:0] orn);
     end
 endfunction
 
-// Price logic (for price book) - Only works if delta < $40.96
+// Price logic (for price book) - Only works if delta < $164.83
 function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
     logic [PRICE_W-1:0] delta;
     begin

@@ -1,15 +1,22 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
 //
 // Create Date: 02.07.2026 15:13:38
-// Design Name:
+// Design Name: Order Book Top
 // Module Name: order_book_top
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: PYNQ-Z1
+// Tool Versions: Vivado 2023.2
+//
+// Description: The top module for the order book takes signals from the data handler.
+// It then passes it to the symbol router and then to the correct order books. The data
+// is sent to each order book, but is only passed in these modules if they have an
+// asserted valid signal.
+// Each order book held its own fifo in the top module, storing the output bbo data
+// (i.e. `bbo_data_o` and `bbo_valid_o`), and a round-robin scheduler allowing for a fair
+// output of bbo data from fifo to DMA.
 //
 // Dependencies:
 //

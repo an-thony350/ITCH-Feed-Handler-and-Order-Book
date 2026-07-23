@@ -1,15 +1,19 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
+// Company: N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
 //
 // Create Date: 02.07.2026 15:13:38
-// Design Name:
+// Design Name: Symbol Router
 // Module Name: symbol_router
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: PYNQ-Z1
+// Tool Versions: Vivado 2023.2
+//
+// Description: The symbol router holds the data handler signals as they are passed
+// directly from the top module. It also takes the base values of all the relevant
+// stocks that we track (note that this base price is pre-determined in the PS, and
+// delivered through AXI GPIO).
 //
 // Dependencies:
 //
