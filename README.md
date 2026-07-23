@@ -190,10 +190,10 @@ Other source messages may still be carried through MoldUDP64 sequencing but are 
 - ITCH integers are parsed as **big-endian unsigned integers**.
 - ITCH `Price(4)` values have four implied decimal places in the protocol.
 - The RTL price and `base_price_i` ports are 32-bit integers and must use the **same unit**.
-- The dense hardware level window contains `2^BBO_W = 4096` indices.
+- The dense hardware level window contains `2^BBO_W = 16,384` indices.
 - The current hardware computes `price_index = price - base_price` and keeps the low 12 bits.
 
-> A final board campaign must freeze one price unit end-to-end and keep every accepted price inside the configured 4096-index window. The current RTL does not yet reject below-base or above-window prices.
+> A final board campaign must freeze one price unit end-to-end and keep every accepted price inside the configured 16,384-index window. The current RTL does not yet reject below-base or above-window prices.
 
 ---
 
@@ -310,13 +310,13 @@ flowchart TB
     EVT --> UPDATE[Operation-specific update]
     RESOLVE --> UPDATE
 
-    UPDATE --> BID[(4096-entry bid-share memory)]
-    UPDATE --> ASK[(4096-entry ask-share memory)]
+    UPDATE --> BID[(16,384-entry bid-share memory)]
+    UPDATE --> ASK[(16,384-entry ask-share memory)]
     UPDATE --> OCC[Bid/ask active-level maps]
 
     OCC --> CHUNK[64-way active-chunk selection]
-    CHUNK --> LEVEL[64-way level selection]
-    LEVEL --> FETCH[Read best level shares]
+    CHUNK --> LEVEL[64-way bit selection]
+    LEVEL --> FETCH[Read best bit shares]
     FETCH --> BBO[bid price/size + ask price/size]
 ```
 
@@ -327,8 +327,8 @@ flowchart TB
 | `ORN_W` | 64 | Order reference width |
 | `PRICE_W` | 32 | Price integer width |
 | `SHARES_W` | 32 | Per-order and per-level aggregate width |
-| `HASH_W` | 12 | `4096` order-table entries |
-| `BBO_W` | 12 | `4096` price indices per side |
+| `HASH_W` | 14 | `16,384` order-table entries |
+| `BBO_W` | 14 | `16,384` price indices per side |
 | `CHUNK_W` | 6 | 64 chunks × 64 levels |
 | `MAX_PROBES` | 16 | Maximum intended probe depth |
 
@@ -345,10 +345,12 @@ stateDiagram-v2
     UPDATE_READ_TBL --> UPDATE_READ_BOOK
     UPDATE_READ_BOOK --> UPDATE_WRITE
     UPDATE_WRITE --> REPLACE_ADD: replace
-    UPDATE_WRITE --> BBO_CHUNK_PRIORITY: other operations
-    REPLACE_ADD --> BBO_CHUNK_PRIORITY
-    BBO_CHUNK_PRIORITY --> BBO_BIT_PRIORITY
-    BBO_BIT_PRIORITY --> FETCH_BBO
+    UPDATE_WRITE --> EVALUATE_BBO: other operations
+    REPLACE_ADD --> EVALUATE_BBO
+    EVALUATE_BBO --> FETCH_BBO : BBO output remains the same
+    EVALUATE_BBO --> BBO_SEARCH_REQ :  BBO output changes
+    BBO_SEARCH_REQ --> BBO_SEARCH_EVAL
+    BBO_SEARCH_EVAL --> FETCH_BBO
     FETCH_BBO --> FETCH_BBO_WAIT
     FETCH_BBO_WAIT --> EMIT
     EMIT --> IDLE
