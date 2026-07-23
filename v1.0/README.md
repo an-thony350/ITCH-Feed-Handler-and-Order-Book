@@ -4,12 +4,16 @@ By following the instructions below, you should have the ability to download our
 
 If you want to just run the processing system, the `v1release.bit` and `v1release.hwh` files are available for download and you can skip to the [Processing System Instructions](#processing-system-instructions)
 
+---
+
 ## Pre-requisites
 
 To run this design, there are a couple pre-requisites that must be noted before running the design.
 
 - The software used for this design is **Vivado 2023.2**
 - The board used for this design is **PYNQ-Z1**, or part **xc7z020clg400-1**
+
+---
 
 ## Hardware Instructions
 
@@ -27,6 +31,8 @@ git checkout release-v1.0
 3. In the Tcl Console, enter the following command: `cd <repository path>/v1.0`
 4. Enter the command `source build_project.tcl`
 
+---
+
 ## Bitsream Generation
 
 If you would like to generate your own bitstream, once completing the Hardware Instructions, enter the following command:
@@ -34,6 +40,8 @@ If you would like to generate your own bitstream, once completing the Hardware I
 `source bitstream.tcl`
 
 > Note that this command takes a prolonged amount of time due to OOC synthesis on all the IP modules, it is heavily recommended to use the given bit and hwh files in the repository, however this is left as an option if desired.
+
+---
 
 ## Processing System Instructions
 
