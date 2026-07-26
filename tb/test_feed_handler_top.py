@@ -188,7 +188,7 @@ async def initialise_feed_handler(dut: Any) -> None:
 
     await start_clock(dut)
 
-    dut.base_price_i.value = BASE_PRICE
+    dut.base_price_stock0_i.value = BASE_PRICE
 
     dut.s_frame_tdata_i.value = 0
     dut.s_frame_tkeep_i.value = 0

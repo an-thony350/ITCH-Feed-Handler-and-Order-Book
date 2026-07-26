@@ -129,7 +129,7 @@ async def initialise_order_book_top(
 
     dut.rdata_i.value = 0
     dut.valid_i.value = 0
-    dut.base_price_i.value = base_price
+    dut.base_price_stock0_i.value = base_price
 
     await reset_dut(dut, cycles=RESET_CYCLES)
     await FallingEdge(dut.clk)
@@ -225,7 +225,7 @@ async def test_order_book_top_drops_non_target_locate(dut: Any) -> None:
     off_target_event = add_event(
         1,
         order_ref=8001,
-        locate=TARGET_LOCATE + 1,
+        locate=TARGET_LOCATE + 5,
         side="BUY",
         shares=999,
         price=10010,
