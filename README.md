@@ -868,6 +868,16 @@ The order-book hierarchy dominates custom logic use. The recorded worst setup pa
 
 ## Latency and throughput design decisions
 
+| Module | Latency in clock cycles (range) | Cause of Critical Path |
+| - | - | - |
+| `frame_crack` | ? | ? |
+| `mold_deframe` & `mold_sequence_guard` | ? | ? |
+| `realign` | ? | ? |
+| `data_handler` | 4-8 | All valid instructions with price values as a part of the message take 8 cycles to parse through the system |
+| `symbol_router` | 1 | Symbol router ensures correct order book is selected, done in a cycle delay of data (also breaks down a combinational path) |
+| `order_book` | 10-14 | Replace instructions (+1 cycle), with a hash collision (+1 cycle), that change BBO price (+2 cycles) cause extra cycle latency from the optimal paths |
+| `order_book_top` | 2-4 | Latency depends on the counter value in the RR scheduler, 1 cycle to write data, and up to 3 cycles for the scheduler |
+
 ### Ingress
 
 - The external simulation and DMA interface is 32 bits wide.
