@@ -24,12 +24,10 @@ The project accepts Ethernet II / IPv4 / UDP / MoldUDP64-style frames, recovers 
     - [Current block design](#current-block-design)
     - [Address map](#address-map)
   - [Measured implementation results](#measured-implementation-results)
-    - [Top-level utilisation](#top-level-utilisation)
-    - [Network-ingress utilisation](#network-ingress-utilisation)
+    - [Utilisation](#utilisation)
   - [Latency and throughput design decisions](#latency-and-throughput-design-decisions)
     - [Network ingress](#network-ingress)
     - [Decoder and order book](#decoder-and-order-book)
-    - [Optimisation order](#optimisation-order)
   - [Further documentation](#further-documentation)
 
 ---
@@ -166,7 +164,7 @@ Other ITCH messages may still pass through MoldUDP64 sequencing, but messages th
 
 ## RTL datapath
 
-The top-level README keeps only the stage boundaries. Detailed contracts, parsing assumptions, backpressure behaviour, and per-stage responsibilities are documented in [`docs/rtl_datapath.md`](docs/rtl_datapath.md).
+Detailed contracts, parsing assumptions, backpressure behaviour, and per-stage responsibilities are documented in [`docs/rtl_datapath.md`](docs/rtl_datapath.md).
 
 | Stage | Responsibility |
 |---|---|
@@ -237,7 +235,7 @@ Latest routed build captured on **27 July 2026**:
 | WNS | **+0.047 ns** |
 | TNS | **0.000 ns** |
 
-### Top-level utilisation
+### Utilisation
 
 | Resource | Used | Available | Utilisation |
 |---|---:|---:|---:|
@@ -246,16 +244,8 @@ Latest routed build captured on **27 July 2026**:
 | Block RAM tiles | 90.5 | 140 | 64.64% |
 | DSPs | 0 | 220 | 0.00% |
 
-### Network-ingress utilisation
 
-| Hierarchy | LUTs | Registers | BRAM |
-|---|---:|---:|---:|
-| Complete `network_ingress` | 823 | 677 | 0 |
-| `frame_crack` | 320 | 172 | 0 |
-| `mold_deframe`, including sequence guard | 378 | 358 | 0 |
-| `realign` | 140 | 147 | 0 |
-
-The routed design is primarily **BRAM-constrained**, not LUT-, register-, or DSP-constrained. This favours performance improvements that spend LUTs and registers on parallel byte handling while avoiding additional block-memory structures.
+The routed design is primarily **BRAM-constrained**. This favours performance improvements that spend LUTs and registers on parallel byte handling while avoiding additional block-memory structures.
 
 ---
 
@@ -272,8 +262,6 @@ The cycle counts below assume no downstream backpressure and use the routed **10
 | `realign` | About **4 cycles / 37.5 ns** to the first aligned ITCH beat | About four payload bytes per six cycles, approximately **0.569 Gbit/s** | The stage repeats byte-serial unpacking and repacking and cannot accept a new beat while holding one |
 | Complete ingress | About **50 cycles / 468.8 ns** from the first Ethernet beat to the first aligned ITCH beat | Raw recovered-ITCH ceiling of about **0.569 Gbit/s** | Duplicated byte-serial work in `mold_deframe` and `realign` |
 
-`frame_crack` is already close to the minimum latency imposed by receiving a 42-byte header over a 32-bit interface. The highest-value ingress change is therefore to process all four byte lanes per cycle in `mold_deframe`, followed by a small register/LUT byte reservoir in `realign` that can accept and emit a beat in the same cycle.
-
 ### Decoder and order book
 
 | Stage | Latency | Initiation behaviour | Reason for the decision |
@@ -283,14 +271,6 @@ The cycle counts below assume no downstream backpressure and use the routed **10
 | `order_book` | About **9 cycles / 84.4 ns** in the collision-free, no-rescan common case | About **10 cycles** per common event, or **10.67 million events/s** | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
 
 Replace adds approximately one cycle, an emptied best level adds approximately two search cycles, and each additional hash probe adds approximately two cycles. The serial book deliberately prioritises correctness and bounded operation-dependent latency over an initiation interval of one. A pipelined version would require explicit same-reference and same-level forwarding or stalls.
-
-### Optimisation order
-
-1. **Instrument first.** Record cycle timestamps at each AXI handshake and at event/BBO validity so intrinsic latency is separated from backpressure queueing.
-2. **Parallelise `mold_deframe`.** Consume all four byte lanes each cycle. The target is sequence validity in roughly 5-6 cycles and payload output at one 32-bit beat per cycle.
-3. **Use a reservoir aligner.** Replace byte-at-a-time realignment with a small register/LUT reservoir capable of simultaneous input and output. This avoids adding pressure to the already constrained BRAM budget.
-4. **Add skid buffers only where useful.** A one-beat skid buffer may add one isolated cycle, but can remove bubbles, register `tready`, and improve timing predictability.
-5. **Widen only after using the current bus.** The raw 32-bit interface already provides **3.413 Gbit/s** at 106.667 MHz; the current loss is architectural utilisation, not bus width.
 
 The routed worst setup path is in the order-book memory path, from an order-table BRAM output through price-index/control logic to a price-book BRAM address. It has **8.492 ns** data-path delay, six logic levels, and approximately equal logic and routing delay. Increasing the global clock is therefore not the first ingress optimisation: the immediate objective is fewer cycles and fewer message-boundary bubbles at the existing timing-clean frequency.
 
