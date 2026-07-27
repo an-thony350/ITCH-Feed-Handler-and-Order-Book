@@ -70,6 +70,101 @@ def add_order_payload(
     return payload
 
 
+
+def add_order_with_mpid_payload(
+    order_ref: int,
+    *,
+    side: str,
+    shares: int,
+    price: int,
+    attribution: bytes = b"TEST",
+    locate: int = 1,
+    tracking: int = 1,
+    timestamp_ns: int = 1,
+    stock: bytes = b"AAPL",
+) -> bytes:
+    """Build an ITCH Add Order with MPID Attribution, type F, 40-byte payload."""
+
+    payload = (
+        common_itch_header(
+            "F",
+            locate=locate,
+            tracking=tracking,
+            timestamp_ns=timestamp_ns,
+        )
+        + order_ref.to_bytes(8, "big")
+        + side.encode("ascii")
+        + shares.to_bytes(4, "big")
+        + stock.ljust(8, b" ")[:8]
+        + price.to_bytes(4, "big")
+        + attribution.ljust(4, b" ")[:4]
+    )
+
+    assert len(payload) == 40
+    return payload
+
+
+def execute_order_payload(
+    order_ref: int,
+    *,
+    executed_shares: int,
+    match_number: int,
+    locate: int = 1,
+    tracking: int = 1,
+    timestamp_ns: int = 1,
+) -> bytes:
+    """Build an ITCH Order Executed, type E, 31-byte payload."""
+
+    payload = (
+        common_itch_header(
+            "E",
+            locate=locate,
+            tracking=tracking,
+            timestamp_ns=timestamp_ns,
+        )
+        + order_ref.to_bytes(8, "big")
+        + executed_shares.to_bytes(4, "big")
+        + match_number.to_bytes(8, "big")
+    )
+
+    assert len(payload) == 31
+    return payload
+
+
+def execute_order_with_price_payload(
+    order_ref: int,
+    *,
+    executed_shares: int,
+    match_number: int,
+    printable: str,
+    execution_price: int,
+    locate: int = 1,
+    tracking: int = 1,
+    timestamp_ns: int = 1,
+) -> bytes:
+    """Build an ITCH Order Executed With Price, type C, 36-byte payload."""
+
+    if len(printable) != 1:
+        raise ValueError("printable must be one character")
+
+    payload = (
+        common_itch_header(
+            "C",
+            locate=locate,
+            tracking=tracking,
+            timestamp_ns=timestamp_ns,
+        )
+        + order_ref.to_bytes(8, "big")
+        + executed_shares.to_bytes(4, "big")
+        + match_number.to_bytes(8, "big")
+        + printable.encode("ascii")
+        + execution_price.to_bytes(4, "big")
+    )
+
+    assert len(payload) == 36
+    return payload
+
+
 def delete_order_payload(
     order_ref: int,
     *,
