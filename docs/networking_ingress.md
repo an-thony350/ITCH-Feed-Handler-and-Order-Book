@@ -2,40 +2,48 @@
 
 ## Scope
 
-The ingress path takes Ethernet-frame AXI4-Stream input and emits aligned ITCH-message AXI4-Stream packets that can be consumed by `data_handler.sv`.
+The ingress path accepts a 32-bit AXI4-Stream Ethernet frame and emits one aligned AXI packet per recovered ITCH message for `data_handler.sv`.
 
-The real Nasdaq public sample files used by the golden model are not Ethernet captures. They are ITCH BinaryFILE streams: each record is a two-byte length followed by one ITCH payload. Therefore, the networking layer is verified using a software encapsulator that wraps the existing BinaryFILE messages into synthetic Ethernet/IP/UDP/MoldUDP64 frames.
-
-The goal for this phase is:
+Public Nasdaq ITCH sample files are BinaryFILE streams, not Ethernet captures. The host-side encapsulator wraps the same length-prefixed ITCH payloads used by the golden model into synthetic Ethernet II / IPv4 / UDP / MoldUDP64 frames. This makes the network path deterministic and allows controlled duplicate, gap, heartbeat, and EOS campaigns.
 
 ```text
 BinaryFILE ITCH
-  -> software encapsulator
-  -> Ethernet / IPv4 / UDP / MoldUDP64 frames
-  -> ingress RTL
-  -> recovered ITCH messages
-  -> data_handler
-  -> order_book
-  -> bit-exact match against states.jsonl
+    -> software encapsulator
+    -> Ethernet / IPv4 / UDP / MoldUDP64 frames
+    -> ingress RTL
+    -> aligned ITCH messages
+    -> decoder and book
+    -> comparison with the Python oracle
 ```
 
-This is not claiming direct access to a live market multicast stream. It is a deterministic way to exercise the exact protocol layers that a real wire-fed design would need.
+This flow tests the protocol layers required by a wire-fed design without claiming direct access to a live Nasdaq multicast stream.
 
-## Current RTL top-level
+---
 
-`rtl/ingress_top.sv` wires the ingress chain as:
+## Current RTL top level
+
+`rtl/ingress_top.sv` connects:
 
 ```text
-s_frame AXIS
-  -> frame_crack
-  -> mold_deframe
-  -> realign
-  -> m_itch AXIS
+s_frame AXI stream
+    -> frame_crack
+    -> mold_deframe + mold_seq_guard
+    -> realign
+    -> m_itch AXI stream
 ```
 
-The top-level input is a 64-bit AXI4-Stream Ethernet frame interface:
+The shared package defines:
 
-```systemverilog
+```text
+AXIS_DATA_W = 32
+AXIS_KEEP_W = 4
+```
+
+The earliest byte occupies the most-significant active lane. Final-beat `tkeep` values must be contiguous from that lane.
+
+### Ethernet-frame input
+
+```text
 s_frame_tdata_i
 s_frame_tkeep_i
 s_frame_tvalid_i
@@ -43,30 +51,37 @@ s_frame_tlast_i
 s_frame_tready_o
 ```
 
-The top-level output is a 64-bit AXI4-Stream ITCH-message interface:
+### Aligned ITCH output
 
-```systemverilog
+```text
 m_itch_tdata_o
 m_itch_tvalid_o
 m_itch_tlast_o
 m_itch_tready_i
 ```
 
-`ingress_top` also exposes MoldUDP64 sideband for the later gap/A-B logic:
+### MoldUDP64 and sequence status
 
-```systemverilog
+```text
 session_o
 seq_o
 count_o
 expected_next_o
 seq_valid_o
+in_order_o
+duplicate_o
+gap_o
 heartbeat_o
 eos_o
+stale_o
+expected_seq_o
+gap_start_o
+gap_end_o
 ```
 
-and error/status outputs:
+### Error status
 
-```systemverilog
+```text
 frame_drop_o
 frame_err_o
 mold_drop_o
@@ -74,279 +89,216 @@ mold_err_o
 realign_err_o
 ```
 
-## Shared package conventions
+These status outputs are available for simulation and future CSR mapping. The current PYNQ block design does not expose every status bit to the Processing System.
 
-The ingress path imports `hdl_header::*`.
+---
 
-Important package constants:
+## Software encapsulator
 
-```systemverilog
-parameter int AXIS_DATA_W = 64;
-parameter int AXIS_KEEP_W = AXIS_DATA_W / 8;
-
-typedef logic [AXIS_DATA_W-1:0] axis_data_t;
-typedef logic [AXIS_KEEP_W-1:0] axis_keep_t;
-```
-
-Byte-lane convention from `hdl_header.sv`:
+`golden/network_encapsulator.py` reads BinaryFILE payloads and writes:
 
 ```text
-lane 0 = tdata[63:56]
-lane 1 = tdata[55:48]
-...
-lane 7 = tdata[7:0]
-
-tkeep[7] corresponds to lane 0 / tdata[63:56]
+build/network/frames.bin
+build/network/frames.jsonl
 ```
 
+The frame stream contains raw concatenated Ethernet II frames. The metadata stream records frame lengths, source indices, sequence/count fields, and duplicate/feed annotations.
 
-## Stage 0: software encapsulator
+The encapsulator can control:
 
-Input:
+- number of ITCH messages per datagram;
+- sequence start;
+- MoldUDP64 session;
+- UDP source and destination ports;
+- exact frame duplication;
+- logical A/B copies;
+- a dropped frame for gap testing;
+- heartbeat and end-of-session packets;
+- source start index and maximum message count.
+
+A baseline round-trip check de-encapsulates the generated frames and compares every recovered ITCH payload byte-for-byte with the BinaryFILE source. Perform this check before using the vectors to debug RTL.
+
+Commands are in [`running_the_project.md`](running_the_project.md).
+
+---
+
+## Stage 1 — `frame_crack`
+
+`frame_crack` strips the supported Ethernet II, IPv4, and UDP headers and emits the UDP payload as one AXI datagram.
+
+### Supported packet shape
+
+| Layer | Current policy |
+|---|---|
+| Ethernet II | Require untagged EtherType `0x0800`; source/destination MAC are not used for filtering |
+| VLAN | Not supported; tagged frames are rejected by the EtherType check |
+| IPv4 | Require version 4 and IHL = 5 |
+| Fragmentation | Drop fragmented packets |
+| UDP | Require protocol 17; optionally check destination port |
+| Checksums | IP and UDP checksums are not validated |
+| Ethernet FCS | Assumed to have been handled before the RTL boundary |
+| AXI framing | Non-final beats require full `tkeep`; final `tkeep` must be contiguous |
+
+The fixed supported prefix is:
 
 ```text
-length-prefixed ITCH BinaryFILE records
+Ethernet II 14 bytes + IPv4 20 bytes + UDP 8 bytes = 42 bytes
 ```
 
-Output:
+At four bytes per cycle, the complete header requires eleven input beats. The payload begins two bytes into the final header beat, so the stage uses a fixed two-byte carry aligner.
+
+This is a latency and simplicity trade-off: the fixed implementation avoids a general variable-offset parser, while unsupported VLAN tags and IPv4 options are rejected explicitly.
+
+### Outputs
+
+In addition to the UDP payload AXI stream, the stage provides:
 
 ```text
-Ethernet II frames carrying IPv4/UDP/MoldUDP64 payloads
+datagram length
+datagram-start pulse
+frame-drop pulse
+frame-error bit map
 ```
 
-Required behaviour:
+### Error conditions
 
-1. Read ITCH payloads from the same BinaryFILE source used by the golden model.
-2. Group one or more ITCH messages into each MoldUDP64 datagram.
-3. Wrap each MoldUDP64 datagram in UDP, IPv4, and Ethernet II.
-4. Preserve enough metadata to match recovered messages back to the original `msg_index`.
-5. Provide knobs for:
-   - messages per datagram;
-   - sequence number start;
-   - injected gaps;
-   - duplicate packets;
-   - A/B duplicate streams;
-   - heartbeat packets (`count == 0`);
-   - end-of-session packets (`count == 0xffff`).
+The stage reports and drops:
 
-MoldUDP64 payload format:
+- bad `tkeep`;
+- unsupported EtherType;
+- non-IPv4 version;
+- IHL other than 5;
+- non-UDP protocol;
+- fragmented IPv4 packets;
+- configured destination-port mismatch;
+- invalid UDP length;
+- runt frames or early `tlast`.
+
+Dropped frames must not emit a partial UDP payload downstream.
+
+---
+
+## Stage 2 — `mold_deframe`
+
+`mold_deframe` parses:
 
 ```text
-session[10] seq[8] count[2]
-  repeated count times:
-    message_length[2] message_payload[message_length]
+session[10] + sequence[8] + message_count[2]
 ```
 
-`seq` is the sequence number of the first ITCH message in the packet.
+For a normal data packet it then extracts:
 
 ```text
-expected_next = seq + count
+message_length[2] + ITCH payload
 ```
 
-The encapsulator must be validated before RTL debugging. A good round-trip check is:
+for each advertised message.
+
+The stage emits:
+
+- concatenated ITCH payload bytes;
+- one 16-bit length token per ITCH message;
+- parsed session, sequence, count, and expected-next metadata;
+- message/count/length error status;
+- the sequence-guard status exposed by `ingress_top`.
+
+The contract with `realign` is exact: one accepted length token must be followed by exactly that many payload bytes.
+
+Heartbeat, EOS, duplicate, gap, and stale semantics are kept in [`moldudp64_sequence_handling.md`](moldudp64_sequence_handling.md) rather than duplicated here.
+
+### Malformed datagrams
+
+The stage detects cases including:
+
+- datagrams shorter than the 20-byte MoldUDP64 header;
+- a message length that extends beyond the UDP payload;
+- message count that cannot be satisfied by the datagram;
+- malformed final `tkeep`;
+- payload accompanying an EOS control header.
+
+Malformed datagrams are dropped and must not emit a partial ITCH message.
+
+---
+
+## Stage 3 — `realign`
+
+MoldUDP64 messages are variable length and not aligned to the 32-bit stream. `realign` combines the payload byte stream with the corresponding message-length tokens and emits:
 
 ```text
-BinaryFILE -> encapsulate -> software de-encapsulate -> BinaryFILE-equivalent messages
+one aligned AXI packet per ITCH message
 ```
 
-The recovered message list must exactly match the original ITCH payload list.
+It handles:
 
-## Stage 1: `frame_crack`
+- messages beginning at arbitrary byte offsets;
+- messages spanning several input beats;
+- multiple message boundaries within one datagram;
+- partial final output beats;
+- correct `tkeep` and `tlast` generation;
+- downstream backpressure;
+- zero length, underflow, overflow, and malformed-`tkeep` status.
 
-`frame_crack` strips the fixed Ethernet II + IPv4 + UDP headers and emits the UDP payload as an AXI4-Stream datagram for `mold_deframe`.
+The aligned output preserves the decoder's file-fed contract: `data_handler` sees one complete ITCH message per AXI packet regardless of its original position in the MoldUDP64 datagram.
 
-Current implementation assumptions:
+---
 
-- `AXIS_DATA_W == 32`.
-- One complete Ethernet frame is provided per input AXI packet.
-- AXIS byte order is big-endian: byte lane 0 is `tdata[31:24]`.
-- Ethernet is untagged Ethernet II.
-- IPv4 only.
-- IPv4 header length must be IHL = 5, so there are no IP options.
-- UDP only.
-- IPv4 fragments are dropped.
-- UDP payload starts at fixed byte offset 42, so the implementation uses a fixed 2-byte carry aligner rather than a generic byte-lane packer.
+## Integration with decoder and book
 
-Inputs:
+After realignment, the network path and file-fed path have the same decoder input contract:
 
 ```text
-Ethernet frame AXI4-Stream
+ingress_top.m_itch_* -> data_handler -> symbol_router -> order_book
 ```
 
-Outputs:
+The complete test flow is:
+
+1. generate `events.jsonl` and `states.jsonl` from a BinaryFILE source;
+2. encapsulate the same source messages into Ethernet frames;
+3. drive those frames into `ingress_top`;
+4. compare recovered ITCH messages where required;
+5. decode and apply accepted events;
+6. compare BBO output with the corresponding golden states.
+
+This common-source rule is important: network and file-fed tests must not accidentally use different event sequences.
+
+---
+
+## Verification coverage
+
+Directed ingress cases include:
+
+| Campaign | Purpose |
+|---|---|
+| Valid minimal frame | Baseline Ethernet/IPv4/UDP stripping |
+| Ethernet padding | Stop at UDP length rather than forwarding padding |
+| Multiple ITCH messages per datagram | MoldUDP64 block splitting |
+| Message crosses AXI beats | Deframe and realignment correctness |
+| Partial final message beat | Correct `tkeep` and `tlast` |
+| Random downstream stalls | Lossless backpressure behaviour |
+| Invalid EtherType, IP version, IHL, protocol, fragment, or UDP length | Explicit frame-drop policies |
+| MoldUDP64 length/count overrun | No partial malformed message emission |
+| Duplicate/gap/control packets | Sequence guard and no unintended book mutation |
+
+The full verification architecture is in [`golden_model.md`](golden_model.md).
+
+---
+
+## Current performance limitation
+
+`frame_crack` can forward approximately one 32-bit payload beat per cycle after the fixed header. The current bottleneck is later:
 
 ```text
-m_axis_tdata
-m_axis_tkeep
-m_axis_tvalid
-m_axis_tlast
-m_axis_tready
-m_dgram_len
-m_dgram_start
-frame_drop
-frame_err
+mold_deframe: stored beat -> one byte per cycle -> rebuilt payload beat
+realign:      stored beat -> one byte per cycle -> rebuilt aligned beat
 ```
 
-`m_dgram_len` is valid on the first output beat of a datagram, when `m_dgram_start` is asserted.
+Both stages therefore achieve about four payload bytes per six cycles, limiting raw recovered ITCH throughput to approximately 0.569 Gbit/s at 106.667 MHz.
 
-Minimum parse policy:
+The intended optimisation order is:
 
-| Layer | Required parsing | Current policy |
-|---|---|---|
-| Ethernet II | EtherType at bytes 12..13 | Require IPv4 EtherType `0x0800`. Destination/source MAC are skipped in the current parser. VLAN support is deferred. |
-| IPv4 | version, IHL, total length, flags/fragment offset, protocol | Require IPv4, IHL = 5, and UDP. Drop fragments. IHL > 5 is dropped for now; support can be added later by skipping IP options. |
-| UDP | destination port, UDP length | Optionally check destination port using `CHECK_DST_PORT` / `EXPECTED_DST_PORT`. UDP source port is skipped in the current parser. |
-| Checksums | IP/UDP checksums | Skipped initially. They can be computed in parallel later, but should not stall the hot path. |
-| AXI framing | `tkeep`, `tlast` | Non-final beats must have full `tkeep`. Final-beat `tkeep` must be contiguous from lane 0. Bad `tkeep` drops the frame. |
+1. make `mold_deframe` consume all four byte lanes each cycle;
+2. replace `realign` with a register/LUT reservoir that can accept and emit simultaneously;
+3. add skid buffers only where timing or elasticity measurements justify them;
+4. widen the interface only after the 32-bit path sustains one beat per cycle.
 
-Error policy:
-
-- Bad `tkeep` -> assert `frame_drop_o` and set `FRAME_ERR_BAD_TKEEP`.
-- Bad EtherType -> assert `frame_drop_o` and set `FRAME_ERR_BAD_ETHERTYPE`.
-- Bad IP version -> drop and set `FRAME_ERR_BAD_IP_VER`.
-- Bad IHL -> drop and set `FRAME_ERR_BAD_IHL`.
-- Non-UDP IPv4 packet -> drop and set `FRAME_ERR_BAD_PROTO`.
-- Fragmented IPv4 packet -> drop and set `FRAME_ERR_FRAGMENT`.
-- Destination-port mismatch -> drop and set `FRAME_ERR_BAD_UDP_PORT`, only when `CHECK_DST_PORT == 1`.
-- Bad UDP length -> drop and set `FRAME_ERR_BAD_UDP_LEN`.
-- Runt frame / early `tlast` before the expected header or payload bytes -> drop and set `FRAME_ERR_RUNT_FRAME`.
-- Dropped frames must not emit partial payload to `mold_deframe`.
-
-Acceptance tests:
-
-1. Valid minimal untagged IPv4/UDP frame emits exactly the UDP payload.
-2. Valid frame with Ethernet padding emits only the UDP payload and drains the padding.
-3. Zero-length UDP payload emits no payload beats and does not assert an error.
-4. Bad EtherType is dropped.
-5. Bad IPv4 version is dropped.
-6. IHL other than 5 is dropped.
-7. Non-UDP IPv4 packet is dropped.
-8. Fragmented IPv4 packet is dropped.
-9. Bad UDP length / runt frame is dropped.
-10. Optional destination-port mismatch is dropped only when `CHECK_DST_PORT == 1`.
-11. Bad `tkeep` is dropped.
-12. Backpressure from `mold_deframe` does not lose bytes or corrupt `tlast`.
-
-
-## Stage 2: `mold_deframe`
-
-`mold_deframe` parses the MoldUDP64 header and splits message blocks.
-
-Inputs:
-
-```text
-UDP payload AXIS
-dgram_len
-dgram_start
-```
-
-Outputs:
-
-```text
-payload_tdata
-payload_tkeep
-payload_tvalid
-payload_tlast
-payload_tready
-
-msg_len
-msg_len_valid
-msg_len_ready
-
-session
-seq
-count
-expected_next
-seq_valid
-heartbeat
-eos
-mold_drop
-mold_err
-```
-
-Required behaviour:
-
-1. Consume the 20-byte MoldUDP64 header.
-2. Extract:
-   - 10-byte session;
-   - 8-byte sequence number;
-   - 2-byte message count.
-3. For normal packets, emit each ITCH message payload and its 16-bit length.
-4. For `count == 0`, assert heartbeat and emit no ITCH payload.
-5. For `count == 0xffff`, assert end-of-session and emit no ITCH payload.
-6. Detect length overruns where a message block claims bytes beyond the UDP payload.
-
-The important contract between `mold_deframe` and `realign` is that each message has one `msg_len` token and exactly that many payload bytes.
-
-Acceptance tests:
-
-1. Single-message datagram emits one length and one payload.
-2. Multi-message datagram emits all messages in order.
-3. Message straddling across AXIS beats is preserved.
-4. `count == 0` emits heartbeat only.
-5. `count == 0xffff` emits EOS only.
-6. Claimed message length beyond datagram end asserts drop/error.
-7. Backpressure on payload and length channels is handled without losing alignment.
-
-## Stage 3: `realign`
-
-`realign` converts a byte stream of ITCH payloads into message-aligned 64-bit AXI packets for `data_handler`.
-
-Why it exists:
-
-- MoldUDP64 messages are variable length.
-- Message boundaries are not guaranteed to align to 64-bit beats.
-- Multiple short messages can sit in one beat.
-- A single message can straddle multiple beats.
-
-Input contract:
-
-```text
-payload AXIS byte stream
-msg_len stream from mold_deframe
-```
-
-Output contract:
-
-```text
-one AXI packet per complete ITCH message
-m_itch_tlast_o asserted on the final beat of each message
-```
-
-This lets the current `data_handler.sv` continue to operate in its file-fed model: one ITCH message per packet.
-
-Acceptance tests:
-
-1. One message aligned at beat boundary.
-2. One message starting at a non-zero byte offset.
-3. One message straddling several beats.
-4. Two or more short messages inside one beat.
-5. Partial final beat has correct `tkeep` and `tlast`.
-6. Backpressure on `m_itch_tready_i` does not consume new bytes incorrectly.
-7. Length zero and payload underflow/overflow assert `realign_err_o`.
-
-## Stage 4: decoder/book integration
-
-After `realign`, the recovered ITCH message stream should be equivalent to the file-fed payload stream.
-
-The integration path is:
-
-```text
-ingress_top.m_itch_* -> data_handler.sv -> order_book.sv
-```
-
-Expected behaviour:
-
-- `data_handler` decodes the recovered message into `data_t`.
-- `order_book` applies the event.
-- BBO/state comparison is made against `states.jsonl` generated from the original BinaryFILE source.
-
-Acceptance test:
-
-```text
-encapsulated real/synthetic frames
-  -> ingress_top
-  -> data_handler
-  -> order_book
-  -> BBO/full-state match against golden states
-```
+This spends available LUT/register headroom while avoiding additional BRAM consumption.
