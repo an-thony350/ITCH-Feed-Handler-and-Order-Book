@@ -870,9 +870,10 @@ The order-book hierarchy dominates custom logic use. The recorded worst setup pa
 
 | Module | Latency in clock cycles (range) | Cause of Critical Path |
 | - | - | - |
-| `frame_crack` | ? | ? |
-| `mold_deframe` & `mold_sequence_guard` | ? | ? |
-| `realign` | ? | ? |
+| `frame_crack` | 11 cycles from first Ethernet-frame beat to first MoldUDP64 output beat; a final partial beat can require 1 additional flush cycle | After the header, up to 1 × 32-bit beat/cycle | The fixed 42-byte Ethernet + IPv4 + UDP header must arrive before payload forwarding. Header validation performs EtherType, IPv4 version/IHL, fragmentation, protocol, port, and length checks. The payload path uses a fixed 2-byte carry aligner. |
+| `mold_deframe` + `mold_seq_guard` | 24 cycles to sequence/status validity; 33 cycles to the first ITCH-payload output beat for a normal message of at least 4 bytes | Approximately 4 payload bytes per 6 cycles, plus a length-token bubble per message | `mold_deframe` stores one input beat and walks through it one byte per cycle. A registered payload beat then consumes another cycle before processing resumes. The sequence guard itself makes its accept/drop decision combinationally in the header-completion cycle. |
+| `realign` | 4 cycles from accepting the first payload beat to asserting the first aligned output beat; 1–4 cycles from the final input beat to the final output beat, depending on `tkeep` | Approximately 4 bytes per 6 cycles | One input beat is captured, its four lanes are consumed serially, and a registered output beat must be retired before the next input beat is accepted. Length-FIFO control adds message-boundary overhead. |
+| `ingress_top` | ~50 | Raw ITCH-payload ceiling approximately 0.50 Gbit/s; effective rate is lower after MoldUDP64 headers, two-byte message lengths, and per-message bubbles | The bottleneck is the duplicated byte-serial unpack/repack work in `mold_deframe` and `realign`, not `frame_crack`. |
 | `data_handler` | 4-8 | All valid instructions with price values as a part of the message take 8 cycles to parse through the system |
 | `symbol_router` | 1 | Symbol router ensures correct order book is selected, done in a cycle delay of data (also breaks down a combinational path) |
 | `order_book` | 10-14 | Replace instructions (+1 cycle), with a hash collision (+1 cycle), that change BBO price (+2 cycles) cause extra cycle latency from the optimal paths |
