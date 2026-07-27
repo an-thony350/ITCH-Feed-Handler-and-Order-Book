@@ -266,9 +266,9 @@ The cycle counts below assume no downstream backpressure and use the routed **10
 
 | Stage | Latency | Initiation behaviour | Reason for the decision |
 |---|---|---|---|
-| `data_handler` | About **4-9 cycles / 37.5-84.4 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
+| `data_handler` | About **4-8 cycles / 37.5-75 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
 | `symbol_router` | **1 cycle / 9.375 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` | About **9 cycles / 84.4 ns** in the collision-free, no-rescan common case | About **10 cycles** per common event, or **10.67 million events/s** | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
+| `order_book` | About **10 cycles / 93.75 ns** in the collision-free, no-rescan common case | About **10-14 cycles** per common event, or **10.67-7.62 million events/s*. However can take up to 46 cycles in rare cases where the load factor is extremely high (causing deep probe chains) | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
 
 Replace adds approximately one cycle, an emptied best level adds approximately two search cycles, and each additional hash probe adds approximately two cycles. The serial book deliberately prioritises correctness and bounded operation-dependent latency over an initiation interval of one. A pipelined version would require explicit same-reference and same-level forwarding or stalls.
 
