@@ -59,6 +59,7 @@ package hdl_header;
     } o_data_t;
 
     typedef struct packed {
+        logic [1:0]             stock_id;
         logic [PRICE_W-1:0]     bid_price;
         logic [SHARES_W-1:0]    bid_shares;
         logic [PRICE_W-1:0]     ask_price;

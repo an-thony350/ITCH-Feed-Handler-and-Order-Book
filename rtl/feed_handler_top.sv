@@ -21,7 +21,9 @@ module feed_handler_top #(
     input  logic       rst_n,
 
     // Order-book base-price configuration from the PS, normally driven by AXI GPIO.
-    input  logic [PRICE_W-1:0] base_price_i,
+    input   logic   [PRICE_W-1:0]   base_price_stock0_i,
+    input   logic   [PRICE_W-1:0]   base_price_stock1_i,
+    input   logic   [PRICE_W-1:0]   base_price_stock2_i,
 
     // AXI4-Stream Ethernet frame input from PS->PL DMA or a testbench.
     input  axis_data_t s_frame_tdata_i,
@@ -131,7 +133,9 @@ module feed_handler_top #(
         .clk             (clk),
         .rst_n           (rst_n),
 
-        .base_price_i    (base_price_i),
+        .base_price_stock0_i    (base_price_stock0_i),
+        .base_price_stock1_i    (base_price_stock1_i),
+        .base_price_stock2_i    (base_price_stock2_i),
 
         .rdata_i         (decoded_data),
         .valid_i         (decoded_valid),

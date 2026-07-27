@@ -221,6 +221,14 @@ logic                      target_side;
 logic                      we_en;
 logic                      level_depleted;
 
+logic               reg_we_en;
+logic               reg_target_val;
+logic               reg_target_side;
+logic [BBO_W-1:0]   reg_chosen_row;
+
+logic [SHARES_W-1:0] immediate_book_shares;
+logic                immediate_level_depleted;
+
 
 
 // state machine for order book data
@@ -311,6 +319,12 @@ endfunction
 
 // Combinational assignments
 
+// Lookahead for chunk depletion during UPDATE_READ_BOOK
+assign immediate_book_shares    =   latched_lookup_entry.side ? bid_dout_a : ask_dout_a;
+assign immediate_level_depleted =   latched_is_reduce ?
+                                    (immediate_book_shares == latched_rdata.shares) :
+                                    (immediate_book_shares == latched_lookup_entry.shares);
+
 // idx assignments
 assign lookup_p_idx_wire        =   price_to_idx(dout_a.price);
 
@@ -362,33 +376,6 @@ always_comb begin
     tmp_base_shares = (latched_event_price_idx == latched_lookup_price_idx) ?
                       (latched_book_shares - latched_lookup_entry.shares) :
                       latched_event_shares;
-
-    if(current_state == UPDATE_WRITE && latched_is_add) begin
-        target_val  =       1'b1;
-        chosen_row  =       latched_event_price_idx;
-        target_side =       latched_rdata.side;
-        we_en       =       1'b1;
-    end
-    else if(current_state == REPLACE_ADD) begin
-        target_val  =       1'b1;
-        chosen_row  =       latched_event_price_idx;
-        target_side =       latched_lookup_entry.side;
-        we_en       =       1'b1;
-    end
-    else if(current_state == UPDATE_WRITE && (latched_is_delete || latched_is_reduce || latched_is_replace))begin
-        target_val  =       1'b0;
-        chosen_row  =       latched_lookup_price_idx;
-        target_side =       latched_lookup_entry.side;
-        we_en       =       level_depleted;
-    end
-    else begin
-        target_val  =       1'b0;
-        chosen_row  =       '0;
-        target_side =       '0;
-        we_en       =       1'b0;
-    end
-
-
 
 
     if(latched_is_add) begin
@@ -802,6 +789,19 @@ always_ff @(posedge clk) begin
                 latched_bid_valid_rst       <=      (bid_active_chunks[latched_lookup_price_idx[BBO_W-1:6]] == (64'h1 << latched_lookup_price_idx[5:0]));
                 latched_ask_valid_rst       <=      (ask_active_chunks[latched_lookup_price_idx[BBO_W-1:6]] == (64'h1 << latched_lookup_price_idx[5:0]));
 
+                if(latched_is_add) begin
+                reg_target_val  <= 1'b1;
+                reg_chosen_row  <= latched_event_price_idx;
+                reg_target_side <= latched_rdata.side;
+                reg_we_en       <= 1'b1;
+                end
+                else if(latched_is_replace || latched_is_delete || latched_is_reduce) begin
+                    reg_target_val  <= 1'b0;
+                    reg_chosen_row  <= latched_lookup_price_idx;
+                    reg_target_side <= latched_lookup_entry.side;
+                    reg_we_en       <= immediate_level_depleted;
+                end
+
                 if(latched_lookup_entry.side) begin
                     latched_book_shares  <= bid_dout_a;
                 end
@@ -819,36 +819,42 @@ always_ff @(posedge clk) begin
 
             UPDATE_WRITE: begin
 
-                if(we_en) begin
-                    if(target_side) begin
-                        bid_active_chunks[chosen_row[BBO_W-1:6]][chosen_row[5:0]]   <=  target_val;
+                if(reg_we_en) begin
+                    if(reg_target_side) begin
+                        bid_active_chunks[reg_chosen_row[BBO_W-1:6]][reg_chosen_row[5:0]]   <=  reg_target_val;
 
-                        if(target_val) bid_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b1;
-                        else if(latched_bid_valid_rst) bid_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b0;
+                        if(reg_target_val) bid_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b1;
+                        else if(latched_bid_valid_rst) bid_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b0;
                     end
                     else begin
-                        ask_active_chunks[chosen_row[BBO_W-1:6]][chosen_row[5:0]]   <=  target_val;
+                        ask_active_chunks[reg_chosen_row[BBO_W-1:6]][reg_chosen_row[5:0]]   <=  reg_target_val;
 
-                        if(target_val) ask_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b1;
-                        else if(latched_ask_valid_rst) ask_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b0;
+                        if(reg_target_val) ask_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b1;
+                        else if(latched_ask_valid_rst) ask_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b0;
                     end
+                end
+
+                if(latched_is_replace) begin
+                    reg_target_val  <= 1'b1;
+                    reg_chosen_row  <= latched_event_price_idx;
+                    reg_we_en       <= 1'b1;
                 end
             end
 
             REPLACE_ADD: begin
 
-                if(we_en) begin
-                    if(target_side) begin
-                        bid_active_chunks[chosen_row[BBO_W-1:6]][chosen_row[5:0]]   <=  target_val;
+                if(reg_we_en) begin
+                    if(reg_target_side) begin
+                        bid_active_chunks[reg_chosen_row[BBO_W-1:6]][reg_chosen_row[5:0]]   <=  reg_target_val;
 
-                        if(target_val) bid_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b1;
-                        else if(latched_bid_valid_rst) bid_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b0;
+                        if(reg_target_val) bid_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b1;
+                        else if(latched_bid_valid_rst) bid_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b0;
                     end
                     else begin
-                        ask_active_chunks[chosen_row[BBO_W-1:6]][chosen_row[5:0]]   <=  target_val;
+                        ask_active_chunks[reg_chosen_row[BBO_W-1:6]][reg_chosen_row[5:0]]   <=  reg_target_val;
 
-                        if(target_val) ask_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b1;
-                        else if(latched_ask_valid_rst) ask_enc_valid[chosen_row[BBO_W-1:6]] <=  1'b0;
+                        if(reg_target_val) ask_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b1;
+                        else if(latched_ask_valid_rst) ask_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b0;
                     end
                 end
             end
@@ -892,11 +898,21 @@ always_ff @(posedge clk) begin
             end
 
             FETCH_BBO_WAIT: begin
-                bbo_data_o.bid_price  <= (bid_dout_a > 0) ? latched_base_price + PRICE_W'(current_best_bid) : '0;
-                bbo_data_o.bid_shares <= (bid_dout_a > 0) ? bid_dout_a : '0;
+                if (bid_enc_valid == '0) begin
+                    bbo_data_o.bid_price  <= '0;
+                    bbo_data_o.bid_shares <= '0;
+                end else if (bid_dout_a > 0) begin
+                    bbo_data_o.bid_price  <= latched_base_price + PRICE_W'(current_best_bid);
+                    bbo_data_o.bid_shares <= bid_dout_a;
+                end
 
-                bbo_data_o.ask_price  <= (ask_dout_a > 0) ? latched_base_price + PRICE_W'(current_best_ask) : '0;
-                bbo_data_o.ask_shares <= (ask_dout_a > 0) ? ask_dout_a : '0;
+                if (ask_enc_valid == '0) begin
+                    bbo_data_o.ask_price  <= '0;
+                    bbo_data_o.ask_shares <= '0;
+                end else if (ask_dout_a > 0) begin
+                    bbo_data_o.ask_price  <= latched_base_price + PRICE_W'(current_best_ask);
+                    bbo_data_o.ask_shares <= ask_dout_a;
+                end
             end
 
             EMIT: begin
