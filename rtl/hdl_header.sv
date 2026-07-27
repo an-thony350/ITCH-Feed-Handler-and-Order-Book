@@ -33,11 +33,11 @@ package hdl_header;
     parameter int  SHARES_W     =   32;
     parameter int  STOCK_W      =   16;
     parameter int  MSG_W        =   8;
-    parameter int  HASH_W       =   14;
+    parameter int  HASH_W       =   10;
     parameter int  FIFO_W       =   11;
     parameter int  BBO_W        =   14;
     parameter int  CHUNK_W      =   6;
-    parameter int  MAX_PROBES   =   16;
+    parameter int  MAX_PROBES   =   2;
 
     typedef struct packed {
         logic [MSG_W-1:0]       message_type;

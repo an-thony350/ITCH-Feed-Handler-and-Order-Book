@@ -86,10 +86,11 @@ typedef struct packed {
 
 // local parameters for tables and ASCII message types
 
-localparam int HASH_DEPTH = 1 << HASH_W;
+localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
 localparam int BBO_DEPTH  = 1 << BBO_W;
 localparam int CHUNK_LEN  = 1 << (BBO_W-6);
 localparam int ENTRY_W    = $bits(order_entry_t);
+localparam int BUCKET_W   = 3 * ENTRY_W;
 
 
 localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
@@ -105,7 +106,7 @@ localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
 // internal registers
 
 // BRAM Blocks
-(* ram_style = "block" *) logic [ENTRY_W-1:0]   order_table    [HASH_DEPTH-1:0];
+(* ram_style = "block" *) logic [BUCKET_W-1:0]  order_table    [HASH_DEPTH-1:0];
 (* ram_style = "block" *) logic [SHARES_W-1:0]  bid_price_book [BBO_DEPTH-1:0];
 (* ram_style = "block" *) logic [SHARES_W-1:0]  ask_price_book [BBO_DEPTH-1:0];
 
@@ -115,18 +116,18 @@ localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
 // order table registers
 logic               we_a;
 logic [HASH_W-1:0]  addr_a;
-order_entry_t       din_a;
+order_entry_t [2:0] din_a;
 order_entry_t       dout_a;
 
 logic               we_b;
 logic [HASH_W-1:0]  addr_b;
-order_entry_t       din_b;
+order_entry_t [2:0] din_b;
 order_entry_t       dout_b;
 
-logic [ENTRY_W-1:0] ram_din_a;
-logic [ENTRY_W-1:0] ram_dout_a;
-logic [ENTRY_W-1:0] ram_din_b;
-logic [ENTRY_W-1:0] ram_dout_b;
+logic [BUCKET_W-1:0] ram_din_a;
+logic [BUCKET_W-1:0] ram_dout_a;
+logic [BUCKET_W-1:0] ram_din_b;
+logic [BUCKET_W-1:0] ram_dout_b;
 
 // bid price book registers
 logic                bid_we_a;
@@ -153,21 +154,14 @@ logic [SHARES_W-1:0] ask_dout_b;
 
 // IDX registers
 logic [BBO_W-1:0]   clear_idx;
-logic [HASH_W-1:0]  lookup_idx;
 logic [HASH_W-1:0]  hash_idx;
 logic [HASH_W-1:0]  rep_hash_idx;
 logic [BBO_W-1:0]   lookup_p_idx_wire;
-logic [HASH_W-1:0]  insert_idx;
-
-
-// Found signals
-logic idx_found;
-logic rep_idx_found;
 
 
 // IDX Search registers
-int           probe;
-int           rep_probe;
+logic [1:0]           probe;
+logic [1:0]           rep_probe;
 order_entry_t h_entry;
 order_entry_t rep_h_entry;
 
@@ -188,6 +182,10 @@ logic [BBO_W-1:0]       latched_lookup_price_idx;
 logic [BBO_W-1:0]       latched_event_price_idx;
 logic                   latched_bid_valid_rst;
 logic                   latched_ask_valid_rst;
+logic [1:0]             latched_slot_idx;
+logic [1:0]             rep_latched_slot_idx;
+logic [1:0]             comb_slot_idx;
+logic [1:0]             rep_comb_slot_idx;
 
 (* max_fanout = 32 *) logic latched_is_add;
 (* max_fanout = 32 *) logic latched_is_reduce;
@@ -229,6 +227,16 @@ logic [BBO_W-1:0]   reg_chosen_row;
 logic [SHARES_W-1:0] immediate_book_shares;
 logic                immediate_level_depleted;
 
+// New registers for Set-Associative Hashing
+
+logic [2:0] hash_match;
+logic [2:0] free_slot;
+logic [2:0] rep_hash_match;
+logic [2:0] rep_free_slot;
+
+order_entry_t [2:0] read_bucket; // unpacked array
+order_entry_t [2:0] rep_read_bucket;
+
 
 
 // state machine for order book data
@@ -239,6 +247,7 @@ typedef enum logic [3:0]{
     IDX_REQ,
     IDX_SEARCH,
     UPDATE_READ_TBL,
+    ISSUE_BOOK_READ,
     UPDATE_READ_BOOK,
     UPDATE_WRITE,
     REPLACE_ADD,
@@ -278,7 +287,7 @@ endfunction
 
 // Price logic (for price book) - Only works if delta < $164.83
 function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
-    logic [PRICE_W-1:0] delta;
+    (* use_dsp = "yes" *) logic [PRICE_W-1:0] delta;
     begin
         delta = price - latched_base_price;
         return delta[BBO_W-1:0];
@@ -326,11 +335,15 @@ assign immediate_level_depleted =   latched_is_reduce ?
                                     (immediate_book_shares == latched_lookup_entry.shares);
 
 // idx assignments
-assign lookup_p_idx_wire        =   price_to_idx(dout_a.price);
+assign lookup_p_idx_wire        =   price_to_idx(read_bucket[latched_slot_idx].price);
 
 // hashed data assignments
-assign h_entry                  =   dout_a;
+assign h_entry                  =   dout_a; // the h_entry is too low?
 assign rep_h_entry              =   dout_b;
+
+// Set-Associative bucket assignment
+assign read_bucket              =   ram_dout_a;
+assign rep_read_bucket          =   ram_dout_b;
 
 // Combinational State machine logic
 
@@ -368,6 +381,13 @@ always_comb begin
     is_better_bid   =   1'b0;
     ask_depleted    =   1'b0;
     bid_depleted    =   1'b0;
+
+    hash_match        = '0;
+    free_slot         = '0;
+    rep_hash_match    = '0;
+    rep_free_slot     = '0;
+    comb_slot_idx     = '0;
+    rep_comb_slot_idx = '0;
 
     level_depleted = latched_is_reduce ?
                      (latched_book_shares == latched_rdata.shares) :
@@ -437,46 +457,84 @@ always_comb begin
             addr_a     = hash_idx;
             addr_b     = rep_hash_idx;
 
-            if(probe < MAX_PROBES && rep_probe < MAX_PROBES) begin
-                if(latched_rdata.message_type == MSG_REPLACE) begin
-                    if(!idx_found && !h_entry.valid) next_state =   FETCH_BBO;
-                    else if( (idx_found || (h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone)) && ( rep_idx_found || (!rep_h_entry.valid || rep_h_entry.tombstone))) begin
-                        next_state  =   UPDATE_READ_TBL;
-                    end
-                    else begin
-                        next_state  =   IDX_REQ;
-                    end
+            hash_match[0]    =   (read_bucket[0].valid && read_bucket[0].orn == latched_rdata.orn && ~read_bucket[0].tombstone);
+            hash_match[1]    =   (read_bucket[1].valid && read_bucket[1].orn == latched_rdata.orn && ~read_bucket[1].tombstone);
+            hash_match[2]    =   (read_bucket[2].valid && read_bucket[2].orn == latched_rdata.orn && ~read_bucket[2].tombstone);
+
+            free_slot[0] = (!read_bucket[0].valid || read_bucket[0].tombstone);
+            free_slot[1] = (!read_bucket[1].valid || read_bucket[1].tombstone);
+            free_slot[2] = (!read_bucket[2].valid || read_bucket[2].tombstone);
+
+            rep_hash_match[0]    =   (rep_read_bucket[0].valid && rep_read_bucket[0].orn == latched_rdata.orn && ~rep_read_bucket[0].tombstone);
+            rep_hash_match[1]    =   (rep_read_bucket[1].valid && rep_read_bucket[1].orn == latched_rdata.orn && ~rep_read_bucket[1].tombstone);
+            rep_hash_match[2]    =   (rep_read_bucket[2].valid && rep_read_bucket[2].orn == latched_rdata.orn && ~rep_read_bucket[2].tombstone);
+
+            rep_free_slot[0] = (!rep_read_bucket[0].valid || rep_read_bucket[0].tombstone);
+            rep_free_slot[1] = (!rep_read_bucket[1].valid || rep_read_bucket[1].tombstone);
+            rep_free_slot[2] = (!rep_read_bucket[2].valid || rep_read_bucket[2].tombstone);
+
+            if(latched_is_add) begin
+                if(free_slot != 3'b000) begin
+                    next_state  =   UPDATE_READ_TBL;
+
+                    if      (free_slot[0]) comb_slot_idx = 2'd0;
+                    else if (free_slot[1]) comb_slot_idx = 2'd1;
+                    else                   comb_slot_idx = 2'd2;
                 end
-                else if(latched_is_add) begin
-                    if(!h_entry.valid || h_entry.tombstone) begin
-                        next_state  =   UPDATE_READ_TBL;
-                    end
-                    else begin
-                        next_state  =   IDX_REQ;
-                    end
-                end
+                else if (probe == 2'b11) next_state = FETCH_BBO;
                 else begin
-                    if(h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone) begin
-                        next_state  =   UPDATE_READ_TBL;
+                    next_state  =   IDX_REQ;
+                    // add something here for when bucket is full
+                    // best idea overflow CAM
+                    // if not increment hash_idx
+                end
+            end
+            else if(latched_is_delete || latched_is_reduce || latched_is_replace) begin
+                if(hash_match != 3'b000) begin
+                    next_state  =   UPDATE_READ_TBL;
+
+                    if      (hash_match[0]) comb_slot_idx = 2'd0;
+                    else if (hash_match[1]) comb_slot_idx = 2'd1;
+                    else                    comb_slot_idx = 2'd2;
+
+                    if(latched_is_replace) begin
+                        if(rep_free_slot != 3'b000) begin
+                            if      (rep_free_slot[0]) rep_comb_slot_idx = 2'd0;
+                            else if (rep_free_slot[1]) rep_comb_slot_idx = 2'd1;
+                            else                       rep_comb_slot_idx = 2'd2;
+                        end
+                        else if(probe == 2'b11) next_state = FETCH_BBO;
+                        else begin
+                            next_state = IDX_REQ;
+                            // include probe
+                        end
                     end
-                    else if(!h_entry.valid) begin
-                        next_state  =   FETCH_BBO;
-                    end
-                    else begin
-                        next_state  =   IDX_REQ;
-                    end
+                end
+                else if(probe == 2'b11) next_state = FETCH_BBO;
+                else begin
+                    next_state  =   IDX_REQ;
+                    // same bucket full issue
                 end
             end
             else next_state =   FETCH_BBO;
         end
 
         UPDATE_READ_TBL: begin
+            next_state  =   ISSUE_BOOK_READ;
+
+            addr_a      =   hash_idx;
+            addr_b      =   rep_hash_idx;
+
+        end
+
+        ISSUE_BOOK_READ: begin
             next_state  =   UPDATE_READ_BOOK;
 
-            addr_a      =   lookup_idx;
+            addr_a      =   hash_idx;
+            addr_b      =   rep_hash_idx;
 
-            bid_addr_a  = lookup_p_idx_wire;
-            ask_addr_a  = lookup_p_idx_wire;
+            bid_addr_a  = latched_lookup_price_idx;
+            ask_addr_a  = latched_lookup_price_idx;
 
             bid_addr_b  = latched_event_price_idx;
             ask_addr_b  = latched_event_price_idx;
@@ -484,21 +542,25 @@ always_comb begin
 
         UPDATE_READ_BOOK: begin
             next_state      =   UPDATE_WRITE;
+            addr_a          =   hash_idx;
+            addr_b          =   rep_hash_idx;
         end
 
         UPDATE_WRITE: begin
             next_state = (latched_is_replace) ? REPLACE_ADD : EVALUATE_BBO;
             we_a       = 1'b1;
+            addr_a     = hash_idx;
+            addr_b     = rep_hash_idx;
+            din_a      = read_bucket;
 
             if(latched_is_add) begin
-                addr_a          = insert_idx;
 
-                din_a.valid     = 1'b1;
-                din_a.orn       = latched_rdata.orn;
-                din_a.side      = latched_rdata.side;
-                din_a.shares    = latched_rdata.shares;
-                din_a.price     = latched_rdata.price;
-                din_a.tombstone = 1'b0;
+                din_a[latched_slot_idx].valid     = 1'b1;
+                din_a[latched_slot_idx].orn       = latched_rdata.orn;
+                din_a[latched_slot_idx].side      = latched_rdata.side;
+                din_a[latched_slot_idx].shares    = latched_rdata.shares;
+                din_a[latched_slot_idx].price     = latched_rdata.price;
+                din_a[latched_slot_idx].tombstone = 1'b0;
 
                 if(latched_rdata.side) begin
                     bid_we_a   = 1'b1;
@@ -512,9 +574,8 @@ always_comb begin
                 end
             end
             else if(latched_is_delete|| latched_is_replace) begin
-                addr_a          = lookup_idx;
-                din_a           = latched_lookup_entry;
-                din_a.tombstone = 1'b1;
+                din_a                               = read_bucket;
+                din_a[latched_slot_idx].tombstone   = 1'b1;
 
                 if(latched_lookup_entry.side) begin
                     bid_we_a   = 1'b1;
@@ -528,14 +589,13 @@ always_comb begin
                 end
             end
             else begin
-                addr_a = lookup_idx;
-                din_a  = latched_lookup_entry;
+                din_a  = read_bucket;
 
                 if(latched_rdata.shares >= latched_lookup_entry.shares) begin
-                    din_a.tombstone = 1'b1;
+                    din_a[latched_slot_idx].tombstone = 1'b1;
                 end
                 else begin
-                    din_a.shares = latched_lookup_entry.shares - latched_rdata.shares;
+                    din_a[latched_slot_idx].shares = latched_lookup_entry.shares - latched_rdata.shares;
                 end
                 if(latched_lookup_entry.side) begin
                     bid_we_a   = 1'b1;
@@ -552,17 +612,21 @@ always_comb begin
 
         REPLACE_ADD: begin
             next_state = EVALUATE_BBO;
-
-
             we_b            = 1'b1;
-            addr_b          = insert_idx;
+            addr_a          = hash_idx;
+            addr_b          = rep_hash_idx;
+            din_b           = rep_read_bucket;
 
-            din_b.valid     = 1'b1;
-            din_b.orn       = latched_rdata.updated_orn;
-            din_b.side      = latched_lookup_entry.side;
-            din_b.shares    = latched_rdata.shares;
-            din_b.price     = latched_rdata.price;
-            din_b.tombstone = 1'b0;
+            if (hash_idx == rep_hash_idx) begin
+                din_b[latched_slot_idx].tombstone = 1'b1;
+            end
+
+            din_b[rep_latched_slot_idx].valid     = 1'b1;
+            din_b[rep_latched_slot_idx].orn       = latched_rdata.updated_orn;
+            din_b[rep_latched_slot_idx].side      = latched_lookup_entry.side;
+            din_b[rep_latched_slot_idx].shares    = latched_rdata.shares;
+            din_b[rep_latched_slot_idx].price     = latched_rdata.price;
+            din_b[rep_latched_slot_idx].tombstone = 1'b0;
 
             if(latched_lookup_entry.side) begin
                 bid_we_b   = 1'b1;
@@ -616,10 +680,10 @@ end
 // Combinational ram asssignments - split allows for vivado synthesis
 
 assign ram_din_a = din_a;
-assign dout_a    = ram_dout_a;
+assign dout_a    = read_bucket[latched_slot_idx];
 
 assign ram_din_b = din_b;
-assign dout_b    = ram_dout_b;
+assign dout_b    = rep_read_bucket[rep_latched_slot_idx];
 
 // Sequential Dual-Port BRAM writes
 
@@ -680,8 +744,6 @@ always_ff @(posedge clk) begin
         bbo_valid_o         <= 1'b0;
         probe               <= '0;
         rep_probe           <= '0;
-        idx_found           <= 1'b0;
-        rep_idx_found       <= 1'b0;
         current_best_bid    <= '0;
         current_best_ask    <= BBO_W'(BBO_DEPTH-1);
     end
@@ -715,8 +777,6 @@ always_ff @(posedge clk) begin
                     rep_probe             <= '0;
                     hash_idx              <= hash_orn(rdata_i.orn);
                     rep_hash_idx          <= hash_orn(rdata_i.updated_orn);
-                    idx_found             <= 1'b0;
-                    rep_idx_found         <= 1'b0;
                     latched_is_add         <= is_add_msg(rdata_i.message_type);
                     latched_is_reduce      <= is_reduce_msg(rdata_i.message_type);
                     latched_is_replace     <= (rdata_i.message_type == MSG_REPLACE);
@@ -725,63 +785,31 @@ always_ff @(posedge clk) begin
             end
 
             IDX_REQ: begin
-                latched_event_price_idx     <=      price_to_idx(latched_rdata.price);
+                latched_event_price_idx           <=      price_to_idx(latched_rdata.price);
             end
 
             IDX_SEARCH: begin
-                if(probe < MAX_PROBES || rep_probe < MAX_PROBES) begin
-                    if(is_add_msg(latched_rdata.message_type)) begin
-                        if(!h_entry.valid || h_entry.tombstone) begin
-                            insert_idx      <=      hash_idx;
-                            idx_found       <=      1'b1;
-                            rep_idx_found   <=      1'b1;
-                        end
-                        else begin
-                            hash_idx        <=      hash_idx + 1'b1;
-                            probe           <=      probe    + 1'b1;
-                        end
+                if(next_state == UPDATE_READ_TBL) begin
+                    latched_slot_idx        <=  comb_slot_idx;
+                    rep_latched_slot_idx    <=  rep_comb_slot_idx;
+                    probe                   <=  '0;
+                    rep_probe               <=  '0;
+                end
+                else if(next_state == IDX_REQ) begin
+                    if(latched_is_add || (hash_match == 3'b000)) begin
+                        hash_idx            <=  hash_idx + 1'b1;
+                        probe               <=  probe    + 1'b1;
                     end
-                    else if(latched_rdata.message_type == MSG_REPLACE) begin
-                        // original idx
-                        if(!idx_found) begin
-                            if(h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone) begin
-                                lookup_idx      <=      hash_idx;
-                                idx_found       <=      1'b1;
-                            end
-                            else begin
-                                hash_idx        <=      hash_idx + 1'b1;
-                                probe           <=      probe    + 1'b1;
-                            end
-                        end
-                        // updated idx
-                        if(!rep_idx_found) begin
-                            if(!rep_h_entry.valid || rep_h_entry.tombstone) begin
-                                insert_idx      <=      rep_hash_idx;
-                                rep_idx_found   <=      1'b1;
-                            end
-                            else begin
-                                rep_hash_idx    <=      rep_hash_idx + 1'b1;
-                                rep_probe       <=      rep_probe    + 1'b1;
-                            end
-                        end
-                    end
-                    else begin
-                        if(h_entry.valid && h_entry.orn == latched_rdata.orn && !h_entry.tombstone) begin
-                            lookup_idx      <=      hash_idx;
-                            idx_found       <=      1'b1;
-                            rep_idx_found   <=      1'b1;
-                        end
-                        else begin
-                            hash_idx        <=      hash_idx + 1'b1;
-                            probe           <=      probe    + 1'b1;
-                        end
+                    if(latched_is_replace && (hash_match != 3'b000) && (rep_free_slot == 3'b000)) begin
+                        rep_hash_idx <= rep_hash_idx + 1'b1;
+                        rep_probe    <= rep_probe    + 1'b1;
                     end
                 end
             end
 
             UPDATE_READ_TBL: begin
-                latched_lookup_entry        <=      dout_a;
-                latched_lookup_price_idx    <=      price_to_idx(dout_a.price);
+                latched_lookup_entry        <=      read_bucket[latched_slot_idx];
+                latched_lookup_price_idx    <=      price_to_idx(read_bucket[latched_slot_idx].price);
             end
 
             UPDATE_READ_BOOK: begin
