@@ -25,6 +25,17 @@ $(REPO_ROOT)/rtl/ingress_top.sv
 
 MODULE ?= test_ingress
 
+else ifeq ($(TOPLEVEL),ingress_top_perf_probe)
+VERILOG_SOURCES += \
+$(REPO_ROOT)/rtl/frame_crack.sv \
+$(REPO_ROOT)/rtl/mold_seq_guard.sv \
+$(REPO_ROOT)/rtl/mold_deframe.sv \
+$(REPO_ROOT)/rtl/realign.sv \
+$(REPO_ROOT)/rtl/ingress_top.sv \
+$(REPO_ROOT)/tb/rtl/ingress_top_perf_probe.sv
+
+MODULE ?= test_ingress
+
 else ifeq ($(TOPLEVEL),feed_handler_top)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/frame_crack.sv \
@@ -61,7 +72,7 @@ $(REPO_ROOT)/rtl/order_book.sv
 MODULE ?= test_order_book
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: mold_seq_guard, data_handler, order_book, order_book_top, ingress_top, feed_handler_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: mold_seq_guard, data_handler, order_book, order_book_top, ingress_top, ingress_top_perf_probe, feed_handler_top)
 endif
 
 export PYTHONPATH := $(PWD):$(REPO_ROOT):$(PYTHONPATH)
@@ -71,7 +82,7 @@ EXTRA_ARGS += --timing
 EXTRA_ARGS += --trace
 EXTRA_ARGS += --trace-structs
 
-ifneq ($(filter ingress_top feed_handler_top,$(TOPLEVEL)),)
+ifneq ($(filter ingress_top ingress_top_perf_probe feed_handler_top,$(TOPLEVEL)),)
 # Keep current ingress width-lint warnings visible, but do not let them block
 # functional ingress/feed-handler tests while this stage is being hardened.
 EXTRA_ARGS += -Wno-fatal
@@ -86,14 +97,14 @@ else
 .DEFAULT_GOAL := test-all
 endif
 
-.PHONY: test-all test-golden test-rtl test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-feed-handler-top clean-all
+.PHONY: test-all test-golden test-rtl test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-ingress-probe test-ingress-perf test-feed-handler-top clean-all
 
 test-all: test-golden test-rtl
 
 test-golden:
 	cd $(REPO_ROOT) && scripts/run_golden.sh
 
-test-rtl: test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-feed-handler-top
+test-rtl: test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-ingress-perf test-feed-handler-top
 
 test-mold-seq-guard:
 	$(MAKE) clean TOPLEVEL=mold_seq_guard MODULE=test_mold_seq_guard
@@ -115,6 +126,18 @@ test-ingress:
 	$(MAKE) clean TOPLEVEL=ingress_top MODULE=test_ingress
 	$(MAKE) results.xml TOPLEVEL=ingress_top MODULE=test_ingress
 
+# Run the existing ingress correctness tests through the simulation-only
+# performance-probe wrapper. This verifies that probing changes no behaviour.
+test-ingress-probe:
+	$(MAKE) clean TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress
+	$(MAKE) results.xml TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress
+
+# Cycle-accurate ingress latency/throughput tests. Kept out of test-rtl because
+# the completed performance campaigns will be longer than correctness regressions.
+test-ingress-perf:
+	$(MAKE) clean TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_perf
+	$(MAKE) results.xml TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_perf
+
 # Full G3/G4 network-to-book regression.
 test-feed-handler-top:
 	$(MAKE) clean TOPLEVEL=feed_handler_top MODULE=test_feed_handler_top
@@ -122,6 +145,7 @@ test-feed-handler-top:
 
 clean-all:
 	$(MAKE) clean TOPLEVEL=data_handler MODULE=test_data_handler
+	$(MAKE) clean TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_perf
 	rm -f results.xml
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
