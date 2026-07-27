@@ -1,29 +1,47 @@
-# Golden Model
+# Golden Model and Verification
 
-General Idea: the golden model consumes ITCH BinaryFILE input, normalises ITCH messages into a stable event contract, replays those events through a reference order book, and emits JSONL oracle files for RTL comparison.
+The golden model consumes ITCH BinaryFILE input, normalises book-mutating messages into a stable event contract, replays those events through a reference order book, and emits matched JSONL oracle streams for RTL comparison.
+
+It is the functional source of truth for the project. The Python is deliberately clear and explicit rather than optimised to resemble the hardware implementation.
+
+Commands for generating the oracles and running the RTL tests are kept in [`running_the_project.md`](running_the_project.md) so this document remains focused on architecture, contracts, and proof scope.
 
 ---
 
-## 1. What the golden model is for
+## 1. Verification architecture
 
-The golden model is the software source of truth for correctness. It is deliberately written as clear Python rather than as an optimised hardware-like model.
+```mermaid
+flowchart TB
+    INPUT[BinaryFILE input] --> PARSE[golden.itch_parser]
+    PARSE --> EVENT[Normalised events]
+    EVENT --> BOOK[golden.order_book]
+    EVENT --> EJ[events.jsonl]
+    BOOK --> SJ[states.jsonl]
 
-It produces two output streams:
+    INPUT --> G1[data_handler cocotb driver]
+    EJ --> G1
 
-| Output | Purpose | Used for |
-|---|---|---|
-| `events.jsonl` | One normalised event per accepted book-mutating ITCH message | Decoder isolation: check that RTL decoding matches Python parsing |
-| `states.jsonl` | One full book snapshot after each accepted event | Order-book / full-chain verification: check BBO and price-level state |
+    EJ --> G2[order_book cocotb driver]
+    SJ --> G2
 
-The intended verification flow is:
+    INPUT --> ENCAP[golden.network_encapsulator]
+    ENCAP --> G3[feed_handler_top cocotb driver]
+    SJ --> G3
+
+    ENCAP --> G4[duplicate / gap / heartbeat / EOS campaigns]
+```
+
+The verification stack is layered so that failures can be localised:
 
 ```text
-ITCH BinaryFILE
-    -> golden.itch_parser
-    -> NormalisedEvent stream
-    -> golden.order_book.OrderBook
-    -> events.jsonl + states.jsonl
-    -> cocotb / Verilator scoreboard checks RTL
+Python unit tests
+    -> decoder isolation
+    -> order-book isolation
+    -> router/book integration
+    -> network-ingress isolation
+    -> complete network-to-book replay
+    -> duplicate/gap/control-packet campaigns
+    -> implementation timing and resources
 ```
 
 ---
@@ -32,20 +50,20 @@ ITCH BinaryFILE
 
 | File | Role |
 |---|---|
-| `contracts.py` | Shared dataclasses and enums: `NormalisedEvent`, `BookState`, `Bbo`, `Level`, `Op`, `Side` |
-| `itch_parser.py` | ITCH BinaryFILE reader, ITCH message decoder, Stock Directory parsing, symbol-to-locate resolution |
-| `order_book.py` | Reference order book implementation |
-| `stimulus.py` | Synthetic BinaryFILE generator for directed and seeded-random tests |
-| `runner.py` | CLI/module entry point that emits `events.jsonl` and `states.jsonl` |
-| `run_golden.sh` | Repo-level convenience wrapper for compile, unit tests, stimulus generation, and oracle generation |
-| `golden/tests/` | Unit tests for parser, order book, stimulus, round-trip behaviour, and runner |
-| `tb/itch_harness/` | cocotb-side packing, unpacking, oracle loading, AXI helpers, and scoreboarding |
+| `golden/contracts.py` | Frozen dataclasses and enums: `NormalisedEvent`, `BookState`, `Bbo`, `Level`, `Op`, and `Side` |
+| `golden/itch_parser.py` | BinaryFILE reader, ITCH message decoder, Stock Directory parsing, and symbol-to-locate resolution |
+| `golden/order_book.py` | Reference displayed order book |
+| `golden/stimulus.py` | Directed and seeded-random synthetic BinaryFILE generator |
+| `golden/runner.py` | Parser/book entry point that emits the matched JSONL streams |
+| `golden/network_encapsulator.py` | BinaryFILE to MoldUDP64/UDP/IPv4/Ethernet vector generator |
+| `golden/tests/` | Parser, book, stimulus, runner, and encapsulator unit tests |
+| `tb/itch_harness/` | Cocotb layouts, drivers, oracle loading, AXI helpers, and scoreboards |
 
 ---
 
 ## 3. Input format
 
-The golden model currently consumes Nasdaq ITCH **BinaryFILE** records:
+The golden model consumes Nasdaq ITCH **BinaryFILE** records:
 
 ```text
 2-byte big-endian message length
@@ -55,19 +73,21 @@ ITCH payload bytes
 ...
 ```
 
-The BinaryFILE length prefix is not part of the ITCH message payload. `golden.itch_parser.iter_binaryfile_payloads()` strips that prefix and yields:
+The two-byte length prefix is not part of the ITCH message. `iter_binaryfile_payloads()` strips the prefix and yields:
 
 ```python
 (msg_index, payload)
 ```
 
-`msg_index` counts source records, including ignored messages. This is important because it lets the RTL scoreboard report the exact source-feed position where a divergence first occurred.
+`msg_index` counts every source record, including ignored messages. That index is retained in the oracle so a scoreboard can report the exact feed position of the first divergence.
+
+Public BinaryFILE samples do not contain Ethernet, IPv4, UDP, or MoldUDP64 headers. The network encapsulator synthesises those layers from the same source payloads used by the parser.
 
 ---
 
 ## 4. Normalised event contract
 
-The parser converts supported ITCH messages into a single internal event shape:
+The parser maps the supported ITCH messages into one internal Python shape:
 
 ```python
 @dataclass(frozen=True)
@@ -83,74 +103,50 @@ class NormalisedEvent:
     timestamp_ns: Optional[int] = None
 ```
 
-Supported operations:
-
-| `Op` | Meaning |
+| Operation | Required event fields |
 |---|---|
-| `ADD` | Add a new displayed order |
-| `EXECUTE` | Reduce displayed shares after execution |
-| `CANCEL` | Reduce displayed shares after cancellation |
-| `DELETE` | Remove all remaining displayed shares for an order |
-| `REPLACE` | Remove the old order reference and add a new order reference |
+| `ADD` | locate, side, order reference, price, shares |
+| `EXECUTE` | locate, order reference, executed shares |
+| `CANCEL` | locate, order reference, cancelled shares |
+| `DELETE` | locate and order reference |
+| `REPLACE` | locate, original reference, new reference, new price, new shares |
 
-The dataclass assertions in `contracts.py` are part of the contract. For example:
-
-- `ADD` must have `BUY` or `SELL` side, plus `price` and `shares`.
-- `EXECUTE` and `CANCEL` must have `shares`, but no `price`.
-- `DELETE` must not carry `price` or `shares`.
-- `REPLACE` must carry `new_order_ref`, new `price`, and new `shares`.
-
-This keeps malformed parser output from silently entering the oracle book.
+The assertions in `contracts.py` are part of the oracle contract. They stop malformed parser output from silently entering the reference book.
 
 ---
 
-## 5. ITCH messages currently decoded
+## 5. ITCH messages decoded
 
-The book-mutating message set is:
-
-| ITCH type | Name | Normalised op | Notes |
+| ITCH type | Name | Normalised operation | Book treatment |
 |---|---|---|---|
-| `A` | Add Order, no MPID | `ADD` | Uses order ref, side, shares, stock locate, price |
-| `F` | Add Order, with MPID | `ADD` | Same book effect as `A`; attribution is ignored |
-| `E` | Order Executed | `EXECUTE` | Reduces shares; does not carry a display price |
-| `C` | Order Executed With Price | `EXECUTE` | Same book effect as `E`; execution price is ignored for displayed-book state |
-| `X` | Order Cancel | `CANCEL` | Partial displayed-size reduction |
-| `D` | Order Delete | `DELETE` | Full removal of remaining displayed shares |
-| `U` | Order Replace | `REPLACE` | Delete old ref, add new ref with new price/shares |
+| `A` | Add Order | `ADD` | Insert displayed order |
+| `F` | Add Order with MPID | `ADD` | Same as `A`; attribution is ignored |
+| `E` | Order Executed | `EXECUTE` | Reduce displayed shares; price comes from the stored order |
+| `C` | Order Executed with Price | `EXECUTE` | Same displayed-book mutation as `E`; execution price is not the displayed level |
+| `X` | Order Cancel | `CANCEL` | Partially reduce displayed shares |
+| `D` | Order Delete | `DELETE` | Remove all remaining displayed shares |
+| `U` | Order Replace | `REPLACE` | Delete old reference and add the replacement with inherited side |
 
-Unsupported messages return `None` from the parser. That includes non-book administrative messages and trade/auction messages that do not mutate the displayed order book represented here.
-
-Stock Directory messages (`R`) are handled separately for symbol-to-locate resolution.
+Stock Directory messages (`R`) are handled separately to resolve a symbol to its daily locate code. Administrative, trade, auction, and other messages that do not mutate the displayed book are ignored by `parse_itch_message()`.
 
 ---
 
-## 6. Symbol / locate filtering
+## 6. Symbol and locate filtering
 
-Real ITCH input is multi-symbol. The golden runner can filter to one instrument in either of two ways:
+Real ITCH data is multi-symbol, while an individual hardware book covers one routed instrument and a bounded price window. The runner therefore supports:
 
-```bash
-# Directly filter by locate code
-python -m golden.runner path/to/input.bin \
-    --locate 24 \
-    --events-out build/golden/events.jsonl \
-    --states-out build/golden/states.jsonl
+- direct filtering by a known stock-locate code;
+- symbol filtering by first resolving the daily locate from Stock Directory messages.
 
-# Resolve a symbol through Stock Directory messages, then filter by its daily locate
-python -m golden.runner path/to/input.bin \
-    --symbol AAPL \
-    --events-out build/golden/events.jsonl \
-    --states-out build/golden/states.jsonl
-```
+Symbol and locate filters are mutually exclusive. Unfiltered real input should only be used deliberately, because combining different instruments into one single-instrument oracle would produce an invalid comparison.
 
-Use `--symbol` for real captured/sample files when the Stock Directory spin is present. Use `--locate` when the locate is already known.
-
-Do **not** pass both `--symbol` and `--locate`; the runner treats them as mutually exclusive.
+The hardware replay flow may rewrite the chosen instrument's daily locate to the routed locate expected by the PL design. The golden and RTL paths must use the same instrument selection.
 
 ---
 
 ## 7. Reference order-book behaviour
 
-`golden.order_book.OrderBook` maintains:
+The Python book maintains:
 
 ```text
 order_table: order_ref -> {side, price, shares, locate}
@@ -158,91 +154,28 @@ bid_levels: price -> {aggregate shares, order count}
 ask_levels: price -> {aggregate shares, order count}
 ```
 
-Book updates:
-
-| Operation | Order table update | Level update |
+| Operation | Order-table mutation | Price-level mutation |
 |---|---|---|
-| `ADD` | Insert new `order_ref` | Increase shares and order count at `(side, price)` |
-| `EXECUTE` | Reduce order shares; delete order if fully executed | Reduce shares; reduce order count only if order reaches zero |
-| `CANCEL` | Same reduction semantics as execute | Same reduction semantics as execute |
-| `DELETE` | Remove the order | Remove remaining shares and decrement order count |
-| `REPLACE` | Remove old ref, insert new ref | Delete-then-add using the original side and new price/shares |
+| `ADD` | Insert a new reference | Increase shares and order count |
+| `EXECUTE` | Reduce remaining shares; remove at zero | Reduce aggregate shares; decrement count only when the order dies |
+| `CANCEL` | Same remaining-share semantics as execute | Same aggregate semantics as execute |
+| `DELETE` | Remove the order | Remove all remaining shares and decrement count |
+| `REPLACE` | Remove old reference and insert new reference | Validate then apply delete-and-add using the inherited side |
 
-The BBO is recomputed from occupied price levels:
+BBO is derived from occupied levels:
 
 ```text
-best bid = max(bid_levels)
-best ask = min(ask_levels)
+best bid = highest occupied bid price
+best ask = lowest occupied ask price
 ```
 
-Empty sides are represented as `None` in Python and `null` in JSON.
+Empty sides are `None` in Python and `null` in JSON.
 
 ---
 
-## 8. JSONL outputs
+## 8. Matched oracle files
 
-### `events.jsonl`
-
-One line per accepted event:
-
-```json
-{"msg_index":1,"op":"ADD","locate":1,"side":"BUY","order_ref":1001,"price":10000,"shares":100,"new_order_ref":null,"timestamp_ns":100}
-```
-
-Field meanings:
-
-| Field | Meaning |
-|---|---|
-| `msg_index` | Original BinaryFILE source-record index |
-| `op` | Normalised operation string |
-| `locate` | ITCH stock locate |
-| `side` | `BUY`, `SELL`, or `UNKNOWN` |
-| `order_ref` | Existing / original order reference |
-| `price` | Price integer with ITCH implied precision, when relevant |
-| `shares` | Share quantity, when relevant |
-| `new_order_ref` | Replacement order reference for `REPLACE`, otherwise `null` |
-| `timestamp_ns` | ITCH timestamp in nanoseconds since midnight |
-
-### `states.jsonl`
-
-One line per accepted event, after applying that event:
-
-```json
-{
-  "msg_index":1,
-  "bbo":{"bid_price":10000,"bid_size":100,"ask_price":null,"ask_size":null},
-  "bid_levels":[{"price":10000,"shares":100,"order_count":1}],
-  "ask_levels":[]
-}
-```
-
-Level lists are sorted best-to-worst:
-
-- bids: descending price
-- asks: ascending price
-
-This makes diffs stable and readable.
-
----
-
-## 9. Running the golden model
-
-### Recommended wrapper
-
-From the repo root:
-
-```bash
-scripts/run_golden.sh
-```
-
-This default flow:
-
-1. compiles golden Python files,
-2. runs unit tests,
-3. generates a synthetic BinaryFILE input,
-4. writes oracle JSONL into `build/golden/`.
-
-Default outputs:
+The default oracle directory contains:
 
 ```text
 build/golden/itch_synthetic.bin
@@ -250,112 +183,135 @@ build/golden/events.jsonl
 build/golden/states.jsonl
 ```
 
-### Synthetic run with explicit seed/count
+| Output | Meaning | Primary use |
+|---|---|---|
+| `itch_synthetic.bin` | Length-prefixed BinaryFILE stimulus | Common input for parser and RTL replay |
+| `events.jsonl` | One normalised accepted book event per row | Decoder isolation and direct book input |
+| `states.jsonl` | Expected post-event book snapshot | Book and full-chain BBO/state comparison |
 
-```bash
-scripts/run_golden.sh --seed 7 --random-message-count 25
+Row `n` in `events.jsonl` and row `n` in `states.jsonl` refer to the same accepted event and source `msg_index`.
+
+Example event:
+
+```json
+{"msg_index":1,"op":"ADD","locate":1,"side":"BUY","order_ref":1001,"price":10000,"shares":100,"new_order_ref":null,"timestamp_ns":100}
 ```
 
-### Real ITCH run by symbol
+Example state:
 
-```bash
-scripts/run_golden.sh \
-    --input path/to/real_itch.bin \
-    --symbol AAPL \
-    --max-messages 100000 \
-    --max-events 10000
+```json
+{
+  "msg_index": 1,
+  "bbo": {"bid_price": 10000, "bid_size": 100, "ask_price": null, "ask_size": null},
+  "bid_levels": [{"price": 10000, "shares": 100, "order_count": 1}],
+  "ask_levels": []
+}
 ```
 
-### Real ITCH run by locate
-
-```bash
-scripts/run_golden.sh \
-    --input path/to/real_itch.bin \
-    --locate 24 \
-    --max-messages 100000 \
-    --max-events 10000
-```
-
-### Skip compile/tests for quick iteration
-
-```bash
-scripts/run_golden.sh --skip-tests --seed 3 --random-message-count 10
-```
-
-Only use this when you are iterating locally and have already run the full checks.
+Bids are written in descending price order and asks in ascending price order so diffs remain deterministic.
 
 ---
 
-## 10. Direct Python commands
+## 9. Cocotb verification layers
 
-Compile the Python files:
+| Target | Test module | Main checks |
+|---|---|---|
+| `mold_seq_guard` | `test_mold_seq_guard.py` | First packet, in-order, duplicate, gap, heartbeat, EOS, and sticky stale behaviour |
+| `data_handler` | `test_data_handler.py` | Complete BinaryFILE replay against `events.jsonl`, ignored messages, and output backpressure |
+| `order_book` | `test_order_book.py` | Lifecycle, aggregation, collisions, replace cases, boundaries, reset, deterministic random streams, and oracle BBO replay |
+| `order_book_top` | `test_order_book_top.py` | Symbol routing, base-price forwarding, wrapper behaviour, and replay |
+| `ingress_top` | `test_ingress.py` | Exact payload recovery, multiple-message datagrams, backpressure, control packets, and malformed-frame drop |
+| `ingress_top_perf_probe` | `test_ingress_perf.py` | Cycle-level ingress latency and throughput instrumentation |
+| `feed_handler_top` | `test_feed_handler_top.py` | Complete network-to-book replay, logical A/B duplicates, gaps, late packets, heartbeat, and EOS |
 
-```bash
-python -m py_compile golden/*.py golden/tests/*.py
-```
+### Current full-chain campaigns
 
-Run unit tests:
+The current campaigns include:
 
-```bash
-python -m unittest discover -s golden/tests -v
-```
+- one and multiple ITCH messages per MoldUDP64 packet;
+- different ITCH message lengths and AXI beat alignments;
+- messages that straddle input beats;
+- downstream backpressure;
+- exact packet duplicates;
+- one logical B copy after each A copy;
+- a missing packet followed by post-gap data and then the late missing packet;
+- heartbeat and EOS packets without book mutation;
+- heartbeat-driven forward-gap reporting;
+- checks that valid streams produce no unexpected frame, MoldUDP64, or realignment errors.
 
-Generate synthetic input directly:
-
-```bash
-python -m golden.stimulus build/golden/itch_synthetic.bin \
-    --seed 7 \
-    --random-message-count 25
-```
-
-Generate oracle JSONL directly:
-
-```bash
-python -m golden.runner build/golden/itch_synthetic.bin \
-    --events-out build/golden/events.jsonl \
-    --states-out build/golden/states.jsonl \
-    --locate 1
-```
+The A/B campaign is a logical duplicate stream presented to one RTL ingress. It proves first-copy acceptance and duplicate suppression, not arbitration between two physical network receivers.
 
 ---
 
-## 11. Relationship to the RTL harness
+## 10. Comparison boundaries
 
-The normalised event stream is also used by the cocotb harness for order-book isolation.
-
-Relevant harness files:
-
-| File | Role |
-|---|---|
-| `tb/itch_harness/layout.py` | Packs `events.jsonl` records into RTL `data_t`-style vectors and unpacks `bbo_t` |
-| `tb/itch_harness/oracle.py` | Loads oracle JSONL streams |
-| `tb/itch_harness/scoreboard.py` | Compares RTL outputs against expected golden values |
-| `tb/itch_harness/axis.py` | AXI-style driver/helpers |
-
-The intended gate split is:
+### Decoder isolation
 
 ```text
-G1 decoder isolation:
-    RTL decoder output == events.jsonl
-
-G2 book isolation / integrated flow:
-    RTL book BBO and level state == states.jsonl
+BinaryFILE payloads -> data_handler -> normalised RTL events
+                                  == events.jsonl
 ```
+
+The comparison is operation-aware: fields that are meaningful for the operation must match exactly, while unused packed fields are not treated as semantic data.
+
+### Book isolation
+
+```text
+events.jsonl -> packed events -> order_book -> BBO/state
+                                           == states.jsonl
+```
+
+The primary automated RTL checks currently prove BBO behaviour after accepted events. The Python state stream contains more information than is presently observed from the RTL.
+
+### Complete path
+
+```text
+BinaryFILE -> network encapsulator -> Ethernet frames
+           -> ingress -> decoder -> router -> book -> BBO
+                                              == states.jsonl
+```
+
+Starting every layer from the same BinaryFILE source prevents the network and file-fed paths from using different event sequences.
+
+---
+
+## 11. What is proven and what remains
+
+### Proven by the current automated flow
+
+- golden parser and book unit behaviour;
+- `A/F/E/C/X/D/U` normalisation;
+- decoder replay against the event oracle;
+- directed and random valid order-book BBO behaviour;
+- Ethernet/IPv4/UDP payload recovery for the supported header shape;
+- MoldUDP64 message splitting and variable-length realignment;
+- packet-level duplicate suppression and post-gap stale reporting;
+- complete synthetic network-to-book BBO replay;
+- operation under directed downstream backpressure.
+
+### Not yet fully proven
+
+The primary RTL scoreboards do not yet compare after every event:
+
+- every live order-table entry;
+- every bid and ask aggregate level;
+- per-level order counts, which are not stored in the current RTL contract;
+- tombstone placement and table occupancy as an externally defined contract.
+
+Full internal-state checking should begin through simulator backdoor access so it adds no latency or area to the hardware. A debug readout interface is only justified if simulator access is insufficient or hardware inspection is required.
+
+The final board flow also still needs an automated capture of every BBO update and a board-versus-golden comparison.
 
 ---
 
 ## 12. Assumptions and limitations
 
-Current assumptions:
+- Prices remain integer ITCH `Price(4)` values throughout the golden and RTL paths.
+- The model tracks the displayed order book only.
+- Real multi-symbol inputs must be filtered or routed consistently.
+- BinaryFILE input does not contain the network layers; those are generated by the encapsulator.
+- Python uses `None`/`null` for an empty BBO side. The RTL must use a documented conversion convention while its packed interface has no explicit side-valid bits.
+- The oracle defines semantic book state, not internal hash-table slot placement.
+- Timing closure and resource utilisation are implementation checks, not substitutes for functional comparison.
 
-- The input is BinaryFILE-style length-prefixed ITCH, not Ethernet/IP/UDP/MoldUDP64 frames.
-- Prices remain integer ITCH `Price(4)` values. Do not use floats in the golden model or RTL path.
-- The book model tracks displayed-book state only.
-- Trade/auction/administrative messages that do not mutate the displayed order book are ignored by `parse_itch_message()`.
-- For real multi-symbol input, use `--symbol` or `--locate` so the generated oracle matches the single-instrument RTL book configuration.
-
-Known interface note:
-
-- The Python BBO uses `None`/`null` for an empty side. The current packed RTL `bbo_t` has no explicit valid bits, so the harness may need a documented conversion convention or a future `bid_valid` / `ask_valid` contract change.
-
----
+See [`running_the_project.md`](running_the_project.md) for all executable commands.
