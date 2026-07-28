@@ -38,7 +38,14 @@
 //                 BRAM, ensuring design is synthesizable in Vivado w/o high LUT use
 // Revision 3.10 - Pipelining and replicating registers to optimise timing
 // Revision 3.11 - Increasing price window by increasing BBO_W and relevent logic
-//
+// Revision 3.20 - Increased Hash Width to help track stocks better by losing less
+//                 orders
+// Revision 3.21 - Reverted Hash Width change, and increased MAX_PROBES to use less
+//                 BRAM
+// Revision 4.00 - Changed order & price books to use 3-way Set Assocciative Hashing
+//                 rather than 1-way - reducing no. hash collisions, also reduced
+//                 probe number to 3 instead of 32 reducing max clock cycle latency
+// Revision 4.10 - Added Content Addressable Memory to remove probing
 // Additional Comments:
 // [1]: In the previous design, a Linked List was formed to determine hash entries
 //      and indexes. If a hash index was already in use, it would have a reference
@@ -162,6 +169,8 @@ logic [BBO_W-1:0]   lookup_p_idx_wire;
 // IDX Search registers
 logic [1:0]           probe;
 logic [1:0]           rep_probe;
+logic [1:0]           comb_slot_idx;
+logic [1:0]           rep_comb_slot_idx;
 order_entry_t h_entry;
 order_entry_t rep_h_entry;
 
@@ -173,7 +182,7 @@ logic [SHARES_W-1:0] tmp_base_shares;
 
 
 // Latched registers
-o_data_t                latched_rdata;
+(* max_fanout = 16 *) o_data_t                latched_rdata;
 order_entry_t           latched_lookup_entry;
 logic [PRICE_W-1:0]     latched_base_price;
 logic [SHARES_W-1:0]    latched_book_shares;
@@ -184,9 +193,12 @@ logic                   latched_bid_valid_rst;
 logic                   latched_ask_valid_rst;
 logic [1:0]             latched_slot_idx;
 logic [1:0]             rep_latched_slot_idx;
-logic [1:0]             comb_slot_idx;
-logic [1:0]             rep_comb_slot_idx;
-
+logic                   latched_is_cam_entry;
+logic [5:0]             latched_cam_idx;
+logic                   latched_cam_hit;
+logic [5:0]             latched_cam_match_idx;
+logic                   latched_cam_is_full;
+logic [5:0]             latched_cam_free_idx;
 (* max_fanout = 32 *) logic latched_is_add;
 (* max_fanout = 32 *) logic latched_is_reduce;
 (* max_fanout = 32 *) logic latched_is_replace;
@@ -198,7 +210,7 @@ logic [CHUNK_LEN-1:0]    bid_enc_valid;
 logic [CHUNK_LEN-1:0]    ask_enc_valid;
 logic [63:0]             bid_active_chunks [CHUNK_LEN-1:0];
 logic [63:0]             ask_active_chunks [CHUNK_LEN-1:0];
-logic [(BBO_W-6)-1:0]    target_chunk_idx;
+(* max_fanout = 16 *)    logic [(BBO_W-6)-1:0]    target_chunk_idx;
 
 
 logic [BBO_W-1:0]           current_best_bid;
@@ -227,7 +239,7 @@ logic [BBO_W-1:0]   reg_chosen_row;
 logic [SHARES_W-1:0] immediate_book_shares;
 logic                immediate_level_depleted;
 
-// New registers for Set-Associative Hashing
+// Registers for Set-Associative Hashing
 
 logic [2:0] hash_match;
 logic [2:0] free_slot;
@@ -236,6 +248,17 @@ logic [2:0] rep_free_slot;
 
 order_entry_t [2:0] read_bucket; // unpacked array
 order_entry_t [2:0] rep_read_bucket;
+
+// Content-Addressable Memory (CAM) registers
+
+order_entry_t   [63:0] cam;
+logic           [5:0]  cam_wr_ptr;
+logic                  cam_data_found;
+logic                  cam_hit;
+logic           [5:0]  cam_match_idx;
+logic                  cam_is_full;
+logic           [5:0]  cam_free_idx;
+logic           [63:0] cam_match_vec;
 
 
 
@@ -389,14 +412,24 @@ always_comb begin
     comb_slot_idx     = '0;
     rep_comb_slot_idx = '0;
 
+    cam_match_idx   =   '0;
+    cam_is_full     =   1'b1;
+    cam_free_idx    =   '0;
+
+    // Fanout reduction signal
+
     level_depleted = latched_is_reduce ?
                      (latched_book_shares == latched_rdata.shares) :
                      (latched_book_shares == latched_lookup_entry.shares);
+
+    // Replace logic (for shares)
 
     tmp_base_shares = (latched_event_price_idx == latched_lookup_price_idx) ?
                       (latched_book_shares - latched_lookup_entry.shares) :
                       latched_event_shares;
 
+
+    // Latched message type signals
 
     if(latched_is_add) begin
         if( latched_rdata.side && latched_event_price_idx > current_best_bid) is_better_bid  = 1'b1;
@@ -421,6 +454,29 @@ always_comb begin
             ask_depleted = 1'b1;
         end
     end
+
+    // CAM hit & matching logic
+
+    for(int i = 0; i < 64; i++) begin
+        cam_match_vec[i]   =   (cam[i].valid && ~cam[i].tombstone && (cam[i].orn == latched_rdata.orn));
+    end
+
+    cam_hit         =   | cam_match_vec;
+
+    for(int i = 0; i < 64; i++) begin
+        if(cam_match_vec[i]) cam_match_idx  =   cam_match_idx | 6'(i);
+    end
+
+    // CAM free slot finder via priority encoder
+
+    for(int i = 63; i >= 0; i--) begin
+        if(~cam[i].valid || cam[i].tombstone) begin
+            cam_is_full     =   1'b0;
+            cam_free_idx    =   6'(i);
+        end
+    end
+
+    // Combinational case logic for state machine
 
     case (current_state)
         CLEAR: begin
@@ -481,13 +537,10 @@ always_comb begin
                     else if (free_slot[1]) comb_slot_idx = 2'd1;
                     else                   comb_slot_idx = 2'd2;
                 end
-                else if (probe == 2'b11) next_state = FETCH_BBO;
-                else begin
-                    next_state  =   IDX_REQ;
-                    // add something here for when bucket is full
-                    // best idea overflow CAM
-                    // if not increment hash_idx
+                else if(~latched_cam_is_full) begin
+                    next_state  =   UPDATE_READ_TBL;
                 end
+                else next_state =   FETCH_BBO;
             end
             else if(latched_is_delete || latched_is_reduce || latched_is_replace) begin
                 if(hash_match != 3'b000) begin
@@ -503,17 +556,14 @@ always_comb begin
                             else if (rep_free_slot[1]) rep_comb_slot_idx = 2'd1;
                             else                       rep_comb_slot_idx = 2'd2;
                         end
-                        else if(probe == 2'b11) next_state = FETCH_BBO;
-                        else begin
-                            next_state = IDX_REQ;
-                            // include probe
+                        else if(~latched_cam_is_full) begin
+                            next_state  =   UPDATE_READ_TBL;
                         end
+                        else next_state =   FETCH_BBO;
                     end
                 end
-                else if(probe == 2'b11) next_state = FETCH_BBO;
                 else begin
-                    next_state  =   IDX_REQ;
-                    // same bucket full issue
+                    next_state  =   (latched_cam_hit) ? UPDATE_READ_TBL : FETCH_BBO;
                 end
             end
             else next_state =   FETCH_BBO;
@@ -533,8 +583,8 @@ always_comb begin
             addr_a      =   hash_idx;
             addr_b      =   rep_hash_idx;
 
-            bid_addr_a  = latched_lookup_price_idx;
-            ask_addr_a  = latched_lookup_price_idx;
+            bid_addr_a  = price_to_idx(latched_lookup_entry.price);
+            ask_addr_a  = price_to_idx(latched_lookup_entry.price);
 
             bid_addr_b  = latched_event_price_idx;
             ask_addr_b  = latched_event_price_idx;
@@ -548,7 +598,7 @@ always_comb begin
 
         UPDATE_WRITE: begin
             next_state = (latched_is_replace) ? REPLACE_ADD : EVALUATE_BBO;
-            we_a       = 1'b1;
+            we_a       = ~latched_is_cam_entry;
             addr_a     = hash_idx;
             addr_b     = rep_hash_idx;
             din_a      = read_bucket;
@@ -611,8 +661,8 @@ always_comb begin
         end
 
         REPLACE_ADD: begin
-            next_state = EVALUATE_BBO;
-            we_b            = 1'b1;
+            next_state      = EVALUATE_BBO;
+            we_b            = ~latched_is_cam_entry;
             addr_a          = hash_idx;
             addr_b          = rep_hash_idx;
             din_b           = rep_read_bucket;
@@ -742,10 +792,10 @@ always_ff @(posedge clk) begin
         clear_idx           <= '0;
         bbo_data_o          <= '0;
         bbo_valid_o         <= 1'b0;
-        probe               <= '0;
-        rep_probe           <= '0;
         current_best_bid    <= '0;
         current_best_ask    <= BBO_W'(BBO_DEPTH-1);
+        latched_cam_idx     <= '0;
+        latched_is_cam_entry<= 1'b0;
     end
     else begin
         current_state   <= next_state;
@@ -767,6 +817,8 @@ always_ff @(posedge clk) begin
                     clear_idx <= clear_idx + 1'b1;
                 end
                 else clear_idx  <=  '0;
+
+                for(int i = 0; i < 64; i++) cam[i]  <=  '0;
             end
 
             IDLE: begin
@@ -785,7 +837,11 @@ always_ff @(posedge clk) begin
             end
 
             IDX_REQ: begin
-                latched_event_price_idx           <=      price_to_idx(latched_rdata.price);
+                latched_event_price_idx     <=  price_to_idx(latched_rdata.price);
+                latched_cam_hit             <=  cam_hit;
+                latched_cam_match_idx       <=  cam_match_idx;
+                latched_cam_is_full         <=  cam_is_full;
+                latched_cam_free_idx        <=  cam_free_idx;
             end
 
             IDX_SEARCH: begin
@@ -795,21 +851,31 @@ always_ff @(posedge clk) begin
                     probe                   <=  '0;
                     rep_probe               <=  '0;
                 end
-                else if(next_state == IDX_REQ) begin
-                    if(latched_is_add || (hash_match == 3'b000)) begin
-                        hash_idx            <=  hash_idx + 1'b1;
-                        probe               <=  probe    + 1'b1;
-                    end
-                    if(latched_is_replace && (hash_match != 3'b000) && (rep_free_slot == 3'b000)) begin
-                        rep_hash_idx <= rep_hash_idx + 1'b1;
-                        rep_probe    <= rep_probe    + 1'b1;
-                    end
-                end
             end
 
             UPDATE_READ_TBL: begin
-                latched_lookup_entry        <=      read_bucket[latched_slot_idx];
-                latched_lookup_price_idx    <=      price_to_idx(read_bucket[latched_slot_idx].price);
+
+                if((hash_match == 3'b000 && latched_cam_hit) || (latched_is_add && free_slot == 3'b000)) begin
+                    latched_is_cam_entry    <=  1'b1;
+                end
+                else begin
+                    latched_is_cam_entry    <=  1'b0;
+                end
+
+                if(latched_is_add) begin
+                    latched_cam_idx <=  latched_cam_free_idx;
+                end
+                else if(hash_match == 3'b000 && latched_cam_hit) begin
+                    latched_cam_idx             <=  latched_cam_match_idx;
+                    latched_lookup_entry        <=  cam[latched_cam_match_idx];
+                end
+                else begin
+                    latched_lookup_entry        <=      dout_a;
+                end
+            end
+
+            ISSUE_BOOK_READ: begin
+                latched_lookup_price_idx    <=  price_to_idx(latched_lookup_entry.price);
             end
 
             UPDATE_READ_BOOK: begin
@@ -867,6 +933,28 @@ always_ff @(posedge clk) begin
                     reg_chosen_row  <= latched_event_price_idx;
                     reg_we_en       <= 1'b1;
                 end
+
+                if(latched_is_cam_entry) begin
+                    if(latched_is_add) begin
+                        cam[latched_cam_idx].valid      <=  1'b1;
+                        cam[latched_cam_idx].orn        <=  latched_rdata.orn;
+                        cam[latched_cam_idx].side       <=  latched_rdata.side;
+                        cam[latched_cam_idx].shares     <=  latched_rdata.shares;
+                        cam[latched_cam_idx].price      <=  latched_rdata.price;
+                        cam[latched_cam_idx].tombstone  <=  1'b0;
+                    end
+                    else if(latched_is_delete || latched_is_replace) begin
+                        cam[latched_cam_idx].tombstone  <=  1'b1;
+                    end
+                    else begin
+                        if(latched_rdata.shares >= latched_lookup_entry.shares) begin
+                            cam[latched_cam_idx].tombstone <= 1'b1;
+                        end
+                        else begin
+                            cam[latched_cam_idx].shares <= latched_lookup_entry.shares - latched_rdata.shares;
+                        end
+                    end
+                end
             end
 
             REPLACE_ADD: begin
@@ -884,6 +972,15 @@ always_ff @(posedge clk) begin
                         if(reg_target_val) ask_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b1;
                         else if(latched_ask_valid_rst) ask_enc_valid[reg_chosen_row[BBO_W-1:6]] <=  1'b0;
                     end
+                end
+
+                if(latched_is_cam_entry) begin
+                    cam[latched_cam_idx].valid      <=  1'b1;
+                    cam[latched_cam_idx].orn        <=  latched_rdata.updated_orn;
+                    cam[latched_cam_idx].side       <=  latched_lookup_entry.side;
+                    cam[latched_cam_idx].shares     <=  latched_rdata.shares;
+                    cam[latched_cam_idx].price      <=  latched_rdata.price;
+                    cam[latched_cam_idx].tombstone  <=  1'b0;
                 end
             end
 
@@ -929,17 +1026,33 @@ always_ff @(posedge clk) begin
                 if (bid_enc_valid == '0) begin
                     bbo_data_o.bid_price  <= '0;
                     bbo_data_o.bid_shares <= '0;
-                end else if (bid_dout_a > 0) begin
+                end
+                else begin
                     bbo_data_o.bid_price  <= latched_base_price + PRICE_W'(current_best_bid);
-                    bbo_data_o.bid_shares <= bid_dout_a;
+
+                    if(bid_we_a && (bid_addr_a == current_best_bid)) begin
+                        bbo_data_o.bid_shares   <=  bid_din_a;
+                    end
+                    else if(bid_we_b && (bid_addr_b == current_best_bid)) begin
+                        bbo_data_o.bid_shares   <=  bid_din_b;
+                    end
+                    else bbo_data_o.bid_shares  <=  bid_dout_a;
                 end
 
                 if (ask_enc_valid == '0) begin
                     bbo_data_o.ask_price  <= '0;
                     bbo_data_o.ask_shares <= '0;
-                end else if (ask_dout_a > 0) begin
+                end
+                else begin
                     bbo_data_o.ask_price  <= latched_base_price + PRICE_W'(current_best_ask);
-                    bbo_data_o.ask_shares <= ask_dout_a;
+
+                    if(ask_we_a && (ask_addr_a == current_best_ask)) begin
+                        bbo_data_o.ask_shares   <=  ask_din_a;
+                    end
+                    else if(ask_we_b && (ask_addr_b == current_best_ask)) begin
+                        bbo_data_o.ask_shares   <=  ask_din_b;
+                    end
+                    else bbo_data_o.ask_shares  <=  ask_dout_a;
                 end
             end
 
