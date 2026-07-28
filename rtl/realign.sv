@@ -59,7 +59,9 @@ module realign #(
   localparam int RESERVOIR_W       = 8 * RESERVOIR_BYTES;
   localparam int RESERVOIR_COUNT_W = $clog2(RESERVOIR_BYTES + 1);
 
-  logic [MOLD_MSG_LEN_W-1:0] len_fifo [LEN_FIFO_DEPTH];
+  // Explicit bounds avoid creating an unused LEN_FIFO_DEPTH-th entry.
+  (* ram_style = "distributed" *)
+  logic [MOLD_MSG_LEN_W-1:0] len_fifo [0:LEN_FIFO_DEPTH-1];
   logic [LEN_FIFO_AW-1:0]    len_wr_ptr;
   logic [LEN_FIFO_AW-1:0]    len_rd_ptr;
   logic [LEN_FIFO_AW:0]      len_count;
@@ -79,11 +81,13 @@ module realign #(
   logic                      have_msg;
   logic                      dgram_end_pending;
   logic                      dropping_payload;
+  logic                      flush_pending;
 
   logic [MOLD_MSG_LEN_W-1:0] msg_bytes_left_next;
   logic                      have_msg_next;
   logic                      dgram_end_pending_next;
   logic                      dropping_payload_next;
+  logic                      flush_pending_next;
 
   axis_data_t m_axis_tdata_next;
   logic       m_axis_tvalid_next;
@@ -150,32 +154,29 @@ module realign #(
 
   assign output_slot_available = !m_axis_tvalid_o || m_axis_tready_i;
 
-  // A two-beat reservoir allows one complete input beat to be accepted while
-  // another beat is waiting to be emitted. In the no-backpressure steady state,
-  // the accepted bytes are emitted in the same clock update and the reservoir
-  // does not accumulate.
+  // Timing rule:
+  // - A message length is first captured into the local FIFO/current-context
+  //   registers.
+  // - Payload readiness depends only on the registered have_msg flag.
+  //
+  // This deliberately removes len_count/len_rd_ptr from the same-cycle
+  // reservoir append/emit cone. The previous path crossed the length FIFO
+  // control, output packing, message countdown, error checks, and reservoir
+  // update in one cycle. The cost is at most one cycle before the first payload
+  // beat of a newly loaded message; aligned payload still runs at one beat/cycle.
   always_comb begin
-    logic length_context_available;
-
-    // Do not accept a token from the next datagram until every byte from the
-    // current datagram has left the reservoir. This keeps length tokens and
-    // payload bytes on the same datagram boundary.
     s_msg_len_ready_o = rst_n
+                     && !flush_pending
                      && !dgram_end_pending
                      && (dropping_payload
                          || (len_count < LEN_FIFO_DEPTH));
 
-    length_context_available = have_msg
-                            || (len_count != '0)
-                            || (s_msg_len_valid_i
-                                && (s_msg_len_i != '0)
-                                && s_msg_len_ready_o);
-
     s_payload_tready_o = rst_n
+                      && !flush_pending
                       && !dgram_end_pending
                       && (dropping_payload
                           || ((reservoir_count <= AXIS_KEEP_W)
-                              && length_context_available));
+                              && have_msg));
   end
 
   assign payload_fire = s_payload_tvalid_i && s_payload_tready_o;
@@ -183,7 +184,7 @@ module realign #(
   always_comb begin : next_state_logic
     logic do_len_push;
     logic do_len_pop;
-    logic flush_context;
+    logic request_flush;
     logic payload_bad;
 
     logic [RESERVOIR_W-1:0]       reservoir_work;
@@ -215,6 +216,7 @@ module realign #(
     have_msg_next           = have_msg;
     dgram_end_pending_next  = dgram_end_pending;
     dropping_payload_next   = dropping_payload;
+    flush_pending_next      = flush_pending;
 
     m_axis_tdata_next       = m_axis_tdata_o;
     m_axis_tvalid_next      = m_axis_tvalid_o;
@@ -224,7 +226,7 @@ module realign #(
 
     do_len_push             = 1'b0;
     do_len_pop              = 1'b0;
-    flush_context           = 1'b0;
+    request_flush           = 1'b0;
     payload_bad             = 1'b0;
 
     reservoir_work          = reservoir_data;
@@ -245,190 +247,203 @@ module realign #(
     required_bytes          = 0;
 
     // Retire the current output beat. A replacement beat may be loaded below in
-    // the same cycle, maintaining one output beat per cycle.
+    // the same cycle, preserving one output beat per cycle.
     if (m_axis_tvalid_o && m_axis_tready_i) begin
       m_axis_tvalid_next = 1'b0;
       m_axis_tlast_next  = 1'b0;
     end
 
-    // Length tokens are independent of the payload stream. During error drain
-    // they are accepted and discarded so mold_deframe cannot deadlock while the
-    // remainder of a malformed datagram is being consumed.
-    if (s_msg_len_valid_i && s_msg_len_ready_o) begin
-      if (s_msg_len_i == '0) begin
-        realign_err_next[REALIGN_ERR_LEN_ZERO] = 1'b1;
-      end else if (!dropping_payload) begin
-        do_len_push  = 1'b1;
-        len_write_en = 1'b1;
+    // Runtime error cleanup is performed from this registered flag, rather than
+    // allowing deep error-detection logic to drive the reset/data inputs of the
+    // reservoir and FIFO state directly.
+    if (flush_pending) begin
+      len_wr_ptr_next        = '0;
+      len_rd_ptr_next        = '0;
+      len_count_next         = '0;
+      len_write_en           = 1'b0;
+
+      // The stored bits do not need clearing; reservoir_count defines validity.
+      reservoir_data_next    = reservoir_data;
+      reservoir_count_next   = '0;
+
+      msg_bytes_left_next    = '0;
+      have_msg_next          = 1'b0;
+      dgram_end_pending_next = 1'b0;
+
+      // Preserve dropping_payload so the remainder of a malformed non-final
+      // datagram is consumed before normal operation resumes.
+      dropping_payload_next  = dropping_payload;
+      flush_pending_next     = 1'b0;
+    end else begin
+      // Length tokens are independent of the payload stream. During error drain
+      // they are accepted and discarded so mold_deframe cannot deadlock.
+      if (s_msg_len_valid_i && s_msg_len_ready_o) begin
+        if (s_msg_len_i == '0) begin
+          realign_err_next[REALIGN_ERR_LEN_ZERO] = 1'b1;
+        end else if (!dropping_payload) begin
+          do_len_push  = 1'b1;
+          len_write_en = 1'b1;
+        end
       end
-    end
 
-    // Prefetch the next message length. The FIFO head may be used immediately
-    // by the reservoir logic in this same cycle, avoiding a message-start bubble.
-    if (!dropping_payload_work && !have_msg_work && (len_count_work != '0)) begin
-      msg_bytes_left_work = len_fifo[len_rd_ptr];
-      have_msg_work       = 1'b1;
-      do_len_pop          = 1'b1;
-    end
+      // Accept or drain one complete payload beat.
+      if (payload_fire) begin
+        if (dropping_payload_work) begin
+          if (s_payload_tlast_i) begin
+            dropping_payload_work  = 1'b0;
+            dgram_end_pending_work = 1'b0;
+          end
+        end else if (tkeep_bad(s_payload_tkeep_i, s_payload_tlast_i)) begin
+          realign_err_next[REALIGN_ERR_BAD_TKEEP] = 1'b1;
+          payload_bad             = 1'b1;
+          request_flush           = 1'b1;
+          dropping_payload_work   = !s_payload_tlast_i;
+        end else begin
+          input_bytes = keep_byte_count(s_payload_tkeep_i);
 
-    // Update the logical FIFO state before checking datagram completion. The
-    // physical memory write is performed in the sequential block.
-    if (do_len_push) begin
-      if (len_wr_ptr == LEN_FIFO_DEPTH-1) begin
-        len_wr_ptr_next = '0;
-      end else begin
-        len_wr_ptr_next = len_wr_ptr + {{(LEN_FIFO_AW-1){1'b0}}, 1'b1};
+          for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
+            if (lane_valid(s_payload_tkeep_i, lane)) begin
+              destination_byte = reservoir_count_work + append_index;
+              reservoir_work[
+                RESERVOIR_W-1-(8*destination_byte) -: 8
+              ] = lane_byte(s_payload_tdata_i, lane);
+              append_index++;
+            end
+          end
+
+          reservoir_count_work = reservoir_count_work + input_bytes;
+
+          if (s_payload_tlast_i) begin
+            dgram_end_pending_work = 1'b1;
+          end
+        end
       end
-    end
 
-    if (do_len_pop) begin
-      if (len_rd_ptr == LEN_FIFO_DEPTH-1) begin
-        len_rd_ptr_next = '0;
-      end else begin
-        len_rd_ptr_next = len_rd_ptr + {{(LEN_FIFO_AW-1){1'b0}}, 1'b1};
+      // Emit from registered message context only. A length loaded later in this
+      // block becomes visible on the following cycle and cannot lengthen this
+      // reservoir datapath.
+      if (!payload_bad
+          && !dropping_payload_work
+          && output_slot_available
+          && have_msg_work) begin
+        if (msg_bytes_left_work > AXIS_KEEP_W) begin
+          emit_bytes = AXIS_KEEP_W;
+        end else begin
+          emit_bytes = msg_bytes_left_work;
+        end
+
+        if (reservoir_count_work >= emit_bytes) begin
+          emit_data = '0;
+
+          for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
+            if (lane < emit_bytes) begin
+              emit_data[AXIS_DATA_W-1-(8*lane) -: 8]
+                = reservoir_work[RESERVOIR_W-1-(8*lane) -: 8];
+            end
+          end
+
+          m_axis_tdata_next  = emit_data;
+          m_axis_tvalid_next = 1'b1;
+          m_axis_tlast_next  = (msg_bytes_left_work <= AXIS_KEEP_W);
+
+          reservoir_work       = reservoir_work << (8 * emit_bytes);
+          reservoir_count_work = reservoir_count_work - emit_bytes;
+
+          if (msg_bytes_left_work <= AXIS_KEEP_W) begin
+            msg_bytes_left_work = '0;
+            have_msg_work       = 1'b0;
+          end else begin
+            msg_bytes_left_work = msg_bytes_left_work - emit_bytes;
+          end
+        end
       end
-    end
 
-    case ({do_len_push, do_len_pop})
-      2'b10: len_count_work = len_count + {{LEN_FIFO_AW{1'b0}}, 1'b1};
-      2'b01: len_count_work = len_count - {{LEN_FIFO_AW{1'b0}}, 1'b1};
-      default: len_count_work = len_count;
-    endcase
+      // Load the next message context only after this cycle's reservoir work is
+      // complete. Existing FIFO data may be popped in the same cycle that the
+      // previous message finishes, so no extra bubble is inserted between
+      // already-buffered messages. A just-arriving token is written first and is
+      // loaded on a later cycle, avoiding write-through timing assumptions.
+      if (!payload_bad
+          && !request_flush
+          && !dropping_payload_work
+          && !have_msg_work
+          && (len_count != '0)) begin
+        msg_bytes_left_work = len_fifo[len_rd_ptr];
+        have_msg_work       = 1'b1;
+        do_len_pop          = 1'b1;
+      end
 
-    // Accept or drain one complete payload beat.
-    if (payload_fire) begin
-      if (dropping_payload_work) begin
-        if (s_payload_tlast_i) begin
-          dropping_payload_work  = 1'b0;
+      if (do_len_push) begin
+        if (len_wr_ptr == LEN_FIFO_DEPTH-1) begin
+          len_wr_ptr_next = '0;
+        end else begin
+          len_wr_ptr_next = len_wr_ptr + 1'b1;
+        end
+      end
+
+      if (do_len_pop) begin
+        if (len_rd_ptr == LEN_FIFO_DEPTH-1) begin
+          len_rd_ptr_next = '0;
+        end else begin
+          len_rd_ptr_next = len_rd_ptr + 1'b1;
+        end
+      end
+
+      case ({do_len_push, do_len_pop})
+        2'b10: len_count_work = len_count + 1'b1;
+        2'b01: len_count_work = len_count - 1'b1;
+        default: len_count_work = len_count;
+      endcase
+
+      // A payload byte without a corresponding message length violates the
+      // mold_deframe/realign contract.
+      if (!payload_bad
+          && !dropping_payload_work
+          && !have_msg_work
+          && (len_count_work == '0)
+          && (reservoir_count_work != '0)) begin
+        realign_err_next[REALIGN_ERR_PAYLOAD_OVERFLOW] = 1'b1;
+        request_flush         = 1'b1;
+        dropping_payload_work = !dgram_end_pending_work;
+      end
+
+      // Once tlast has been accepted, no additional bytes can arrive for this
+      // datagram. Detect an incomplete final message or unmatched length token.
+      if (!payload_bad
+          && !request_flush
+          && !dropping_payload_work
+          && dgram_end_pending_work) begin
+        if (have_msg_work) begin
+          if (msg_bytes_left_work > AXIS_KEEP_W) begin
+            required_bytes = AXIS_KEEP_W;
+          end else begin
+            required_bytes = msg_bytes_left_work;
+          end
+
+          if (reservoir_count_work < required_bytes) begin
+            realign_err_next[REALIGN_ERR_PAYLOAD_UNDERFLOW] = 1'b1;
+            request_flush = 1'b1;
+          end
+        end else if (len_count_work != '0) begin
+          if (reservoir_count_work == '0) begin
+            realign_err_next[REALIGN_ERR_PAYLOAD_UNDERFLOW] = 1'b1;
+            request_flush = 1'b1;
+          end
+        end else if (reservoir_count_work == '0) begin
           dgram_end_pending_work = 1'b0;
         end
-      end else if (tkeep_bad(s_payload_tkeep_i, s_payload_tlast_i)) begin
-        realign_err_next[REALIGN_ERR_BAD_TKEEP] = 1'b1;
-        payload_bad = 1'b1;
-        flush_context = 1'b1;
-        dropping_payload_work = !s_payload_tlast_i;
-      end else begin
-        input_bytes = keep_byte_count(s_payload_tkeep_i);
-
-        for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
-          if (lane_valid(s_payload_tkeep_i, lane)) begin
-            destination_byte = reservoir_count_work + append_index;
-            reservoir_work[
-              RESERVOIR_W-1-(8*destination_byte) -: 8
-            ] = lane_byte(s_payload_tdata_i, lane);
-            append_index++;
-          end
-        end
-
-        reservoir_count_work = reservoir_count_work + input_bytes;
-
-        if (s_payload_tlast_i) begin
-          dgram_end_pending_work = 1'b1;
-        end
-      end
-    end
-
-    // Emit up to one complete AXIS beat. A short final message beat is padded
-    // with zeros on the right; any following message bytes remain in the
-    // reservoir and are emitted on the next cycle.
-    if (!payload_bad
-        && !dropping_payload_work
-        && output_slot_available
-        && have_msg_work) begin
-      if (msg_bytes_left_work > AXIS_KEEP_W) begin
-        emit_bytes = AXIS_KEEP_W;
-      end else begin
-        emit_bytes = msg_bytes_left_work;
       end
 
-      if (reservoir_count_work >= emit_bytes) begin
-        emit_data = '0;
+      len_count_next          = len_count_work;
 
-        for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
-          if (lane < emit_bytes) begin
-            emit_data[AXIS_DATA_W-1-(8*lane) -: 8]
-              = reservoir_work[RESERVOIR_W-1-(8*lane) -: 8];
-          end
-        end
-
-        m_axis_tdata_next  = emit_data;
-        m_axis_tvalid_next = 1'b1;
-        m_axis_tlast_next  = (msg_bytes_left_work <= AXIS_KEEP_W);
-
-        reservoir_work       = reservoir_work << (8 * emit_bytes);
-        reservoir_count_work = reservoir_count_work - emit_bytes;
-
-        if (msg_bytes_left_work <= AXIS_KEEP_W) begin
-          msg_bytes_left_work = '0;
-          have_msg_work       = 1'b0;
-        end else begin
-          msg_bytes_left_work = msg_bytes_left_work - emit_bytes;
-        end
-      end
+      reservoir_data_next     = reservoir_work;
+      reservoir_count_next    = reservoir_count_work;
+      msg_bytes_left_next     = msg_bytes_left_work;
+      have_msg_next           = have_msg_work;
+      dgram_end_pending_next  = dgram_end_pending_work;
+      dropping_payload_next   = dropping_payload_work;
+      flush_pending_next      = request_flush;
     end
-
-    // A payload byte without a corresponding message length violates the
-    // mold_deframe/realign contract. Drop the rest of that datagram so the next
-    // datagram starts from a clean byte and length boundary.
-    if (!payload_bad
-        && !dropping_payload_work
-        && !have_msg_work
-        && (len_count_work == '0)
-        && (reservoir_count_work != '0)) begin
-      realign_err_next[REALIGN_ERR_PAYLOAD_OVERFLOW] = 1'b1;
-      flush_context = 1'b1;
-      dropping_payload_work = !dgram_end_pending_work;
-    end
-
-    // Once tlast has been accepted, no additional bytes can arrive for the
-    // current datagram. Detect a partial message as soon as the reservoir no
-    // longer contains enough bytes to form its next output beat.
-    if (!payload_bad
-        && !flush_context
-        && !dropping_payload_work
-        && dgram_end_pending_work) begin
-      if (have_msg_work) begin
-        if (msg_bytes_left_work > AXIS_KEEP_W) begin
-          required_bytes = AXIS_KEEP_W;
-        end else begin
-          required_bytes = msg_bytes_left_work;
-        end
-
-        if (reservoir_count_work < required_bytes) begin
-          realign_err_next[REALIGN_ERR_PAYLOAD_UNDERFLOW] = 1'b1;
-          flush_context = 1'b1;
-        end
-      end else if (len_count_work != '0) begin
-        if (reservoir_count_work == '0) begin
-          realign_err_next[REALIGN_ERR_PAYLOAD_UNDERFLOW] = 1'b1;
-          flush_context = 1'b1;
-        end
-      end else if (reservoir_count_work == '0) begin
-        dgram_end_pending_work = 1'b0;
-      end
-    end
-
-    if (flush_context) begin
-      reservoir_work          = '0;
-      reservoir_count_work    = '0;
-      msg_bytes_left_work     = '0;
-      have_msg_work           = 1'b0;
-      dgram_end_pending_work  = 1'b0;
-
-      len_wr_ptr_next         = '0;
-      len_rd_ptr_next         = '0;
-      len_count_work          = '0;
-      len_write_en            = 1'b0;
-    end
-
-    len_count_next          = len_count_work;
-
-    reservoir_data_next     = reservoir_work;
-    reservoir_count_next    = reservoir_count_work;
-    msg_bytes_left_next     = msg_bytes_left_work;
-    have_msg_next           = have_msg_work;
-    dgram_end_pending_next  = dgram_end_pending_work;
-    dropping_payload_next   = dropping_payload_work;
   end
 
   always_ff @(posedge clk) begin
@@ -444,6 +459,7 @@ module realign #(
       have_msg           <= 1'b0;
       dgram_end_pending  <= 1'b0;
       dropping_payload   <= 1'b0;
+      flush_pending      <= 1'b0;
 
       m_axis_tdata_o     <= '0;
       m_axis_tvalid_o    <= 1'b0;
@@ -466,6 +482,7 @@ module realign #(
       have_msg           <= have_msg_next;
       dgram_end_pending  <= dgram_end_pending_next;
       dropping_payload   <= dropping_payload_next;
+      flush_pending      <= flush_pending_next;
 
       m_axis_tdata_o     <= m_axis_tdata_next;
       m_axis_tvalid_o    <= m_axis_tvalid_next;
