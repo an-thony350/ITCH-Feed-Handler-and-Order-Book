@@ -1,8 +1,7 @@
-"""Cycle-accurate measurement helpers for ingress_top_perf_probe.
+"""Cycle-accurate measurement helpers for ingress performance tests.
 
-The monitor observes actual ready/valid handshakes exposed by the simulation-only
-probe wrapper. It does not infer transfers from valid alone and does not modify
-the production RTL.
+The monitors observe actual ready/valid handshakes exposed by simulation-only
+probe wrappers. They do not modify the production RTL.
 
 Cycle conventions:
 - A transfer occurs when valid and ready are both high at a rising clock edge.
@@ -12,6 +11,7 @@ Cycle conventions:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -24,21 +24,61 @@ from .ingress_packets import WORD_BYTES, frame_to_axis_words
 from .scoreboard import signal_value_to_int
 
 
-ROUTED_CLOCK_PERIOD_PS = 9_375
-ROUTED_CLOCK_PERIOD_NS = ROUTED_CLOCK_PERIOD_PS / 1_000
-ROUTED_CLOCK_HZ = 1_000_000_000_000 / ROUTED_CLOCK_PERIOD_PS
+DEFAULT_CLOCK_MHZ = 100.0
+CLOCK_MHZ_ENV = "CLOCK_MHZ"
+
+
+def clock_mhz_from_env(*, default: float = DEFAULT_CLOCK_MHZ) -> float:
+    """Read the routed clock frequency from ``CLOCK_MHZ``.
+
+    Examples:
+        CLOCK_MHZ=100     -> 100 MHz / 10 ns
+        CLOCK_MHZ=106.667 -> approximately 9.375 ns
+    """
+
+    raw_value = os.environ.get(CLOCK_MHZ_ENV)
+    clock_mhz = default if raw_value is None else float(raw_value)
+
+    if clock_mhz <= 0:
+        raise ValueError(f"{CLOCK_MHZ_ENV} must be positive, got {clock_mhz}")
+
+    return clock_mhz
+
+
+def resolve_clock_mhz(clock_mhz: float | None) -> float:
+    """Return an explicit frequency or the environment/default frequency."""
+
+    resolved = clock_mhz_from_env() if clock_mhz is None else float(clock_mhz)
+    if resolved <= 0:
+        raise ValueError(f"clock_mhz must be positive, got {resolved}")
+    return resolved
+
+
+def clock_period_ns_from_mhz(clock_mhz: float | None = None) -> float:
+    """Convert MHz to an exact floating-point period in nanoseconds."""
+
+    return 1_000.0 / resolve_clock_mhz(clock_mhz)
+
+
+def clock_period_ps_from_mhz(clock_mhz: float | None = None) -> int:
+    """Convert MHz to the nearest integer-picosecond simulator period."""
+
+    period_ps = int(round(1_000_000.0 / resolve_clock_mhz(clock_mhz)))
+    if period_ps <= 0:
+        raise ValueError(f"derived clock period must be positive, got {period_ps} ps")
+    return period_ps
 
 
 def cycles_to_ns(
     cycles: int,
     *,
-    clock_period_ns: float = ROUTED_CLOCK_PERIOD_NS,
+    clock_mhz: float | None = None,
 ) -> float:
-    """Convert a cycle count using the selected clock period."""
+    """Convert a cycle count using the selected clock frequency."""
 
     if cycles < 0:
         raise ValueError(f"cycles must be non-negative, got {cycles}")
-    return cycles * clock_period_ns
+    return cycles * clock_period_ns_from_mhz(clock_mhz)
 
 
 def transfer_window_cycles(cycles: list[int]) -> int:
@@ -65,10 +105,11 @@ def throughput_gbps(
     byte_count: int,
     elapsed_cycles: int,
     *,
-    clock_hz: float = ROUTED_CLOCK_HZ,
+    clock_mhz: float | None = None,
 ) -> float:
-    """Convert a byte count and cycle window into decimal Gbit/s."""
+    """Convert bytes/cycle into decimal Gbit/s at the selected clock."""
 
+    clock_hz = resolve_clock_mhz(clock_mhz) * 1_000_000.0
     return bytes_per_cycle(byte_count, elapsed_cycles) * 8 * clock_hz / 1e9
 
 
@@ -76,9 +117,9 @@ def messages_per_second(
     message_count: int,
     elapsed_cycles: int,
     *,
-    clock_hz: float = ROUTED_CLOCK_HZ,
+    clock_mhz: float | None = None,
 ) -> float:
-    """Convert completed messages per cycle into messages per second."""
+    """Convert completed messages/cycle into messages per second."""
 
     if message_count < 0:
         raise ValueError(
@@ -88,6 +129,8 @@ def messages_per_second(
         raise ValueError(
             f"elapsed_cycles must be positive, got {elapsed_cycles}"
         )
+
+    clock_hz = resolve_clock_mhz(clock_mhz) * 1_000_000.0
     return message_count * clock_hz / elapsed_cycles
 
 
@@ -167,20 +210,22 @@ class IngressPerfCapture:
         self,
         *,
         exact_itch_bytes: int,
-        clock_period_ns: float = ROUTED_CLOCK_PERIOD_NS,
+        clock_mhz: float | None = None,
     ) -> dict[str, int | float]:
         """Build a latency report for one accepted frame.
 
-        This method intentionally reports both first-output latency and complete
-        message latency. It also records exact byte counts at boundaries with
-        tkeep. The ITCH output has no tkeep, so exact_itch_bytes must be supplied
-        by the stimulus.
+        Both first-output and complete-message latency are reported. The ITCH
+        output has no tkeep, so the exact message byte count is supplied by the
+        stimulus rather than inferred from the padded final word.
         """
 
         if exact_itch_bytes <= 0:
             raise ValueError(
                 f"exact_itch_bytes must be positive, got {exact_itch_bytes}"
             )
+
+        resolved_clock_mhz = resolve_clock_mhz(clock_mhz)
+        clock_period_ns = clock_period_ns_from_mhz(resolved_clock_mhz)
 
         first_frame = _first(self.frame_fire_cycles, "frame")
         last_frame = _last(self.frame_fire_cycles, "frame")
@@ -209,7 +254,7 @@ class IngressPerfCapture:
 
         report: dict[str, int | float] = {
             "clock_period_ns": clock_period_ns,
-            "clock_frequency_mhz": 1_000 / clock_period_ns,
+            "clock_frequency_mhz": resolved_clock_mhz,
             "first_frame_cycle": first_frame,
             "last_frame_cycle": last_frame,
             "first_dgram_cycle": first_dgram,
@@ -238,14 +283,14 @@ class IngressPerfCapture:
             report[f"{name}_cycles"] = value
             report[f"{name}_ns"] = cycles_to_ns(
                 value,
-                clock_period_ns=clock_period_ns,
+                clock_mhz=resolved_clock_mhz,
             )
 
         return report
 
 
 class IngressPerfMonitor:
-    """Observe the performance-probe wrapper without affecting handshakes."""
+    """Observe the ingress performance-probe wrapper without affecting it."""
 
     def __init__(self, dut: Any) -> None:
         self.dut = dut
@@ -405,30 +450,41 @@ class IngressPerfMonitor:
         self.running = False
 
 
+async def start_perf_clock(
+    dut: Any,
+    *,
+    clock_mhz: float | None = None,
+) -> float:
+    """Start a simulator clock and return the resolved frequency in MHz."""
+
+    resolved_clock_mhz = resolve_clock_mhz(clock_mhz)
+    clock_period_ps = clock_period_ps_from_mhz(resolved_clock_mhz)
+
+    # Odd integer-picosecond periods need an explicit high time so the two
+    # half-periods sum to the requested rounded simulator period.
+    clock_high_ps = clock_period_ps // 2
+
+    cocotb.start_soon(
+        Clock(
+            dut.clk,
+            clock_period_ps,
+            unit="ps",
+            period_high=clock_high_ps,
+        ).start()
+    )
+
+    return resolved_clock_mhz
+
+
 async def initialise_perf_ingress(
     dut: Any,
     *,
-    clock_period_ps: int = ROUTED_CLOCK_PERIOD_PS,
+    clock_mhz: float | None = None,
     reset_cycles: int = 5,
-) -> None:
-    """Start the routed-rate clock and reset the performance-probe DUT."""
+) -> float:
+    """Start the selected clock and reset the ingress performance-probe DUT."""
 
-    if clock_period_ps <= 0:
-        raise ValueError(
-            f"clock_period_ps must be positive, got {clock_period_ps}"
-        )
-
-    # A 9.375 ns period is 9375 ps, which cannot be split into two equal
-    # integer-picosecond half-periods. Give cocotb the high time explicitly:
-    # 4687 ps high + 4688 ps low = the exact 9375 ps routed clock period.
-    clock_high_ps = clock_period_ps // 2
-
-    Clock(
-        dut.clk,
-        clock_period_ps,
-        unit="ps",
-        period_high=clock_high_ps,
-    ).start()
+    resolved_clock_mhz = await start_perf_clock(dut, clock_mhz=clock_mhz)
 
     dut.s_frame_tdata_i.value = 0
     dut.s_frame_tkeep_i.value = 0
@@ -437,24 +493,17 @@ async def initialise_perf_ingress(
     dut.m_itch_tready_i.value = 1
 
     await reset_dut(dut, cycles=reset_cycles)
+    return resolved_clock_mhz
 
 
-async def drive_axis_frame_continuous(
+async def _drive_axis_words_continuous(
     dut: Any,
-    frame: bytes,
+    words: list[tuple[int, int, bool]],
     *,
-    timeout_cycles_per_beat: int = 100_000,
+    timeout_cycles_per_beat: int,
 ) -> None:
-    """Drive an Ethernet frame without inserting source-side beat bubbles.
-
-    Each beat remains stable until a real valid/ready handshake occurs. When the
-    DUT is ready on consecutive cycles, consecutive frame beats are accepted on
-    consecutive rising edges.
-    """
-
-    words = frame_to_axis_words(frame)
     if not words:
-        raise ValueError("cannot drive an empty Ethernet frame")
+        raise ValueError("cannot drive an empty AXI4-Stream sequence")
 
     await FallingEdge(dut.clk)
 
@@ -467,10 +516,15 @@ async def drive_axis_frame_continuous(
         accepted = False
 
         for _ in range(timeout_cycles_per_beat):
-            await RisingEdge(dut.clk)
+            # Sample ready before the active edge; the destination may update its
+            # state and deassert ready immediately after accepting this beat.
             await ReadOnly()
+            ready_before_edge = signal_value_to_int(
+                dut.s_frame_tready_o.value
+            )
+            await RisingEdge(dut.clk)
 
-            if signal_value_to_int(dut.s_frame_tready_o.value) == 1:
+            if ready_before_edge == 1:
                 accepted = True
                 break
 
@@ -491,3 +545,47 @@ async def drive_axis_frame_continuous(
     dut.s_frame_tlast_i.value = 0
     dut.s_frame_tdata_i.value = 0
     dut.s_frame_tkeep_i.value = 0
+
+
+async def drive_axis_frame_continuous(
+    dut: Any,
+    frame: bytes,
+    *,
+    timeout_cycles_per_beat: int = 100_000,
+) -> None:
+    """Drive one Ethernet frame without source-side beat bubbles."""
+
+    words = frame_to_axis_words(frame)
+    if not words:
+        raise ValueError("cannot drive an empty Ethernet frame")
+
+    await _drive_axis_words_continuous(
+        dut,
+        words,
+        timeout_cycles_per_beat=timeout_cycles_per_beat,
+    )
+
+
+async def drive_axis_frames_continuous(
+    dut: Any,
+    frames: list[bytes],
+    *,
+    timeout_cycles_per_beat: int = 100_000,
+) -> None:
+    """Drive consecutive Ethernet frames with no forced inter-frame bubble."""
+
+    if not frames:
+        raise ValueError("cannot drive an empty frame list")
+
+    words: list[tuple[int, int, bool]] = []
+    for frame in frames:
+        frame_words = frame_to_axis_words(frame)
+        if not frame_words:
+            raise ValueError("cannot drive an empty Ethernet frame")
+        words.extend(frame_words)
+
+    await _drive_axis_words_continuous(
+        dut,
+        words,
+        timeout_cycles_per_beat=timeout_cycles_per_beat,
+    )
