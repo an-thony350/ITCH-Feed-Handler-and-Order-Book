@@ -34,7 +34,7 @@ from itch_harness.perf import (
 
 
 RESULTS_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "build"
     / "perf"
     / "ingress_latency_by_message.json"

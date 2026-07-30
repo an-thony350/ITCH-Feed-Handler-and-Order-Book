@@ -65,7 +65,7 @@ def _results_dir() -> Path:
         return Path(configured).expanduser().resolve()
 
     return (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "build"
         / "perf"
         / "full_chain"

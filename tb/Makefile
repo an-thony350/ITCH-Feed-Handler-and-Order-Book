@@ -3,6 +3,7 @@ TOPLEVEL_LANG = verilog
 
 PWD := $(shell pwd)
 REPO_ROOT := $(PWD)/..
+TESTS_DIR := $(PWD)/tests
 PYTHON ?= python
 
 TOPLEVEL ?= order_book
@@ -106,7 +107,7 @@ else
 $(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: mold_seq_guard, data_handler, order_book, order_book_top, ingress_top, ingress_top_perf_probe, feed_handler_top, feed_handler_top_perf_probe)
 endif
 
-export PYTHONPATH := $(PWD):$(REPO_ROOT):$(PYTHONPATH)
+export PYTHONPATH := $(TESTS_DIR):$(PWD):$(REPO_ROOT):$(PYTHONPATH)
 
 EXTRA_ARGS += --sv
 EXTRA_ARGS += --timing
