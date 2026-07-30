@@ -34,7 +34,7 @@ The project accepts Ethernet II / IPv4 / UDP / MoldUDP64-style frames, recovers 
 
 ## Project status
 
-As of **27 July 2026**, the project has a complete simulated path from encapsulated market-data-style Ethernet frames to a hardware-maintained BBO:
+As of **30 July 2026**, the project has a complete simulated path from encapsulated market-data-style Ethernet frames to a hardware-maintained BBO:
 
 ```text
 Ethernet II -> IPv4 -> UDP -> MoldUDP64 -> ITCH realignment
@@ -228,20 +228,21 @@ Latest routed build captured on **27 July 2026**:
 | Item | Result |
 |---|---:|
 | Vivado version | 2023.2 |
-| Project | `Feed_Handler_v1.0` |
+| Project | `Feed_Handler_v2.0` |
 | Target board | PYNQ-Z1 |
 | Clock period | **9.375 ns** |
 | Clock frequency | **106.667 MHz** |
-| WNS | **+0.047 ns** |
+| WNS | **+0.020 ns** |
 | TNS | **0.000 ns** |
 
 ### Utilisation
 
 | Resource | Used | Available | Utilisation |
 |---|---:|---:|---:|
-| Slice LUTs | 10,226 | 53,200 | 19.22% |
-| Slice registers | 6,189 | 106,400 | 5.82% |
-| Block RAM tiles | 90.5 | 140 | 64.64% |
+| Slice LUTs | 35,384 | 53,200 | 66.51% |
+| LUTRAM | 8726 | 17,400 | 50.15% |
+| Slice registers | 32,625 | 106,400 | 30.66% |
+| Block RAM tiles | 130 | 140 | 92.86% |
 | DSPs | 0 | 220 | 0.00% |
 
 
@@ -268,9 +269,9 @@ The cycle counts below assume no downstream backpressure and use the routed **10
 |---|---|---|---|
 | `data_handler` | About **4-8 cycles / 37.5-75 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
 | `symbol_router` | **1 cycle / 9.375 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` | About **10 cycles / 93.75 ns** in the collision-free, no-rescan common case | About **10-14 cycles** per common event, or **10.67-7.62 million events/s*. However can take up to 46 cycles in rare cases where the load factor is extremely high (causing deep probe chains) | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
+| `order_book` | About **11 cycles / 103.125 ns** in the collision-free, no-rescan common case | About **11-14 cycles** per common event, or **9.70-7.62 million events/s*. | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
 
-Replace adds approximately one cycle, an emptied best level adds approximately two search cycles, and each additional hash probe adds approximately two cycles. The serial book deliberately prioritises correctness and bounded operation-dependent latency over an initiation interval of one. A pipelined version would require explicit same-reference and same-level forwarding or stalls.
+Replace adds approximately one cycle, an updated best bid/ask level adds two search cycles. The serial book deliberately prioritises correctness and bounded operation-dependent latency over an initiation interval of one. A pipelined version would require explicit same-reference and same-level forwarding or stalls.
 
 The routed worst setup path is in the order-book memory path, from an order-table BRAM output through price-index/control logic to a price-book BRAM address. It has **8.492 ns** data-path delay, six logic levels, and approximately equal logic and routing delay. Increasing the global clock is therefore not the first ingress optimisation: the immediate objective is fewer cycles and fewer message-boundary bubbles at the existing timing-clean frequency.
 
