@@ -2,6 +2,13 @@
 
 # Note that this file was used for Vivado 2023.2
 
+puts "Checking for open design..."
+
+if {[current_design -quiet] == ""} {
+    puts "No design open. Opening impl_1..."
+    open_run impl_1
+}
+
 puts "Generating Documentation Reports..."
 
 set out_dir "./design_evidence"
