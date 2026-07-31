@@ -225,6 +225,8 @@ The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: fram
 
 Latest routed build captured on **30 July 2026**:
 
+The Implementation reports for this can be found at [`implementation_report/v2.0_data`](implementation_report/v2.0_data)
+
 | Item | Result |
 |---|---:|
 | Vivado version | 2023.2 |
