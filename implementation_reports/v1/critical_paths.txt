@@ -1,0 +1,690 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2023.2 (win64) Build 4029153 Fri Oct 13 20:14:34 MDT 2023
+| Date         : Fri Jul 31 22:34:54 2026
+| Host         : dkeL running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 10 -file ./design_evidence/critical_paths.txt
+| Design       : v1release_wrapper
+| Device       : 7z020-clg400
+| Speed File   : -1  PRODUCTION 1.12 2019-11-22
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.047ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_8/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.492ns  (logic 4.017ns (47.301%)  route 4.475ns (52.699%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.124ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.825ns = ( 12.200 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.708     9.507    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X63Y68         LUT4 (Prop_lut4_I3_O)        0.124     9.631 r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          1.926    11.557    v1release_i/order_book_top_0/inst/ob_stock0/ask_addr_a[9]
+    RAMB36_X4Y18         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_8/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.646    12.200    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X4Y18         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_8/CLKBWRCLK
+                         clock pessimism              0.115    12.315
+                         clock uncertainty           -0.145    12.170
+    RAMB36_X4Y18         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.604    v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_8
+  -------------------------------------------------------------------
+                         required time                         11.604
+                         arrival time                         -11.557
+  -------------------------------------------------------------------
+                         slack                                  0.047
+
+Slack (MET) :             0.063ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_9/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.472ns  (logic 4.017ns (47.414%)  route 4.455ns (52.586%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT6=2)
+  Clock Path Skew:        -0.129ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.820ns = ( 12.195 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.519     9.318    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X56Y65         LUT6 (Prop_lut6_I4_O)        0.124     9.442 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          2.095    11.537    v1release_i/order_book_top_0/inst/ob_stock0/bid_addr_a[9]
+    RAMB36_X5Y16         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_9/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.641    12.195    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X5Y16         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_9/CLKBWRCLK
+                         clock pessimism              0.115    12.310
+                         clock uncertainty           -0.145    12.165
+    RAMB36_X5Y16         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.599    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_9
+  -------------------------------------------------------------------
+                         required time                         11.599
+                         arrival time                         -11.537
+  -------------------------------------------------------------------
+                         slack                                  0.063
+
+Slack (MET) :             0.107ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_7/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.433ns  (logic 4.017ns (47.632%)  route 4.416ns (52.368%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT6=2)
+  Clock Path Skew:        -0.123ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.826ns = ( 12.201 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.519     9.318    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X56Y65         LUT6 (Prop_lut6_I4_O)        0.124     9.442 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          2.056    11.498    v1release_i/order_book_top_0/inst/ob_stock0/bid_addr_a[9]
+    RAMB36_X4Y19         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_7/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.647    12.201    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X4Y19         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_7/CLKBWRCLK
+                         clock pessimism              0.115    12.316
+                         clock uncertainty           -0.145    12.171
+    RAMB36_X4Y19         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.605    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_7
+  -------------------------------------------------------------------
+                         required time                         11.605
+                         arrival time                         -11.498
+  -------------------------------------------------------------------
+                         slack                                  0.107
+
+Slack (MET) :             0.113ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.422ns  (logic 4.017ns (47.694%)  route 4.405ns (52.306%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.128ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.821ns = ( 12.196 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.708     9.507    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X63Y68         LUT4 (Prop_lut4_I3_O)        0.124     9.631 r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          1.856    11.487    v1release_i/order_book_top_0/inst/ob_stock0/ask_addr_a[9]
+    RAMB36_X4Y17         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.642    12.196    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X4Y17         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0/CLKBWRCLK
+                         clock pessimism              0.115    12.311
+                         clock uncertainty           -0.145    12.166
+    RAMB36_X4Y17         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.600    v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0
+  -------------------------------------------------------------------
+                         required time                         11.600
+                         arrival time                         -11.487
+  -------------------------------------------------------------------
+                         slack                                  0.113
+
+Slack (MET) :             0.125ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_4/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.285ns  (logic 4.017ns (48.484%)  route 4.268ns (51.516%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT6=2)
+  Clock Path Skew:        -0.254ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.695ns = ( 12.070 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.519     9.318    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X56Y65         LUT6 (Prop_lut6_I4_O)        0.124     9.442 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          1.908    11.350    v1release_i/order_book_top_0/inst/ob_stock0/bid_addr_a[9]
+    RAMB36_X2Y17         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_4/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.516    12.070    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X2Y17         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_4/CLKBWRCLK
+                         clock pessimism              0.115    12.185
+                         clock uncertainty           -0.145    12.040
+    RAMB36_X2Y17         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.474    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_4
+  -------------------------------------------------------------------
+                         required time                         11.474
+                         arrival time                         -11.350
+  -------------------------------------------------------------------
+                         slack                                  0.125
+
+Slack (MET) :             0.147ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_3/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.386ns  (logic 4.017ns (47.904%)  route 4.369ns (52.096%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT6=2)
+  Clock Path Skew:        -0.131ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.818ns = ( 12.193 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.519     9.318    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X56Y65         LUT6 (Prop_lut6_I4_O)        0.124     9.442 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          2.008    11.450    v1release_i/order_book_top_0/inst/ob_stock0/bid_addr_a[9]
+    RAMB36_X5Y14         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_3/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.639    12.193    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X5Y14         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_3/CLKBWRCLK
+                         clock pessimism              0.115    12.308
+                         clock uncertainty           -0.145    12.163
+    RAMB36_X5Y14         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.597    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_3
+  -------------------------------------------------------------------
+                         required time                         11.597
+                         arrival time                         -11.450
+  -------------------------------------------------------------------
+                         slack                                  0.147
+
+Slack (MET) :             0.155ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_10/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.375ns  (logic 4.017ns (47.965%)  route 4.358ns (52.035%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.134ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.815ns = ( 12.190 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.708     9.507    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X63Y68         LUT4 (Prop_lut4_I3_O)        0.124     9.631 r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          1.808    11.439    v1release_i/order_book_top_0/inst/ob_stock0/ask_addr_a[9]
+    RAMB36_X5Y15         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_10/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.636    12.190    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X5Y15         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_10/CLKBWRCLK
+                         clock pessimism              0.115    12.305
+                         clock uncertainty           -0.145    12.160
+    RAMB36_X5Y15         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.594    v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_10
+  -------------------------------------------------------------------
+                         required time                         11.594
+                         arrival time                         -11.439
+  -------------------------------------------------------------------
+                         slack                                  0.155
+
+Slack (MET) :             0.163ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_11/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.251ns  (logic 4.017ns (48.682%)  route 4.234ns (51.318%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.249ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.700ns = ( 12.075 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.708     9.507    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X63Y68         LUT4 (Prop_lut4_I3_O)        0.124     9.631 r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          1.685    11.316    v1release_i/order_book_top_0/inst/ob_stock0/ask_addr_a[9]
+    RAMB36_X2Y11         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_11/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.521    12.075    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X2Y11         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_11/CLKBWRCLK
+                         clock pessimism              0.115    12.190
+                         clock uncertainty           -0.145    12.045
+    RAMB36_X2Y11         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.479    v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_11
+  -------------------------------------------------------------------
+                         required time                         11.479
+                         arrival time                         -11.316
+  -------------------------------------------------------------------
+                         slack                                  0.163
+
+Slack (MET) :             0.176ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_2/ADDRBWRADDR[10]
+                            (rising edge-triggered cell RAMB36E1 clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.229ns  (logic 4.017ns (48.817%)  route 4.212ns (51.183%))
+  Logic Levels:           6  (CARRY4=3 LUT2=1 LUT6=2)
+  Clock Path Skew:        -0.259ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.690ns = ( 12.065 - 9.375 )
+    Source Clock Delay      (SCD):    3.064ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.770     3.064    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X3Y9          RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y9          RAMB36E1 (Prop_ramb36e1_CLKBWRCLK_DOBDO[0])
+                                                      2.454     5.518 r  v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1/DOBDO[0]
+                         net (fo=3, routed)           1.127     6.645    v1release_i/order_book_top_0/inst/ob_stock0/order_table_reg_1_n_67
+    SLICE_X51Y54         LUT2 (Prop_lut2_I0_O)        0.124     6.769 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4/O
+                         net (fo=1, routed)           0.000     6.769    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx[3]_i_4_n_0
+    SLICE_X51Y54         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.319 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.319    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[3]_i_1_n_0
+    SLICE_X51Y55         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.433 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1/CO[3]
+                         net (fo=1, routed)           0.000     7.433    v1release_i/order_book_top_0/inst/ob_stock0/latched_lookup_price_idx_reg[5]_i_1_n_0
+    SLICE_X51Y56         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.348     7.781 r  v1release_i/order_book_top_0/inst/ob_stock0/latched_bid_valid_rst1_rep[-1111111106]_i_1/O[1]
+                         net (fo=7, routed)           0.715     8.496    v1release_i/order_book_top_0/inst/ob_stock0/p_0_in__0[3]
+    SLICE_X57Y57         LUT6 (Prop_lut6_I1_O)        0.303     8.799 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52/O
+                         net (fo=2, routed)           0.519     9.318    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_52_n_0
+    SLICE_X56Y65         LUT6 (Prop_lut6_I4_O)        0.124     9.442 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_0_i_19/O
+                         net (fo=16, routed)          1.851    11.293    v1release_i/order_book_top_0/inst/ob_stock0/bid_addr_a[9]
+    RAMB36_X2Y16         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_2/ADDRBWRADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.511    12.065    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    RAMB36_X2Y16         RAMB36E1                                     r  v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_2/CLKBWRCLK
+                         clock pessimism              0.115    12.180
+                         clock uncertainty           -0.145    12.035
+    RAMB36_X2Y16         RAMB36E1 (Setup_ramb36e1_CLKBWRCLK_ADDRBWRADDR[10])
+                                                     -0.566    11.469    v1release_i/order_book_top_0/inst/ob_stock0/bid_price_book_reg_2
+  -------------------------------------------------------------------
+                         required time                         11.469
+                         arrival time                         -11.293
+  -------------------------------------------------------------------
+                         slack                                  0.176
+
+Slack (MET) :             0.180ns  (required time - arrival time)
+  Source:                 v1release_i/order_book_top_0/inst/ob_stock0/current_state_reg[2]_rep__5/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r4_192_255_54_56/RAMA/I
+                            (rising edge-triggered cell RAMD64E clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.591ns  (logic 1.200ns (13.969%)  route 7.391ns (86.031%))
+  Logic Levels:           6  (LUT4=1 LUT6=4 RAMD64E=1)
+  Clock Path Skew:        -0.132ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.692ns = ( 12.067 - 9.375 )
+    Source Clock Delay      (SCD):    2.939ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.645     2.939    v1release_i/order_book_top_0/inst/ob_stock0/clk
+    SLICE_X53Y31         FDRE                                         r  v1release_i/order_book_top_0/inst/ob_stock0/current_state_reg[2]_rep__5/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X53Y31         FDRE (Prop_fdre_C_Q)         0.456     3.395 f  v1release_i/order_book_top_0/inst/ob_stock0/current_state_reg[2]_rep__5/Q
+                         net (fo=28, routed)          1.381     4.776    v1release_i/order_book_top_0/inst/ob_stock0/current_state_reg[2]_rep__5_n_0
+    SLICE_X57Y55         LUT4 (Prop_lut4_I3_O)        0.124     4.900 f  v1release_i/order_book_top_0/inst/ob_stock0/ask_price_book_reg_0_i_66/O
+                         net (fo=55, routed)          0.167     5.066    v1release_i/order_book_top_0/inst/ob_stock0/ram_din_b[130]
+    SLICE_X57Y55         LUT6 (Prop_lut6_I0_O)        0.124     5.190 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r1_0_63_0_2_i_13/O
+                         net (fo=195, routed)         1.011     6.201    v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r1_0_63_0_2_i_13_n_0
+    SLICE_X61Y65         LUT6 (Prop_lut6_I4_O)        0.124     6.325 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r3_0_63_24_26_i_3/O
+                         net (fo=169, routed)         2.259     8.584    v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r3_64_127_54_56/ADDRA1
+    SLICE_X30Y74         RAMD64E (Prop_ramd64e_RADR1_O)
+                                                      0.124     8.708 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r3_64_127_54_56/RAMA/O
+                         net (fo=1, routed)           0.982     9.690    v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r3_64_127_54_56_n_0
+    SLICE_X33Y77         LUT6 (Prop_lut6_I3_O)        0.124     9.814 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r1_0_63_54_56_i_6/O
+                         net (fo=1, routed)           0.578    10.392    v1release_i/order_book_top_0/inst/ob_stock0/p_4_out4_in[54]
+    SLICE_X33Y73         LUT6 (Prop_lut6_I5_O)        0.124    10.516 r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r1_0_63_54_56_i_1/O
+                         net (fo=16, routed)          1.013    11.530    v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r4_192_255_54_56/DIA
+    SLICE_X30Y78         RAMD64E                                      r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r4_192_255_54_56/RAMA/I
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v1release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v1release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v1release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=9344, routed)        1.513    12.067    v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r4_192_255_54_56/WCLK
+    SLICE_X30Y78         RAMD64E                                      r  v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r4_192_255_54_56/RAMA/CLK
+                         clock pessimism              0.115    12.182
+                         clock uncertainty           -0.145    12.037
+    SLICE_X30Y78         RAMD64E (Setup_ramd64e_CLK_I)
+                                                     -0.327    11.710    v1release_i/order_book_top_0/inst/ob_stock0/bid_active_chunks_reg_r4_192_255_54_56/RAMA
+  -------------------------------------------------------------------
+                         required time                         11.710
+                         arrival time                         -11.530
+  -------------------------------------------------------------------
+                         slack                                  0.180

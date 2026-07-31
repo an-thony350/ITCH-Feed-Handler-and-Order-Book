@@ -1,0 +1,930 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2023.2 (win64) Build 4029153 Fri Oct 13 20:14:34 MDT 2023
+| Date         : Fri Jul 31 22:22:10 2026
+| Host         : dkeL running 64-bit major release  (build 9200)
+| Command      : report_timing -max_paths 10 -file ./design_evidence/critical_paths.txt
+| Design       : v2release_wrapper
+| Device       : 7z020-clg400
+| Speed File   : -1  PRODUCTION 1.12 2019-11-22
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.200ns  (required time - arrival time)
+  Source:                 v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[15]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.594ns  (logic 3.288ns (38.258%)  route 5.306ns (61.742%))
+  Logic Levels:           13  (CARRY4=6 LUT2=2 LUT4=1 LUT5=2 LUT6=2)
+  Clock Path Skew:        -0.231ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.704ns = ( 12.079 - 9.375 )
+    Source Clock Delay      (SCD):    3.050ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.756     3.050    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X18Y44         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y44         FDRE (Prop_fdre_C_Q)         0.518     3.568 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/Q
+                         net (fo=13, routed)          0.805     4.373    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg_n_0_[1]
+    SLICE_X20Y45         LUT2 (Prop_lut2_I0_O)        0.124     4.497 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6/O
+                         net (fo=1, routed)           0.000     4.497    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6_n_0
+    SLICE_X20Y45         CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.513     5.010 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry/CO[3]
+                         net (fo=1, routed)           0.000     5.010    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry_n_0
+    SLICE_X20Y46         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     5.127 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry__0/CO[3]
+                         net (fo=13, routed)          1.122     6.250    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1
+    SLICE_X22Y43         LUT2 (Prop_lut2_I0_O)        0.124     6.374 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11/O
+                         net (fo=1, routed)           0.000     6.374    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11_n_0
+    SLICE_X22Y43         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.533     6.907 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     6.907    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4_n_0
+    SLICE_X22Y44         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.024 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.024    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4_n_0
+    SLICE_X22Y45         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.141 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.141    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4_n_0
+    SLICE_X22Y46         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.323     7.464 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14/O[1]
+                         net (fo=2, routed)           0.515     7.979    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14_n_6
+    SLICE_X23Y46         LUT4 (Prop_lut4_I0_O)        0.306     8.285 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27/O
+                         net (fo=1, routed)           0.407     8.692    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27_n_0
+    SLICE_X23Y46         LUT5 (Prop_lut5_I4_O)        0.124     8.816 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22/O
+                         net (fo=3, routed)           0.521     9.336    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22_n_0
+    SLICE_X15Y46         LUT6 (Prop_lut6_I3_O)        0.124     9.460 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10/O
+                         net (fo=3, routed)           0.483     9.944    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10_n_0
+    SLICE_X16Y46         LUT6 (Prop_lut6_I2_O)        0.124    10.068 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6/O
+                         net (fo=3, routed)           0.467    10.535    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6_n_0
+    SLICE_X21Y46         LUT5 (Prop_lut5_I4_O)        0.124    10.659 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len[15]_i_1/O
+                         net (fo=16, routed)          0.986    11.644    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[15]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.525    12.079    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[15]/C
+                         clock pessimism              0.115    12.194
+                         clock uncertainty           -0.145    12.049
+    SLICE_X28Y55         FDRE (Setup_fdre_C_CE)      -0.205    11.844    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[15]
+  -------------------------------------------------------------------
+                         required time                         11.844
+                         arrival time                         -11.644
+  -------------------------------------------------------------------
+                         slack                                  0.200
+
+Slack (MET) :             0.200ns  (required time - arrival time)
+  Source:                 v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[7]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.594ns  (logic 3.288ns (38.258%)  route 5.306ns (61.742%))
+  Logic Levels:           13  (CARRY4=6 LUT2=2 LUT4=1 LUT5=2 LUT6=2)
+  Clock Path Skew:        -0.231ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.704ns = ( 12.079 - 9.375 )
+    Source Clock Delay      (SCD):    3.050ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.756     3.050    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X18Y44         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y44         FDRE (Prop_fdre_C_Q)         0.518     3.568 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/Q
+                         net (fo=13, routed)          0.805     4.373    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg_n_0_[1]
+    SLICE_X20Y45         LUT2 (Prop_lut2_I0_O)        0.124     4.497 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6/O
+                         net (fo=1, routed)           0.000     4.497    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6_n_0
+    SLICE_X20Y45         CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.513     5.010 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry/CO[3]
+                         net (fo=1, routed)           0.000     5.010    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry_n_0
+    SLICE_X20Y46         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     5.127 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry__0/CO[3]
+                         net (fo=13, routed)          1.122     6.250    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1
+    SLICE_X22Y43         LUT2 (Prop_lut2_I0_O)        0.124     6.374 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11/O
+                         net (fo=1, routed)           0.000     6.374    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11_n_0
+    SLICE_X22Y43         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.533     6.907 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     6.907    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4_n_0
+    SLICE_X22Y44         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.024 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.024    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4_n_0
+    SLICE_X22Y45         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.141 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.141    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4_n_0
+    SLICE_X22Y46         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.323     7.464 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14/O[1]
+                         net (fo=2, routed)           0.515     7.979    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14_n_6
+    SLICE_X23Y46         LUT4 (Prop_lut4_I0_O)        0.306     8.285 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27/O
+                         net (fo=1, routed)           0.407     8.692    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27_n_0
+    SLICE_X23Y46         LUT5 (Prop_lut5_I4_O)        0.124     8.816 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22/O
+                         net (fo=3, routed)           0.521     9.336    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22_n_0
+    SLICE_X15Y46         LUT6 (Prop_lut6_I3_O)        0.124     9.460 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10/O
+                         net (fo=3, routed)           0.483     9.944    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10_n_0
+    SLICE_X16Y46         LUT6 (Prop_lut6_I2_O)        0.124    10.068 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6/O
+                         net (fo=3, routed)           0.467    10.535    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6_n_0
+    SLICE_X21Y46         LUT5 (Prop_lut5_I4_O)        0.124    10.659 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len[15]_i_1/O
+                         net (fo=16, routed)          0.986    11.644    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[7]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.525    12.079    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[7]/C
+                         clock pessimism              0.115    12.194
+                         clock uncertainty           -0.145    12.049
+    SLICE_X28Y55         FDRE (Setup_fdre_C_CE)      -0.205    11.844    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[7]
+  -------------------------------------------------------------------
+                         required time                         11.844
+                         arrival time                         -11.644
+  -------------------------------------------------------------------
+                         slack                                  0.200
+
+Slack (MET) :             0.200ns  (required time - arrival time)
+  Source:                 v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[8]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.594ns  (logic 3.288ns (38.258%)  route 5.306ns (61.742%))
+  Logic Levels:           13  (CARRY4=6 LUT2=2 LUT4=1 LUT5=2 LUT6=2)
+  Clock Path Skew:        -0.231ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.704ns = ( 12.079 - 9.375 )
+    Source Clock Delay      (SCD):    3.050ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.756     3.050    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X18Y44         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y44         FDRE (Prop_fdre_C_Q)         0.518     3.568 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/Q
+                         net (fo=13, routed)          0.805     4.373    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg_n_0_[1]
+    SLICE_X20Y45         LUT2 (Prop_lut2_I0_O)        0.124     4.497 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6/O
+                         net (fo=1, routed)           0.000     4.497    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6_n_0
+    SLICE_X20Y45         CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.513     5.010 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry/CO[3]
+                         net (fo=1, routed)           0.000     5.010    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry_n_0
+    SLICE_X20Y46         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     5.127 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry__0/CO[3]
+                         net (fo=13, routed)          1.122     6.250    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1
+    SLICE_X22Y43         LUT2 (Prop_lut2_I0_O)        0.124     6.374 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11/O
+                         net (fo=1, routed)           0.000     6.374    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11_n_0
+    SLICE_X22Y43         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.533     6.907 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     6.907    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4_n_0
+    SLICE_X22Y44         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.024 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.024    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4_n_0
+    SLICE_X22Y45         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.141 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.141    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4_n_0
+    SLICE_X22Y46         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.323     7.464 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14/O[1]
+                         net (fo=2, routed)           0.515     7.979    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14_n_6
+    SLICE_X23Y46         LUT4 (Prop_lut4_I0_O)        0.306     8.285 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27/O
+                         net (fo=1, routed)           0.407     8.692    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27_n_0
+    SLICE_X23Y46         LUT5 (Prop_lut5_I4_O)        0.124     8.816 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22/O
+                         net (fo=3, routed)           0.521     9.336    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22_n_0
+    SLICE_X15Y46         LUT6 (Prop_lut6_I3_O)        0.124     9.460 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10/O
+                         net (fo=3, routed)           0.483     9.944    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10_n_0
+    SLICE_X16Y46         LUT6 (Prop_lut6_I2_O)        0.124    10.068 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6/O
+                         net (fo=3, routed)           0.467    10.535    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6_n_0
+    SLICE_X21Y46         LUT5 (Prop_lut5_I4_O)        0.124    10.659 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len[15]_i_1/O
+                         net (fo=16, routed)          0.986    11.644    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[8]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.525    12.079    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[8]/C
+                         clock pessimism              0.115    12.194
+                         clock uncertainty           -0.145    12.049
+    SLICE_X28Y55         FDRE (Setup_fdre_C_CE)      -0.205    11.844    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[8]
+  -------------------------------------------------------------------
+                         required time                         11.844
+                         arrival time                         -11.644
+  -------------------------------------------------------------------
+                         slack                                  0.200
+
+Slack (MET) :             0.200ns  (required time - arrival time)
+  Source:                 v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[9]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.594ns  (logic 3.288ns (38.258%)  route 5.306ns (61.742%))
+  Logic Levels:           13  (CARRY4=6 LUT2=2 LUT4=1 LUT5=2 LUT6=2)
+  Clock Path Skew:        -0.231ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.704ns = ( 12.079 - 9.375 )
+    Source Clock Delay      (SCD):    3.050ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.756     3.050    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X18Y44         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y44         FDRE (Prop_fdre_C_Q)         0.518     3.568 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg[1]/Q
+                         net (fo=13, routed)          0.805     4.373    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/payload_left_reg_n_0_[1]
+    SLICE_X20Y45         LUT2 (Prop_lut2_I0_O)        0.124     4.497 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6/O
+                         net (fo=1, routed)           0.000     4.497    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/i__carry_i_6_n_0
+    SLICE_X20Y45         CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.513     5.010 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry/CO[3]
+                         net (fo=1, routed)           0.000     5.010    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry_n_0
+    SLICE_X20Y46         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     5.127 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1_inferred__0/i__carry__0/CO[3]
+                         net (fo=13, routed)          1.122     6.250    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/take1
+    SLICE_X22Y43         LUT2 (Prop_lut2_I0_O)        0.124     6.374 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11/O
+                         net (fo=1, routed)           0.000     6.374    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[3]_i_11_n_0
+    SLICE_X22Y43         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.533     6.907 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     6.907    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[3]_i_4_n_0
+    SLICE_X22Y44         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.024 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.024    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[7]_i_4_n_0
+    SLICE_X22Y45         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.117     7.141 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4/CO[3]
+                         net (fo=1, routed)           0.000     7.141    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[11]_i_4_n_0
+    SLICE_X22Y46         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.323     7.464 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14/O[1]
+                         net (fo=2, routed)           0.515     7.979    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype_reg[15]_i_14_n_6
+    SLICE_X23Y46         LUT4 (Prop_lut4_I0_O)        0.306     8.285 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27/O
+                         net (fo=1, routed)           0.407     8.692    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_27_n_0
+    SLICE_X23Y46         LUT5 (Prop_lut5_I4_O)        0.124     8.816 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22/O
+                         net (fo=3, routed)           0.521     9.336    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/beat_idx[15]_i_22_n_0
+    SLICE_X15Y46         LUT6 (Prop_lut6_I3_O)        0.124     9.460 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10/O
+                         net (fo=3, routed)           0.483     9.944    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_10_n_0
+    SLICE_X16Y46         LUT6 (Prop_lut6_I2_O)        0.124    10.068 f  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6/O
+                         net (fo=3, routed)           0.467    10.535    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ethertype[15]_i_6_n_0
+    SLICE_X21Y46         LUT5 (Prop_lut5_I4_O)        0.124    10.659 r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len[15]_i_1/O
+                         net (fo=16, routed)          0.986    11.644    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[9]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.525    12.079    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/s00_axis_aclk
+    SLICE_X28Y55         FDRE                                         r  v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[9]/C
+                         clock pessimism              0.115    12.194
+                         clock uncertainty           -0.145    12.049
+    SLICE_X28Y55         FDRE (Setup_fdre_C_CE)      -0.205    11.844    v2release_i/network_ingress_0/inst/ingress_top_inst/u_frame_crack/ip_total_len_reg[9]
+  -------------------------------------------------------------------
+                         required time                         11.844
+                         arrival time                         -11.644
+  -------------------------------------------------------------------
+                         slack                                  0.200
+
+Slack (MET) :             0.224ns  (required time - arrival time)
+  Source:                 v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/order_book_top_0/inst/router/valid_stock1_o_reg_rep/D
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.905ns  (logic 3.219ns (36.146%)  route 5.686ns (63.854%))
+  Logic Levels:           15  (CARRY4=7 LUT2=1 LUT3=2 LUT4=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.061ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.712ns = ( 12.087 - 9.375 )
+    Source Clock Delay      (SCD):    3.002ns
+    Clock Pessimism Removal (CPR):    0.229ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.708     3.002    v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/s00_axis_aclk
+    SLICE_X55Y61         FDRE                                         r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X55Y61         FDRE (Prop_fdre_C_Q)         0.419     3.421 r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/Q
+                         net (fo=1, routed)           0.656     4.077    v2release_i/order_book_top_0/inst/router/rdata_i[200]
+    SLICE_X54Y61         LUT4 (Prop_lut4_I0_O)        0.299     4.376 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9/O
+                         net (fo=1, routed)           0.638     5.014    v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9_n_0
+    SLICE_X55Y62         LUT6 (Prop_lut6_I1_O)        0.124     5.138 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_7/O
+                         net (fo=5, routed)           0.435     5.573    v2release_i/order_book_top_0/inst/router/rdata_i_207_sn_1
+    SLICE_X57Y62         LUT2 (Prop_lut2_I0_O)        0.124     5.697 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_4/O
+                         net (fo=131, routed)         0.601     6.298    v2release_i/order_book_top_0/inst/router/rdata_i_194_sn_1
+    SLICE_X56Y63         LUT3 (Prop_lut3_I1_O)        0.124     6.422 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7/O
+                         net (fo=1, routed)           0.568     6.990    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7_n_0
+    SLICE_X59Y66         LUT6 (Prop_lut6_I5_O)        0.124     7.114 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3/O
+                         net (fo=1, routed)           0.000     7.114    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3_n_0
+    SLICE_X59Y66         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.664 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0/CO[3]
+                         net (fo=1, routed)           0.000     7.664    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_n_0
+    SLICE_X59Y67         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.778 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1/CO[3]
+                         net (fo=1, routed)           0.000     7.778    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1_n_0
+    SLICE_X59Y68         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.892 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     7.892    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2_n_0
+    SLICE_X59Y69         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.006 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     8.006    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3_n_0
+    SLICE_X59Y70         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.120 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4/CO[3]
+                         net (fo=1, routed)           0.000     8.120    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4_n_0
+    SLICE_X59Y71         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.234 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5/CO[3]
+                         net (fo=1, routed)           0.000     8.234    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5_n_0
+    SLICE_X59Y72         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334     8.568 f  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6/O[1]
+                         net (fo=1, routed)           0.844     9.412    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6_n_6
+    SLICE_X52Y68         LUT3 (Prop_lut3_I0_O)        0.303     9.715 f  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7/O
+                         net (fo=1, routed)           0.571    10.286    v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7_n_0
+    SLICE_X53Y69         LUT6 (Prop_lut6_I1_O)        0.124    10.410 f  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_5/O
+                         net (fo=39, routed)          0.885    11.295    v2release_i/order_book_top_0/inst/ob_stock2/valid_stock0_o_reg_0
+    SLICE_X55Y63         LUT5 (Prop_lut5_I3_O)        0.124    11.419 r  v2release_i/order_book_top_0/inst/ob_stock2/valid_stock1_o_rep_i_1/O
+                         net (fo=1, routed)           0.489    11.907    v2release_i/order_book_top_0/inst/router/valid_stock1_o_reg_rep_0
+    SLICE_X57Y62         FDRE                                         r  v2release_i/order_book_top_0/inst/router/valid_stock1_o_reg_rep/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.533    12.087    v2release_i/order_book_top_0/inst/router/clk
+    SLICE_X57Y62         FDRE                                         r  v2release_i/order_book_top_0/inst/router/valid_stock1_o_reg_rep/C
+                         clock pessimism              0.229    12.316
+                         clock uncertainty           -0.145    12.171
+    SLICE_X57Y62         FDRE (Setup_fdre_C_D)       -0.040    12.131    v2release_i/order_book_top_0/inst/router/valid_stock1_o_reg_rep
+  -------------------------------------------------------------------
+                         required time                         12.131
+                         arrival time                         -11.907
+  -------------------------------------------------------------------
+                         slack                                  0.224
+
+Slack (MET) :             0.267ns  (required time - arrival time)
+  Source:                 v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/order_book_top_0/inst/router/base_price_o_reg[12]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.729ns  (logic 3.219ns (36.875%)  route 5.510ns (63.125%))
+  Logic Levels:           15  (CARRY4=7 LUT2=1 LUT3=2 LUT4=2 LUT6=3)
+  Clock Path Skew:        -0.029ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.708ns = ( 12.083 - 9.375 )
+    Source Clock Delay      (SCD):    3.002ns
+    Clock Pessimism Removal (CPR):    0.265ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.708     3.002    v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/s00_axis_aclk
+    SLICE_X55Y61         FDRE                                         r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X55Y61         FDRE (Prop_fdre_C_Q)         0.419     3.421 r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/Q
+                         net (fo=1, routed)           0.656     4.077    v2release_i/order_book_top_0/inst/router/rdata_i[200]
+    SLICE_X54Y61         LUT4 (Prop_lut4_I0_O)        0.299     4.376 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9/O
+                         net (fo=1, routed)           0.638     5.014    v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9_n_0
+    SLICE_X55Y62         LUT6 (Prop_lut6_I1_O)        0.124     5.138 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_7/O
+                         net (fo=5, routed)           0.435     5.573    v2release_i/order_book_top_0/inst/router/rdata_i_207_sn_1
+    SLICE_X57Y62         LUT2 (Prop_lut2_I0_O)        0.124     5.697 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_4/O
+                         net (fo=131, routed)         0.601     6.298    v2release_i/order_book_top_0/inst/router/rdata_i_194_sn_1
+    SLICE_X56Y63         LUT3 (Prop_lut3_I1_O)        0.124     6.422 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7/O
+                         net (fo=1, routed)           0.568     6.990    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7_n_0
+    SLICE_X59Y66         LUT6 (Prop_lut6_I5_O)        0.124     7.114 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3/O
+                         net (fo=1, routed)           0.000     7.114    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3_n_0
+    SLICE_X59Y66         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.664 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0/CO[3]
+                         net (fo=1, routed)           0.000     7.664    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_n_0
+    SLICE_X59Y67         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.778 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1/CO[3]
+                         net (fo=1, routed)           0.000     7.778    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1_n_0
+    SLICE_X59Y68         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.892 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     7.892    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2_n_0
+    SLICE_X59Y69         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.006 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     8.006    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3_n_0
+    SLICE_X59Y70         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.120 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4/CO[3]
+                         net (fo=1, routed)           0.000     8.120    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4_n_0
+    SLICE_X59Y71         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.234 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5/CO[3]
+                         net (fo=1, routed)           0.000     8.234    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5_n_0
+    SLICE_X59Y72         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334     8.568 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6/O[1]
+                         net (fo=1, routed)           0.844     9.412    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6_n_6
+    SLICE_X52Y68         LUT3 (Prop_lut3_I0_O)        0.303     9.715 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7/O
+                         net (fo=1, routed)           0.571    10.286    v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7_n_0
+    SLICE_X53Y69         LUT6 (Prop_lut6_I1_O)        0.124    10.410 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_5/O
+                         net (fo=39, routed)          0.286    10.697    v2release_i/order_book_top_0/inst/ob_stock2/valid_stock0_o_reg_0
+    SLICE_X53Y69         LUT4 (Prop_lut4_I3_O)        0.124    10.821 r  v2release_i/order_book_top_0/inst/ob_stock2/base_price_o[31]_i_1/O
+                         net (fo=32, routed)          0.911    11.731    v2release_i/order_book_top_0/inst/router/base_price_o_reg[31]_1[0]
+    SLICE_X55Y66         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[12]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.529    12.083    v2release_i/order_book_top_0/inst/router/clk
+    SLICE_X55Y66         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[12]/C
+                         clock pessimism              0.265    12.348
+                         clock uncertainty           -0.145    12.203
+    SLICE_X55Y66         FDRE (Setup_fdre_C_CE)      -0.205    11.998    v2release_i/order_book_top_0/inst/router/base_price_o_reg[12]
+  -------------------------------------------------------------------
+                         required time                         11.998
+                         arrival time                         -11.731
+  -------------------------------------------------------------------
+                         slack                                  0.267
+
+Slack (MET) :             0.267ns  (required time - arrival time)
+  Source:                 v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/order_book_top_0/inst/router/base_price_o_reg[1]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.729ns  (logic 3.219ns (36.875%)  route 5.510ns (63.125%))
+  Logic Levels:           15  (CARRY4=7 LUT2=1 LUT3=2 LUT4=2 LUT6=3)
+  Clock Path Skew:        -0.029ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.708ns = ( 12.083 - 9.375 )
+    Source Clock Delay      (SCD):    3.002ns
+    Clock Pessimism Removal (CPR):    0.265ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.708     3.002    v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/s00_axis_aclk
+    SLICE_X55Y61         FDRE                                         r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X55Y61         FDRE (Prop_fdre_C_Q)         0.419     3.421 r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/Q
+                         net (fo=1, routed)           0.656     4.077    v2release_i/order_book_top_0/inst/router/rdata_i[200]
+    SLICE_X54Y61         LUT4 (Prop_lut4_I0_O)        0.299     4.376 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9/O
+                         net (fo=1, routed)           0.638     5.014    v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9_n_0
+    SLICE_X55Y62         LUT6 (Prop_lut6_I1_O)        0.124     5.138 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_7/O
+                         net (fo=5, routed)           0.435     5.573    v2release_i/order_book_top_0/inst/router/rdata_i_207_sn_1
+    SLICE_X57Y62         LUT2 (Prop_lut2_I0_O)        0.124     5.697 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_4/O
+                         net (fo=131, routed)         0.601     6.298    v2release_i/order_book_top_0/inst/router/rdata_i_194_sn_1
+    SLICE_X56Y63         LUT3 (Prop_lut3_I1_O)        0.124     6.422 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7/O
+                         net (fo=1, routed)           0.568     6.990    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7_n_0
+    SLICE_X59Y66         LUT6 (Prop_lut6_I5_O)        0.124     7.114 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3/O
+                         net (fo=1, routed)           0.000     7.114    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3_n_0
+    SLICE_X59Y66         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.664 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0/CO[3]
+                         net (fo=1, routed)           0.000     7.664    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_n_0
+    SLICE_X59Y67         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.778 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1/CO[3]
+                         net (fo=1, routed)           0.000     7.778    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1_n_0
+    SLICE_X59Y68         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.892 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     7.892    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2_n_0
+    SLICE_X59Y69         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.006 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     8.006    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3_n_0
+    SLICE_X59Y70         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.120 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4/CO[3]
+                         net (fo=1, routed)           0.000     8.120    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4_n_0
+    SLICE_X59Y71         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.234 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5/CO[3]
+                         net (fo=1, routed)           0.000     8.234    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5_n_0
+    SLICE_X59Y72         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334     8.568 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6/O[1]
+                         net (fo=1, routed)           0.844     9.412    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6_n_6
+    SLICE_X52Y68         LUT3 (Prop_lut3_I0_O)        0.303     9.715 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7/O
+                         net (fo=1, routed)           0.571    10.286    v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7_n_0
+    SLICE_X53Y69         LUT6 (Prop_lut6_I1_O)        0.124    10.410 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_5/O
+                         net (fo=39, routed)          0.286    10.697    v2release_i/order_book_top_0/inst/ob_stock2/valid_stock0_o_reg_0
+    SLICE_X53Y69         LUT4 (Prop_lut4_I3_O)        0.124    10.821 r  v2release_i/order_book_top_0/inst/ob_stock2/base_price_o[31]_i_1/O
+                         net (fo=32, routed)          0.911    11.731    v2release_i/order_book_top_0/inst/router/base_price_o_reg[31]_1[0]
+    SLICE_X55Y66         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[1]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.529    12.083    v2release_i/order_book_top_0/inst/router/clk
+    SLICE_X55Y66         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[1]/C
+                         clock pessimism              0.265    12.348
+                         clock uncertainty           -0.145    12.203
+    SLICE_X55Y66         FDRE (Setup_fdre_C_CE)      -0.205    11.998    v2release_i/order_book_top_0/inst/router/base_price_o_reg[1]
+  -------------------------------------------------------------------
+                         required time                         11.998
+                         arrival time                         -11.731
+  -------------------------------------------------------------------
+                         slack                                  0.267
+
+Slack (MET) :             0.267ns  (required time - arrival time)
+  Source:                 v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/order_book_top_0/inst/router/base_price_o_reg[6]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.729ns  (logic 3.219ns (36.875%)  route 5.510ns (63.125%))
+  Logic Levels:           15  (CARRY4=7 LUT2=1 LUT3=2 LUT4=2 LUT6=3)
+  Clock Path Skew:        -0.029ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.708ns = ( 12.083 - 9.375 )
+    Source Clock Delay      (SCD):    3.002ns
+    Clock Pessimism Removal (CPR):    0.265ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.708     3.002    v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/s00_axis_aclk
+    SLICE_X55Y61         FDRE                                         r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X55Y61         FDRE (Prop_fdre_C_Q)         0.419     3.421 r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/Q
+                         net (fo=1, routed)           0.656     4.077    v2release_i/order_book_top_0/inst/router/rdata_i[200]
+    SLICE_X54Y61         LUT4 (Prop_lut4_I0_O)        0.299     4.376 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9/O
+                         net (fo=1, routed)           0.638     5.014    v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9_n_0
+    SLICE_X55Y62         LUT6 (Prop_lut6_I1_O)        0.124     5.138 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_7/O
+                         net (fo=5, routed)           0.435     5.573    v2release_i/order_book_top_0/inst/router/rdata_i_207_sn_1
+    SLICE_X57Y62         LUT2 (Prop_lut2_I0_O)        0.124     5.697 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_4/O
+                         net (fo=131, routed)         0.601     6.298    v2release_i/order_book_top_0/inst/router/rdata_i_194_sn_1
+    SLICE_X56Y63         LUT3 (Prop_lut3_I1_O)        0.124     6.422 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7/O
+                         net (fo=1, routed)           0.568     6.990    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7_n_0
+    SLICE_X59Y66         LUT6 (Prop_lut6_I5_O)        0.124     7.114 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3/O
+                         net (fo=1, routed)           0.000     7.114    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3_n_0
+    SLICE_X59Y66         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.664 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0/CO[3]
+                         net (fo=1, routed)           0.000     7.664    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_n_0
+    SLICE_X59Y67         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.778 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1/CO[3]
+                         net (fo=1, routed)           0.000     7.778    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1_n_0
+    SLICE_X59Y68         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.892 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     7.892    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2_n_0
+    SLICE_X59Y69         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.006 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     8.006    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3_n_0
+    SLICE_X59Y70         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.120 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4/CO[3]
+                         net (fo=1, routed)           0.000     8.120    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4_n_0
+    SLICE_X59Y71         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.234 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5/CO[3]
+                         net (fo=1, routed)           0.000     8.234    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5_n_0
+    SLICE_X59Y72         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334     8.568 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6/O[1]
+                         net (fo=1, routed)           0.844     9.412    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6_n_6
+    SLICE_X52Y68         LUT3 (Prop_lut3_I0_O)        0.303     9.715 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7/O
+                         net (fo=1, routed)           0.571    10.286    v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7_n_0
+    SLICE_X53Y69         LUT6 (Prop_lut6_I1_O)        0.124    10.410 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_5/O
+                         net (fo=39, routed)          0.286    10.697    v2release_i/order_book_top_0/inst/ob_stock2/valid_stock0_o_reg_0
+    SLICE_X53Y69         LUT4 (Prop_lut4_I3_O)        0.124    10.821 r  v2release_i/order_book_top_0/inst/ob_stock2/base_price_o[31]_i_1/O
+                         net (fo=32, routed)          0.911    11.731    v2release_i/order_book_top_0/inst/router/base_price_o_reg[31]_1[0]
+    SLICE_X55Y66         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[6]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.529    12.083    v2release_i/order_book_top_0/inst/router/clk
+    SLICE_X55Y66         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[6]/C
+                         clock pessimism              0.265    12.348
+                         clock uncertainty           -0.145    12.203
+    SLICE_X55Y66         FDRE (Setup_fdre_C_CE)      -0.205    11.998    v2release_i/order_book_top_0/inst/router/base_price_o_reg[6]
+  -------------------------------------------------------------------
+                         required time                         11.998
+                         arrival time                         -11.731
+  -------------------------------------------------------------------
+                         slack                                  0.267
+
+Slack (MET) :             0.294ns  (required time - arrival time)
+  Source:                 v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/order_book_top_0/inst/router/base_price_o_reg[27]/CE
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.666ns  (logic 3.219ns (37.145%)  route 5.447ns (62.855%))
+  Logic Levels:           15  (CARRY4=7 LUT2=1 LUT3=2 LUT4=2 LUT6=3)
+  Clock Path Skew:        -0.065ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.708ns = ( 12.083 - 9.375 )
+    Source Clock Delay      (SCD):    3.002ns
+    Clock Pessimism Removal (CPR):    0.229ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.708     3.002    v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/s00_axis_aclk
+    SLICE_X55Y61         FDRE                                         r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X55Y61         FDRE (Prop_fdre_C_Q)         0.419     3.421 r  v2release_i/data_handler_0/inst/data_handler_v2_0_S00_AXIS_inst/inst/data_reg[stock_locate][7]/Q
+                         net (fo=1, routed)           0.656     4.077    v2release_i/order_book_top_0/inst/router/rdata_i[200]
+    SLICE_X54Y61         LUT4 (Prop_lut4_I0_O)        0.299     4.376 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9/O
+                         net (fo=1, routed)           0.638     5.014    v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_9_n_0
+    SLICE_X55Y62         LUT6 (Prop_lut6_I1_O)        0.124     5.138 r  v2release_i/order_book_top_0/inst/router/ready_o_INST_0_i_7/O
+                         net (fo=5, routed)           0.435     5.573    v2release_i/order_book_top_0/inst/router/rdata_i_207_sn_1
+    SLICE_X57Y62         LUT2 (Prop_lut2_I0_O)        0.124     5.697 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_4/O
+                         net (fo=131, routed)         0.601     6.298    v2release_i/order_book_top_0/inst/router/rdata_i_194_sn_1
+    SLICE_X56Y63         LUT3 (Prop_lut3_I1_O)        0.124     6.422 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7/O
+                         net (fo=1, routed)           0.568     6.990    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_7_n_0
+    SLICE_X59Y66         LUT6 (Prop_lut6_I5_O)        0.124     7.114 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3/O
+                         net (fo=1, routed)           0.000     7.114    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_i_3_n_0
+    SLICE_X59Y66         CARRY4 (Prop_carry4_S[1]_CO[3])
+                                                      0.550     7.664 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0/CO[3]
+                         net (fo=1, routed)           0.000     7.664    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__0_n_0
+    SLICE_X59Y67         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.778 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1/CO[3]
+                         net (fo=1, routed)           0.000     7.778    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__1_n_0
+    SLICE_X59Y68         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.892 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     7.892    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__2_n_0
+    SLICE_X59Y69         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.006 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     8.006    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__3_n_0
+    SLICE_X59Y70         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.120 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4/CO[3]
+                         net (fo=1, routed)           0.000     8.120    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__4_n_0
+    SLICE_X59Y71         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     8.234 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5/CO[3]
+                         net (fo=1, routed)           0.000     8.234    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__5_n_0
+    SLICE_X59Y72         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334     8.568 r  v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6/O[1]
+                         net (fo=1, routed)           0.844     9.412    v2release_i/order_book_top_0/inst/router/valid_stock0_o4_carry__6_n_6
+    SLICE_X52Y68         LUT3 (Prop_lut3_I0_O)        0.303     9.715 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7/O
+                         net (fo=1, routed)           0.571    10.286    v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_7_n_0
+    SLICE_X53Y69         LUT6 (Prop_lut6_I1_O)        0.124    10.410 r  v2release_i/order_book_top_0/inst/router/base_price_o[31]_i_5/O
+                         net (fo=39, routed)          0.286    10.697    v2release_i/order_book_top_0/inst/ob_stock2/valid_stock0_o_reg_0
+    SLICE_X53Y69         LUT4 (Prop_lut4_I3_O)        0.124    10.821 r  v2release_i/order_book_top_0/inst/ob_stock2/base_price_o[31]_i_1/O
+                         net (fo=32, routed)          0.847    11.668    v2release_i/order_book_top_0/inst/router/base_price_o_reg[31]_1[0]
+    SLICE_X57Y67         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[27]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.529    12.083    v2release_i/order_book_top_0/inst/router/clk
+    SLICE_X57Y67         FDRE                                         r  v2release_i/order_book_top_0/inst/router/base_price_o_reg[27]/C
+                         clock pessimism              0.229    12.312
+                         clock uncertainty           -0.145    12.167
+    SLICE_X57Y67         FDRE (Setup_fdre_C_CE)      -0.205    11.962    v2release_i/order_book_top_0/inst/router/base_price_o_reg[27]
+  -------------------------------------------------------------------
+                         required time                         11.962
+                         arrival time                         -11.668
+  -------------------------------------------------------------------
+                         slack                                  0.294
+
+Slack (MET) :             0.352ns  (required time - arrival time)
+  Source:                 v2release_i/order_book_top_0/inst/ob_stock0/bid_enc_valid_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Destination:            v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][29]/D
+                            (rising edge-triggered cell FDRE clocked by clk_fpga_0  {rise@0.000ns fall@4.688ns period=9.375ns})
+  Path Group:             clk_fpga_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.375ns  (clk_fpga_0 rise@9.375ns - clk_fpga_0 rise@0.000ns)
+  Data Path Delay:        8.676ns  (logic 5.225ns (60.223%)  route 3.451ns (39.777%))
+  Logic Levels:           32  (CARRY4=30 LUT3=2)
+  Clock Path Skew:        -0.264ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    2.719ns = ( 12.094 - 9.375 )
+    Source Clock Delay      (SCD):    3.098ns
+    Clock Pessimism Removal (CPR):    0.115ns
+  Clock Uncertainty:      0.145ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.281ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_fpga_0 rise edge)
+                                                      0.000     0.000 r
+    PS7_X0Y0             PS7                          0.000     0.000 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.193     1.193    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.101     1.294 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.804     3.098    v2release_i/order_book_top_0/inst/ob_stock0/clk
+    SLICE_X104Y2         FDRE                                         r  v2release_i/order_book_top_0/inst/ob_stock0/bid_enc_valid_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X104Y2         FDRE (Prop_fdre_C_Q)         0.518     3.616 f  v2release_i/order_book_top_0/inst/ob_stock0/bid_enc_valid_reg[7]/Q
+                         net (fo=5, routed)           1.039     4.655    v2release_i/order_book_top_0/inst/ob_stock0/bid_enc_valid_reg_n_0_[7]
+    SLICE_X106Y1         LUT3 (Prop_lut3_I1_O)        0.124     4.779 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid[13]_i_125/O
+                         net (fo=1, routed)           0.000     4.779    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid[13]_i_125_n_0
+    SLICE_X106Y1         CARRY4 (Prop_carry4_S[2]_CO[3])
+                                                      0.398     5.177 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_119/CO[3]
+                         net (fo=1, routed)           0.000     5.177    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_119_n_0
+    SLICE_X106Y2         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.291 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_114/CO[3]
+                         net (fo=1, routed)           0.000     5.291    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_114_n_0
+    SLICE_X106Y3         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.405 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_109/CO[3]
+                         net (fo=1, routed)           0.000     5.405    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_109_n_0
+    SLICE_X106Y4         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.519 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_104/CO[3]
+                         net (fo=1, routed)           0.000     5.519    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_104_n_0
+    SLICE_X106Y5         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.633 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_99/CO[3]
+                         net (fo=1, routed)           0.000     5.633    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_99_n_0
+    SLICE_X106Y6         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.747 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_94/CO[3]
+                         net (fo=1, routed)           0.000     5.747    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_94_n_0
+    SLICE_X106Y7         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.861 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_89/CO[3]
+                         net (fo=1, routed)           0.000     5.861    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_89_n_0
+    SLICE_X106Y8         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     5.975 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_84/CO[3]
+                         net (fo=1, routed)           0.000     5.975    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_84_n_0
+    SLICE_X106Y9         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.089 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_79/CO[3]
+                         net (fo=1, routed)           0.000     6.089    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_79_n_0
+    SLICE_X106Y10        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.203 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_74/CO[3]
+                         net (fo=1, routed)           0.000     6.203    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_74_n_0
+    SLICE_X106Y11        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.317 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_69/CO[3]
+                         net (fo=1, routed)           0.000     6.317    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_69_n_0
+    SLICE_X106Y12        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.431 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_64/CO[3]
+                         net (fo=1, routed)           0.000     6.431    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_64_n_0
+    SLICE_X106Y13        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.545 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_59/CO[3]
+                         net (fo=1, routed)           0.000     6.545    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_59_n_0
+    SLICE_X106Y14        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.659 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_54/CO[3]
+                         net (fo=1, routed)           0.000     6.659    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_54_n_0
+    SLICE_X106Y15        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.773 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_49/CO[3]
+                         net (fo=1, routed)           0.000     6.773    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_49_n_0
+    SLICE_X106Y16        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     6.887 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_44/CO[3]
+                         net (fo=1, routed)           0.000     6.887    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_44_n_0
+    SLICE_X106Y17        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.001 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_39/CO[3]
+                         net (fo=1, routed)           0.000     7.001    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_39_n_0
+    SLICE_X106Y18        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.115 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_34/CO[3]
+                         net (fo=1, routed)           0.000     7.115    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_34_n_0
+    SLICE_X106Y19        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.229 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_29/CO[3]
+                         net (fo=1, routed)           0.000     7.229    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_29_n_0
+    SLICE_X106Y20        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.343 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_16/CO[3]
+                         net (fo=1, routed)           0.000     7.343    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_16_n_0
+    SLICE_X106Y21        CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     7.457 r  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_6/CO[3]
+                         net (fo=1, routed)           0.000     7.457    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_6_n_0
+    SLICE_X106Y22        CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     7.614 f  v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_4/CO[1]
+                         net (fo=90, routed)          2.412    10.025    v2release_i/order_book_top_0/inst/ob_stock0/current_best_bid_reg[13]_i_4_n_2
+    SLICE_X63Y46         LUT3 (Prop_lut3_I1_O)        0.329    10.354 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o[bid_price][3]_i_6/O
+                         net (fo=1, routed)           0.000    10.354    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o[bid_price][3]_i_6_n_0
+    SLICE_X63Y46         CARRY4 (Prop_carry4_S[3]_CO[3])
+                                                      0.401    10.755 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][3]_i_1/CO[3]
+                         net (fo=1, routed)           0.000    10.755    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][3]_i_1_n_0
+    SLICE_X63Y47         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    10.869 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][7]_i_1/CO[3]
+                         net (fo=1, routed)           0.000    10.869    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][7]_i_1_n_0
+    SLICE_X63Y48         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    10.983 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][11]_i_1/CO[3]
+                         net (fo=1, routed)           0.000    10.983    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][11]_i_1_n_0
+    SLICE_X63Y49         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    11.097 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][15]_i_1/CO[3]
+                         net (fo=1, routed)           0.001    11.098    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][15]_i_1_n_0
+    SLICE_X63Y50         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    11.212 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][19]_i_1/CO[3]
+                         net (fo=1, routed)           0.000    11.212    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][19]_i_1_n_0
+    SLICE_X63Y51         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    11.326 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][23]_i_1/CO[3]
+                         net (fo=1, routed)           0.000    11.326    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][23]_i_1_n_0
+    SLICE_X63Y52         CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114    11.440 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][27]_i_1/CO[3]
+                         net (fo=1, routed)           0.000    11.440    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][27]_i_1_n_0
+    SLICE_X63Y53         CARRY4 (Prop_carry4_CI_O[1])
+                                                      0.334    11.774 r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][31]_i_1/O[1]
+                         net (fo=1, routed)           0.000    11.774    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][31]_i_1_n_6
+    SLICE_X63Y53         FDRE                                         r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][29]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_fpga_0 rise edge)
+                                                      9.375     9.375 r
+    PS7_X0Y0             PS7                          0.000     9.375 r  v2release_i/processing_system7_0/inst/PS7_i/FCLKCLK[0]
+                         net (fo=1, routed)           1.088    10.463    v2release_i/processing_system7_0/inst/FCLK_CLK_unbuffered[0]
+    BUFGCTRL_X0Y16       BUFG (Prop_bufg_I_O)         0.091    10.554 r  v2release_i/processing_system7_0/inst/buffer_fclk_clk_0.FCLK_CLK_0_BUFG/O
+                         net (fo=41934, routed)       1.540    12.094    v2release_i/order_book_top_0/inst/ob_stock0/clk
+    SLICE_X63Y53         FDRE                                         r  v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][29]/C
+                         clock pessimism              0.115    12.209
+                         clock uncertainty           -0.145    12.064
+    SLICE_X63Y53         FDRE (Setup_fdre_C_D)        0.062    12.126    v2release_i/order_book_top_0/inst/ob_stock0/bbo_data_o_reg[bid_price][29]
+  -------------------------------------------------------------------
+                         required time                         12.126
+                         arrival time                         -11.774
+  -------------------------------------------------------------------
+                         slack                                  0.352
