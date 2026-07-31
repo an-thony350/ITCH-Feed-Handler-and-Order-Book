@@ -212,18 +212,18 @@ The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: fram
 ### Address map
 
 | Peripheral | Base address | Direction / use |
-|---|---:|---|
+|---|---|---|
 | AXI DMA | `0x40400000` | PS control; MM2S frame input |
 | Bid BBO GPIO | `0x41200000` | PL to PS; bid price and shares |
 | Ask BBO GPIO | `0x41210000` | PL to PS; ask price and shares |
 | BBO-valid GPIO | `0x41220000` | PL to PS; update indication |
-| Base-price GPIO | `0x41230000` | PS to PL; price-window base |
+| Base-price GPIO | `0x41230000 - 0x4125000` | PS to PL; price-window base |
 
 ---
 
 ## Measured implementation results
 
-Latest routed build captured on **27 July 2026**:
+Latest routed build captured on **30 July 2026**:
 
 | Item | Result |
 |---|---:|
@@ -269,7 +269,7 @@ The cycle counts below assume no downstream backpressure and use the routed **10
 |---|---|---|---|
 | `data_handler` | About **4-8 cycles / 37.5-75 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
 | `symbol_router` | **1 cycle / 9.375 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` | About **11 cycles / 103.125 ns** in the collision-free, no-rescan common case | About **11-14 cycles** per common event, or **9.70-7.62 million events/s*. | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
+| `order_book` | About **11 cycles / 103.125 ns** in the collision-free, no-rescan common case | About **11-14 cycles** per common event, or **9.70-7.62 million events/s**. | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
 
 Replace adds approximately one cycle, an updated best bid/ask level adds two search cycles. The serial book deliberately prioritises correctness and bounded operation-dependent latency over an initiation interval of one. A pipelined version would require explicit same-reference and same-level forwarding or stalls.
 
@@ -287,3 +287,4 @@ The routed worst setup path is in the order-book memory path, from an order-tabl
 - [`docs/moldudp64_sequence_handling.md`](docs/moldudp64_sequence_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
 - [`docs/data_handler.md`](docs/data_handler.md) — ITCH decoder details
 - [`docs/order_book.md`](docs/order_book.md) — hardware order-book implementation
+- [`docs/proccesing_system.md`](docs/processing_system.md) - Processing sytem used to run the project
