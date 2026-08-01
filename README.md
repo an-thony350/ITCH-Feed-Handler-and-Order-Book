@@ -217,7 +217,7 @@ The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: fram
 | Bid BBO GPIO | `0x41200000` | PL to PS; bid price and shares |
 | Ask BBO GPIO | `0x41210000` | PL to PS; ask price and shares |
 | BBO-valid GPIO | `0x41220000` | PL to PS; update indication |
-| Base-price GPIO | `0x41230000 - 0x4125000` | PS to PL; price-window base |
+| Base-price GPIO | `0x41230000 - 0x41250000` | PS to PL; price-window base |
 
 ---
 
@@ -289,4 +289,4 @@ The routed worst setup path is in the order-book memory path, from an order-tabl
 - [`docs/moldudp64_sequence_handling.md`](docs/moldudp64_sequence_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
 - [`docs/data_handler.md`](docs/data_handler.md) — ITCH decoder details
 - [`docs/order_book.md`](docs/order_book.md) — hardware order-book implementation
-- [`docs/proccesing_system.md`](docs/processing_system.md) - Processing sytem used to run the project
+- [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project
