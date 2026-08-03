@@ -52,7 +52,7 @@ if [[ -x "${prefix}/bin/verilator" ]]; then
     rm -rf "$prefix"
 fi
 
-for tool in autoconf bison flex g++ git help2man make perl python3; do
+for tool in autoconf bison ccache flex g++ git help2man make perl python3; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "error: required build tool not found: $tool" >&2
         exit 1

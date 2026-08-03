@@ -200,7 +200,7 @@ jobs:
       - name: Install simulation dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ make perl
+          sudo apt-get install -y ccache g++ make perl
           python -m pip install -r requirements.txt
 
       - name: Download golden oracle
@@ -232,6 +232,8 @@ jobs:
           python -c 'import cocotb; print(f"cocotb {cocotb.__version__}")'
           which verilator
           verilator --version
+          which ccache
+          ccache --version
 
       - name: Run ${{ matrix.target }}
         run: make -C tb ${{ matrix.target }}

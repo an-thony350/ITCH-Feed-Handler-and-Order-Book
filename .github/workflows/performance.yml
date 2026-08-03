@@ -177,7 +177,7 @@ jobs:
       - name: Install simulation dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ make perl
+          sudo apt-get install -y ccache g++ make perl
           python -m pip install -r requirements.txt
 
       - name: Download Verilator toolchain
@@ -201,6 +201,8 @@ jobs:
           python -VV
           python -c 'import cocotb; print(f"cocotb {cocotb.__version__}")'
           verilator --version
+          which ccache
+          ccache --version
           printf 'performance mode: %s\n' "${PERF_MODE}"
           printf 'modelled clock: %s MHz\n' "${CLOCK_MHZ}"
 
