@@ -1,0 +1,224 @@
+name: Performance
+
+on:
+  pull_request:
+    paths:
+      - "rtl/**"
+      - "tb/**"
+      - "golden/**"
+      - "tools/**"
+      - "scripts/**"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - ".github/workflows/performance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "rtl/**"
+      - "tb/**"
+      - "golden/**"
+      - "tools/**"
+      - "scripts/**"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - ".github/workflows/performance.yml"
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Performance campaign size
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - campaign
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  VERILATOR_VERSION: "5.032"
+  VERILATOR_ARCHIVE: "verilator-5.032-linux-x64.tar.gz"
+  # A make-install Verilator build embeds its configured prefix.
+  VERILATOR_INSTALL_PREFIX: "/opt/verilator-5.032"
+  # Match the latest routed PYNQ-Z1 clock; comparisons remain cycle-based.
+  CLOCK_MHZ: "106.667"
+
+jobs:
+  select-mode:
+    name: Select mode
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+
+    steps:
+      - name: Select performance mode
+        id: mode
+        env:
+          REQUESTED_MODE: ${{ inputs.mode }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            mode="campaign"
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            mode="${REQUESTED_MODE}"
+          else
+            mode="smoke"
+          fi
+
+          case "${mode}" in
+            smoke|campaign)
+              ;;
+            *)
+              echo "unsupported performance mode: ${mode}" >&2
+              exit 2
+              ;;
+          esac
+
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+          echo "selected performance mode: ${mode}"
+
+  build-verilator:
+    name: Build Verilator 5.032
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare fixed installation prefix
+        run: |
+          sudo rm -rf "${VERILATOR_INSTALL_PREFIX}"
+          sudo mkdir -p "${VERILATOR_INSTALL_PREFIX}"
+          sudo chown -R "${USER}:${USER}" "${VERILATOR_INSTALL_PREFIX}"
+
+      - name: Restore cached Verilator toolchain
+        id: verilator-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.VERILATOR_INSTALL_PREFIX }}
+          key: verilator-5.032-8ff77e9d47351b0a59114929880687839a51840b-ubuntu-24.04-${{ runner.arch }}
+
+      - name: Install Verilator build dependencies
+        if: steps.verilator-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            bison \
+            build-essential \
+            ccache \
+            flex \
+            git \
+            help2man \
+            libfl-dev \
+            perl \
+            zlib1g-dev
+
+      - name: Build pinned Verilator
+        if: steps.verilator-cache.outputs.cache-hit != 'true'
+        env:
+          VERILATOR_BUILD_JOBS: "2"
+        run: |
+          bash scripts/ci/install_verilator.sh \
+            "${VERILATOR_INSTALL_PREFIX}"
+
+      - name: Verify Verilator toolchain
+        run: |
+          version_output="$("${VERILATOR_INSTALL_PREFIX}/bin/verilator" --version)"
+          echo "${version_output}"
+          [[ "${version_output}" == "Verilator ${VERILATOR_VERSION}"* ]]
+
+      - name: Package Verilator toolchain
+        run: |
+          tar \
+            -C "$(dirname "${VERILATOR_INSTALL_PREFIX}")" \
+            -czf "${RUNNER_TEMP}/${VERILATOR_ARCHIVE}" \
+            "$(basename "${VERILATOR_INSTALL_PREFIX}")"
+
+      - name: Upload Verilator toolchain
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verilator-${{ env.VERILATOR_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/${{ env.VERILATOR_ARCHIVE }}
+          if-no-files-found: error
+          retention-days: 7
+
+  performance:
+    name: ${{ needs.select-mode.outputs.mode }} campaign
+    needs:
+      - select-mode
+      - build-verilator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PERF_MODE: ${{ needs.select-mode.outputs.mode }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install simulation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make perl
+          python -m pip install -r requirements.txt
+
+      - name: Download Verilator toolchain
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verilator-${{ env.VERILATOR_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/verilator-artifact
+
+      - name: Install downloaded Verilator toolchain
+        run: |
+          sudo rm -rf "${VERILATOR_INSTALL_PREFIX}"
+          sudo mkdir -p "$(dirname "${VERILATOR_INSTALL_PREFIX}")"
+          sudo tar \
+            -xzf "${RUNNER_TEMP}/verilator-artifact/${VERILATOR_ARCHIVE}" \
+            -C "$(dirname "${VERILATOR_INSTALL_PREFIX}")"
+          sudo chown -R "${USER}:${USER}" "${VERILATOR_INSTALL_PREFIX}"
+          echo "${VERILATOR_INSTALL_PREFIX}/bin" >> "${GITHUB_PATH}"
+
+      - name: Report tool versions
+        run: |
+          python -VV
+          python -c 'import cocotb; print(f"cocotb {cocotb.__version__}")'
+          verilator --version
+          printf 'performance mode: %s\n' "${PERF_MODE}"
+          printf 'modelled clock: %s MHz\n' "${CLOCK_MHZ}"
+
+      - name: Run performance campaign
+        run: |
+          make -C tb \
+            "perf-${PERF_MODE}" \
+            CLOCK_MHZ="${CLOCK_MHZ}"
+
+      - name: Add performance summary
+        if: ${{ always() && hashFiles('build/perf/full_chain/summary.md') != '' }}
+        run: cat build/perf/full_chain/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: performance-${{ needs.select-mode.outputs.mode }}-${{ github.sha }}
+          path: build/perf/full_chain/
+          if-no-files-found: warn
+          retention-days: 14

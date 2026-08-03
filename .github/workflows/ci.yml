@@ -1,0 +1,279 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  VERILATOR_VERSION: "5.032"
+  VERILATOR_ARCHIVE: "verilator-5.032-linux-x64.tar.gz"
+  # A make-install Verilator build embeds its configured prefix.
+  VERILATOR_INSTALL_PREFIX: "/opt/verilator-5.032"
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install quality dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run repository checks
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  golden-model:
+    name: Golden model
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install -r requirements.txt
+
+      - name: Generate deterministic golden oracle
+        run: |
+          bash scripts/run_golden.sh \
+            --seed 7 \
+            --random-message-count 25
+
+      - name: Validate generated oracle
+        env:
+          PYTHONPATH: tb:.
+        run: |
+          python - <<'PY'
+          from itch_harness.oracle import load_oracle
+
+          oracle = load_oracle()
+          if oracle.count == 0:
+              raise SystemExit("golden oracle contains no events")
+
+          print(f"validated {oracle.count} matched event/state records")
+          print(f"events: {oracle.events_path}")
+          print(f"states: {oracle.states_path}")
+          PY
+
+      - name: Upload golden oracle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: golden-oracle-${{ github.sha }}
+          path: |
+            build/golden/itch_synthetic.bin
+            build/golden/events.jsonl
+            build/golden/states.jsonl
+          if-no-files-found: error
+          retention-days: 7
+
+  build-verilator:
+    name: Build Verilator 5.032
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare fixed installation prefix
+        run: |
+          sudo rm -rf "${VERILATOR_INSTALL_PREFIX}"
+          sudo mkdir -p "${VERILATOR_INSTALL_PREFIX}"
+          sudo chown -R "${USER}:${USER}" "${VERILATOR_INSTALL_PREFIX}"
+
+      - name: Restore cached Verilator toolchain
+        id: verilator-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.VERILATOR_INSTALL_PREFIX }}
+          key: verilator-5.032-8ff77e9d47351b0a59114929880687839a51840b-ubuntu-24.04-${{ runner.arch }}
+
+      - name: Install Verilator build dependencies
+        if: steps.verilator-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            bison \
+            build-essential \
+            ccache \
+            flex \
+            git \
+            help2man \
+            libfl-dev \
+            perl \
+            zlib1g-dev
+
+      - name: Build pinned Verilator
+        if: steps.verilator-cache.outputs.cache-hit != 'true'
+        env:
+          VERILATOR_BUILD_JOBS: "2"
+        run: |
+          bash scripts/ci/install_verilator.sh \
+            "${VERILATOR_INSTALL_PREFIX}"
+
+      - name: Verify Verilator toolchain
+        run: |
+          version_output="$("${VERILATOR_INSTALL_PREFIX}/bin/verilator" --version)"
+          echo "${version_output}"
+          [[ "${version_output}" == "Verilator ${VERILATOR_VERSION}"* ]]
+
+      - name: Package Verilator toolchain
+        run: |
+          tar \
+            -C "$(dirname "${VERILATOR_INSTALL_PREFIX}")" \
+            -czf "${RUNNER_TEMP}/${VERILATOR_ARCHIVE}" \
+            "$(basename "${VERILATOR_INSTALL_PREFIX}")"
+
+      - name: Upload Verilator toolchain
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verilator-${{ env.VERILATOR_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/${{ env.VERILATOR_ARCHIVE }}
+          if-no-files-found: error
+          retention-days: 7
+
+  rtl-regression:
+    name: RTL / ${{ matrix.target }}
+    needs:
+      - golden-model
+      - build-verilator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - test-mold-seq-guard
+          - test-data-handler
+          - test-order-book
+          - test-order-book-top
+          - test-ingress
+          - test-feed-handler-top
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install simulation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make perl
+          python -m pip install -r requirements.txt
+
+      - name: Download golden oracle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: golden-oracle-${{ github.sha }}
+          path: build/golden
+
+      - name: Download Verilator toolchain
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verilator-${{ env.VERILATOR_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/verilator-artifact
+
+      - name: Install downloaded Verilator toolchain
+        run: |
+          sudo rm -rf "${VERILATOR_INSTALL_PREFIX}"
+          sudo mkdir -p "$(dirname "${VERILATOR_INSTALL_PREFIX}")"
+          sudo tar \
+            -xzf "${RUNNER_TEMP}/verilator-artifact/${VERILATOR_ARCHIVE}" \
+            -C "$(dirname "${VERILATOR_INSTALL_PREFIX}")"
+          sudo chown -R "${USER}:${USER}" "${VERILATOR_INSTALL_PREFIX}"
+          echo "${VERILATOR_INSTALL_PREFIX}/bin" >> "${GITHUB_PATH}"
+
+      - name: Report tool versions
+        run: |
+          which python
+          python -VV
+          python -c 'import cocotb; print(f"cocotb {cocotb.__version__}")'
+          which verilator
+          verilator --version
+
+      - name: Run ${{ matrix.target }}
+        run: make -C tb ${{ matrix.target }}
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rtl-failure-${{ matrix.target }}-${{ github.sha }}
+          path: |
+            tb/results.xml
+            tb/*.vcd
+            tb/*.fst
+            tb/sim_build/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  required:
+    name: Required
+    if: always()
+    needs:
+      - quality
+      - golden-model
+      - build-verilator
+      - rtl-regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+
+    steps:
+      - name: Check required job results
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          GOLDEN_RESULT: ${{ needs.golden-model.result }}
+          VERILATOR_RESULT: ${{ needs.build-verilator.result }}
+          RTL_RESULT: ${{ needs.rtl-regression.result }}
+        run: |
+          printf 'quality=%s\n' "${QUALITY_RESULT}"
+          printf 'golden-model=%s\n' "${GOLDEN_RESULT}"
+          printf 'build-verilator=%s\n' "${VERILATOR_RESULT}"
+          printf 'rtl-regression=%s\n' "${RTL_RESULT}"
+
+          test "${QUALITY_RESULT}" = "success"
+          test "${GOLDEN_RESULT}" = "success"
+          test "${VERILATOR_RESULT}" = "success"
+          test "${RTL_RESULT}" = "success"
