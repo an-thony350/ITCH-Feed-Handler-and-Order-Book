@@ -29,6 +29,7 @@ The project accepts Ethernet II / IPv4 / UDP / MoldUDP64-style frames, recovers 
     - [Network ingress](#network-ingress)
     - [Decoder and order book](#decoder-and-order-book)
   - [Further documentation](#further-documentation)
+  - [Continuous integration](#continuous-integration)
 
 ---
 
@@ -290,3 +291,9 @@ The routed worst setup path is in the order-book memory path, from an order-tabl
 - [`docs/data_handler.md`](docs/data_handler.md) — ITCH decoder details
 - [`docs/order_book.md`](docs/order_book.md) — hardware order-book implementation
 - [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project
+
+---
+
+## Continuous integration
+
+GitHub Actions runs repository checks, deterministic golden-model generation, and the full cocotb/Verilator RTL regression on pushes to `main` and pull requests. A separate performance workflow runs smoke tests for relevant changes and a scheduled full campaign, with oracle, diagnostic, and performance artifacts retained for inspection.
