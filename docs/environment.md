@@ -22,7 +22,7 @@ Recommended host environment:
 - GNU Make;
 - Python 3.13 in a project-local virtual environment;
 - `uv` for Python installation and package management;
-- Verilator 5.x for cocotb simulation;
+- Verilator 5.036 for cocotb simulation;
 - Vivado 2023.2 for xsim and FPGA implementation.
 
 From a fresh shell, start from the repository root:
@@ -121,7 +121,7 @@ The tested core versions include:
 
 ```text
 cocotb 2.0.1
-Verilator 5.x
+Verilator 5.036
 ```
 
 Verify the Python packages:
@@ -151,7 +151,8 @@ First check whether a suitable version is already installed:
 verilator --version
 ```
 
-The project uses a Verilator 5.x flow. `Verilator 5.032 ...` is a known-good version.
+The project uses Verilator 5.036. cocotb 2.0.1 requires Verilator 5.036 or
+later, and CI pins the minimum compatible release for repeatability.
 
 ### Option A — package manager
 
@@ -165,7 +166,7 @@ verilator --version
 
 Some Ubuntu/WSL package repositories provide an older version. Use the source build when the installed version is not compatible with the cocotb flow.
 
-### Option B — build Verilator 5.032 from source
+### Option B — build Verilator 5.036 from source
 
 Install build dependencies:
 
@@ -196,7 +197,7 @@ cd ~/tools
 
 git clone https://github.com/verilator/verilator.git
 cd verilator
-git checkout v5.032
+git checkout v5.036
 
 autoconf
 ./configure --prefix="$HOME/.local"

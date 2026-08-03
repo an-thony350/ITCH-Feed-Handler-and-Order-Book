@@ -18,8 +18,8 @@ if [[ $# -ne 1 ]]; then
     exit 2
 fi
 
-version="5.032"
-commit="8ff77e9d47351b0a59114929880687839a51840b"
+version="5.036"
+commit="eca2b4c9603554a6a4596befd485c3dd4f550769"
 prefix="$1"
 build_jobs="${VERILATOR_BUILD_JOBS:-2}"
 

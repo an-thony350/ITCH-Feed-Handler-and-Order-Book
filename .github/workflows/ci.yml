@@ -16,10 +16,10 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.13"
-  VERILATOR_VERSION: "5.032"
-  VERILATOR_ARCHIVE: "verilator-5.032-linux-x64.tar.gz"
+  VERILATOR_VERSION: "5.036"
+  VERILATOR_ARCHIVE: "verilator-5.036-linux-x64.tar.gz"
   # A make-install Verilator build embeds its configured prefix.
-  VERILATOR_INSTALL_PREFIX: "/opt/verilator-5.032"
+  VERILATOR_INSTALL_PREFIX: "/opt/verilator-5.036"
 
 jobs:
   quality:
@@ -101,7 +101,7 @@ jobs:
           retention-days: 7
 
   build-verilator:
-    name: Build Verilator 5.032
+    name: Build Verilator 5.036
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -120,7 +120,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.VERILATOR_INSTALL_PREFIX }}
-          key: verilator-5.032-8ff77e9d47351b0a59114929880687839a51840b-ubuntu-24.04-${{ runner.arch }}
+          key: verilator-5.036-eca2b4c9603554a6a4596befd485c3dd4f550769-ubuntu-24.04-${{ runner.arch }}
 
       - name: Install Verilator build dependencies
         if: steps.verilator-cache.outputs.cache-hit != 'true'
