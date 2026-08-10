@@ -15,14 +15,14 @@ set out_dir "./design_evidence"
 file mkdir $out_dir
 
 # 1. Utilization
-report_utilization -file $out_dir/utilization.txt
-report_utilization -hierarchical -file $out_dir/utilization_hier.txt
+report_utilization -file $out_dir/utilization.rpt
+report_utilization -hierarchical -file $out_dir/utilization_hier.rpt
 
 # 2. Timing
-report_timing_summary -file $out_dir/timing_summary.txt
-report_timing -max_paths 10 -file $out_dir/critical_paths.txt
+report_timing_summary -file $out_dir/timing_summary.rpt
+report_timing -max_paths 10 -file $out_dir/critical_paths.rpt
 
 # 3. Power (Often required alongside timing/utilization)
-report_power -file $out_dir/power_summary.txt
+report_power -file $out_dir/power_summary.rpt
 
 puts "Done! Evidence saved to $out_dir"
