@@ -90,26 +90,6 @@ typedef struct packed {
 } order_entry_t;
 
 
-
-// local parameters for tables and ASCII message types
-
-localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
-localparam int BBO_DEPTH  = 1 << BBO_W;
-localparam int CHUNK_LEN  = 1 << (BBO_W-6);
-localparam int ENTRY_W    = $bits(order_entry_t);
-localparam int BUCKET_W   = 3 * ENTRY_W;
-
-
-localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
-localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
-localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
-localparam logic [MSG_W-1:0] MSG_EXEC_PX  = 8'h43; // C
-localparam logic [MSG_W-1:0] MSG_DELETE   = 8'h44; // D
-localparam logic [MSG_W-1:0] MSG_REPLACE  = 8'h55; // U
-localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
-
-
-
 // internal registers
 
 // BRAM Blocks
@@ -167,12 +147,8 @@ logic [BBO_W-1:0]   lookup_p_idx_wire;
 
 
 // IDX Search registers
-logic [1:0]           probe;
-logic [1:0]           rep_probe;
 logic [1:0]           comb_slot_idx;
 logic [1:0]           rep_comb_slot_idx;
-order_entry_t h_entry;
-order_entry_t rep_h_entry;
 
 
 // Replacement Add registers
@@ -285,70 +261,6 @@ typedef enum logic [3:0]{
 (* max_fanout = 32 *) state_t current_state, next_state;
 
 
-
-// functions to determine type of message - ADD and EXECUTE messages have multiple calls
-
-function automatic logic is_add_msg(input logic [MSG_W-1:0] msg);
-    return (msg == MSG_ADD_A) || (msg == MSG_ADD_F);
-endfunction
-
-function automatic logic is_reduce_msg(input logic [MSG_W-1:0] msg);
-    return (msg == MSG_EXEC) || (msg == MSG_EXEC_PX) || (msg == MSG_CANCEL);
-endfunction
-
-// Hashing function
-function automatic logic [HASH_W-1:0] hash_orn(input logic [ORN_W-1:0] orn);
-    logic [HASH_W-1:0] h;
-    begin
-        h = '0;
-        for (int bit_i = 0; bit_i < ORN_W; bit_i++) begin
-            h[bit_i % HASH_W] = h[bit_i % HASH_W] ^ orn[bit_i];
-        end
-        return h;
-    end
-endfunction
-
-// Price logic (for price book) - Only works if delta < $164.83
-function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
-    (* use_dsp = "yes" *) logic [PRICE_W-1:0] delta;
-    begin
-        delta = price - latched_base_price;
-        return delta[BBO_W-1:0];
-    end
-endfunction
-
-// Hierarchical Search: Level 1 (Find the 64-bit chunk)
-function automatic logic [(BBO_W-6)-1:0] find_msb_chunk(input logic [CHUNK_LEN-1:0] vec);
-    for (int i = CHUNK_LEN-1; i >= 0; i--) begin
-        if (vec[i]) return (BBO_W-6)'(i);
-    end
-    return '0;
-endfunction
-
-function automatic logic [(BBO_W-6)-1:0] find_lsb_chunk(input logic [CHUNK_LEN-1:0] vec);
-    for (int i = 0; i < CHUNK_LEN; i++) begin
-        if (vec[i]) return (BBO_W-6)'(i);
-    end
-    return '0;
-endfunction
-
-// Hierarchical Search: Level 2 (Find the exact bit in the chunk)
-function automatic logic [5:0] find_msb_bit(input logic [63:0] vec);
-    for (int i = 63; i >= 0; i--) begin
-        if (vec[i]) return 6'(i);
-    end
-    return '0;
-endfunction
-
-function automatic logic [5:0] find_lsb_bit(input logic [63:0] vec);
-    for (int i = 0; i < 64; i++) begin
-        if (vec[i]) return 6'(i);
-    end
-    return '0;
-endfunction
-
-
-
 // Combinational assignments
 
 // Lookahead for chunk depletion during UPDATE_READ_BOOK
@@ -356,13 +268,6 @@ assign immediate_book_shares    =   latched_lookup_entry.side ? bid_dout_a : ask
 assign immediate_level_depleted =   latched_is_reduce ?
                                     (immediate_book_shares == latched_rdata.shares) :
                                     (immediate_book_shares == latched_lookup_entry.shares);
-
-// idx assignments
-assign lookup_p_idx_wire        =   price_to_idx(read_bucket[latched_slot_idx].price);
-
-// hashed data assignments
-assign h_entry                  =   dout_a; // the h_entry is too low?
-assign rep_h_entry              =   dout_b;
 
 // Set-Associative bucket assignment
 assign read_bucket              =   ram_dout_a;
@@ -429,7 +334,7 @@ always_comb begin
                       latched_event_shares;
 
 
-    // Latched message type signals
+    // Latched message type signals *IDX_REP*
 
     if(latched_is_add) begin
         if( latched_rdata.side && latched_event_price_idx > current_best_bid) is_better_bid  = 1'b1;
@@ -825,8 +730,6 @@ always_ff @(posedge clk) begin
                 if (valid_i) begin
                     latched_rdata         <= rdata_i;
                     latched_base_price    <= base_price_i;
-                    probe                 <= '0;
-                    rep_probe             <= '0;
                     hash_idx              <= hash_orn(rdata_i.orn);
                     rep_hash_idx          <= hash_orn(rdata_i.updated_orn);
                     latched_is_add         <= is_add_msg(rdata_i.message_type);
@@ -848,8 +751,6 @@ always_ff @(posedge clk) begin
                 if(next_state == UPDATE_READ_TBL) begin
                     latched_slot_idx        <=  comb_slot_idx;
                     rep_latched_slot_idx    <=  rep_comb_slot_idx;
-                    probe                   <=  '0;
-                    rep_probe               <=  '0;
                 end
             end
 
