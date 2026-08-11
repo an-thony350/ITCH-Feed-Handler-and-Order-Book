@@ -26,7 +26,7 @@ module network_ingress_v1_0 #
     input  wire                                      s00_axis_aresetn,
     output wire                                      s00_axis_tready,
     input  wire [C_S00_AXIS_TDATA_WIDTH-1 : 0]       s00_axis_tdata,
-    input  wire [(C_S00_AXIS_TDATA_WIDTH/8)-1 : 0]   s00_axis_tstrb,
+    input  wire [(C_S00_AXIS_TDATA_WIDTH/8)-1 : 0]   s00_axis_tkeep,
     input  wire                                      s00_axis_tlast,
     input  wire                                      s00_axis_tvalid,
 
@@ -41,7 +41,7 @@ module network_ingress_v1_0 #
 );
 
     // Clocking note:
-    // This first integration assumes S00_AXIS and M00_AXIS are on the same clock.
+    // This integration assumes S00_AXIS and M00_AXIS are on the same clock.
     // In the block design, connect both interface clocks to the same PL clock.
     //
     // The ingress logic below uses s00_axis_aclk as the single clock.
@@ -52,11 +52,12 @@ module network_ingress_v1_0 #
 
     assign ingress_rst_n = s00_axis_aresetn & m00_axis_aresetn;
 
-    // TSTRB/TKEEP note:
-    // The known-working PYNQ packaged-IP shell exposed the byte qualifier as
-    // TSTRB. The ingress RTL uses that 4-bit value as its byte-valid TKEEP mask.
-    // Retaining this mapping here keeps the ZCU106 migration structurally
-    // equivalent to the previous integration.
+    // Byte qualifier:
+    // S00_AXIS uses TKEEP because AXI DMA M_AXIS_MM2S provides TKEEP. The ingress
+    // RTL consumes this as its byte-valid mask, including on a partial final beat.
+    //
+    // M00_AXIS retains TSTRB only because data_handler does not consume the byte
+    // qualifier and the existing packaged interface already uses TSTRB there.
 
     ingress_top #(
         .CHECK_DST_PORT    (1'b0),
@@ -67,7 +68,7 @@ module network_ingress_v1_0 #
 
         // AXIS Ethernet frame input.
         .s_frame_tdata_i     (s00_axis_tdata),
-        .s_frame_tkeep_i     (s00_axis_tstrb),
+        .s_frame_tkeep_i     (s00_axis_tkeep),
         .s_frame_tvalid_i    (s00_axis_tvalid),
         .s_frame_tlast_i     (s00_axis_tlast),
         .s_frame_tready_o    (s00_axis_tready),
