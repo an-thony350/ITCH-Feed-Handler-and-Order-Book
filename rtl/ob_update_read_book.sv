@@ -1,6 +1,6 @@
 import hdl_header::*;
 
-module ob_issue_book_read(
+module ob_update_read_book(
     // Control Signals
     input logic                 clk,
     input logic                 rst_n,
@@ -28,31 +28,42 @@ module ob_issue_book_read(
     input logic                 latched_is_cam_entry_i,
     input logic [5:0]           latched_cam_idx_i,
     input order_entry_t         latched_lookup_entry_i,
+    input logic [BBO_W-1:0]     latched_lookup_price_idx_i,
 
     output logic [BBO_W-1:0]    latched_event_price_idx_o,
     output logic                latched_is_cam_entry_o,
     output logic [5:0]          latched_cam_idx_o,
     output order_entry_t        latched_lookup_entry_o,
     output logic [BBO_W-1:0]    latched_lookup_price_idx_o,
-
+    output logic                latched_bid_valid_rst_o,
+    output logic                latched_ask_valid_rst_o,
+    output logic                reg_target_val_o,
+    output logic [BBO_W-1:0]    reg_chosen_row_o,
+    output logic                reg_target_side_o,
+    output logic                reg_we_en_o,
+    output logic [SHARES_W-1:0] latched_book_shares_o,
+    output logic [SHARES_W-1:0] latched_event_shares_o,
 
     // External Memory I/O
-    output logic [BBO_W-1:0]    bid_addr_a,
-    output logic [BBO_W-1:0]    ask_addr_a,
-    output logic [BBO_W-1:0]    bid_addr_b,
-    output logic [BBO_W-1:0]    ask_addr_b
+    input logic [SHARES_W-1:0]  bid_dout_a,
+    input logic [SHARES_W-1:0]  bid_dout_b,
+    input logic [SHARES_W-1:0]  ask_dout_a,
+    input logic [SHARES_W-1:0]  ask_dout_b
 );
 
-// Combinational bid/ask address writes
-always_comb begin
-    bid_addr_a  =   price_to_idx(latched_lookup_entry_i.price);
-    ask_addr_a  =   price_to_idx(latched_lookup_entry_i.price);
+// Internal Regs
+logic [SHARES_W-1:0]    immediate_book_shares;
+logic                   immediate_level_depleted;
 
-    bid_addr_b  =   latched_event_price_idx_i;
-    ask_addr_b  =   latched_event_price_idx_i;
+// Comb. Logic
+always_comb begin
+    immediate_book_shares       =   latched_lookup_entry_i.side ? bid_dout_a : bid_dout_b;
+    immediate_level_depleted    =   latched_is_reduce_i ?
+                                    (immediate_book_shares == latched_rdata_i.shares) :
+                                    (immediate_book_shares == latched_lookup_entry_i.shares);
 end
 
-// Sequential Logic
+// Seq. Logic
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o               <=  1'b0;
@@ -68,6 +79,13 @@ always_ff @(posedge clk) begin
         latched_cam_idx_o           <=  '0;
         latched_lookup_entry_o      <=  '0;
         latched_lookup_price_idx_o  <=  '0;
+        latched_bid_valid_rst_o     <=  1'b0;
+        latched_ask_valid_rst_o     <=  1'b0;
+        reg_target_val_o            <=  1'b0;
+        reg_chosen_row              <=  '0;
+        reg_target_side_o           <=  1'b0;
+        latched_book_shares_o       <=  '0;
+        latched_event_shares_o      <=  '0;
     end
     else if(!stall) begin
         stage_valid_o               <=  stage_valid_i;
@@ -82,7 +100,28 @@ always_ff @(posedge clk) begin
         latched_is_cam_entry_o      <=  latched_is_cam_entry_i;
         latched_cam_idx_o           <=  latched_cam_idx_i;
         latched_lookup_entry_o      <=  latched_lookup_entry_i;
-        latched_lookup_price_idx_o  <=  price_to_idx(latched_lookup_entry_i.price)
+        latched_lookup_price_idx_o  <=  latched_lookup_price_idx_i;
+
+        if(latched_is_add_i) begin
+            reg_target_val_o    <=  1'b1;
+            reg_chosen_row_o    <=  latched_event_price_idx_i;
+            reg_target_side_o   <=  latched_rdata_i.side;
+            reg_we_en_o         <=  1'b1;
+        end
+        else if(latched_is_replace_i || latched_is_delete_i || latched_is_reduce_i) begin
+            reg_target_val_o    <=  1'b0;
+            reg_chosen_row_o    <=  latched_lookup_price_idx_i;
+            reg_target_side_o   <=  latched_lookup_entry_i.side;
+            reg_we_en_o         <=  immediate_level_depleted;
+        end
+
+        if(latched_lookup_entry_i.side) latched_book_shares_o   <=  bid_dout_a;
+        else                            latched_book_shares_o   <=  ask_dout_a;
+
+        if(latched_is_replace_i ? latched_lookup_entry_i.side : latched_rdata_i.side) begin
+            latched_event_shares_o  <=  bid_dout_b;
+        end
+        else latched_event_shares_o <=  ask_dout_b;
     end
 end
 

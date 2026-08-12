@@ -152,7 +152,6 @@ logic [1:0]           rep_comb_slot_idx;
 
 
 // Replacement Add registers
-logic                rep_same_price;
 logic [SHARES_W-1:0] base_add_shares;
 logic [SHARES_W-1:0] tmp_base_shares;
 
@@ -334,7 +333,7 @@ always_comb begin
                       latched_event_shares;
 
 
-    // Latched message type signals *IDX_REP*
+    // Latched message type signals
 
     if(latched_is_add) begin
         if( latched_rdata.side && latched_event_price_idx > current_best_bid) is_better_bid  = 1'b1;
@@ -780,7 +779,6 @@ always_ff @(posedge clk) begin
             end
 
             UPDATE_READ_BOOK: begin
-                rep_same_price              <=      (latched_event_price_idx == latched_lookup_price_idx);
                 latched_bid_valid_rst       <=      (bid_active_chunks[latched_lookup_price_idx[BBO_W-1:6]] == (64'h1 << latched_lookup_price_idx[5:0]));
                 latched_ask_valid_rst       <=      (ask_active_chunks[latched_lookup_price_idx[BBO_W-1:6]] == (64'h1 << latched_lookup_price_idx[5:0]));
 
