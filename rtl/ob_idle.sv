@@ -1,4 +1,4 @@
-import hdl_header::*
+import hdl_header::*;
 
 // Stage 0
 

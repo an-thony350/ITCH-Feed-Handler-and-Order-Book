@@ -1,4 +1,4 @@
-import hdl_header::*
+import hdl_header::*;
 
 module ob_idx_search(
     // Control signals
@@ -36,6 +36,8 @@ module ob_idx_search(
     output logic [5:0]          latched_cam_free_idx_o,
     output logic [1:0]          latched_slot_idx_o,
     output logic [1:0]          latched_rep_slot_idx_o,
+    output logic [2:0]          latched_hash_match_o,
+    output logic [2:0]          latched_free_slot_o,
 
     // External Memory I/O
     input order_entry_t [2:0]   read_bucket,
@@ -131,6 +133,8 @@ always_ff @(posedge clk) begin
         latched_cam_free_idx_o      <=  '0;
         latched_slot_idx_o          <=  '0;
         latched_rep_slot_idx_o      <=  '0;
+        latched_hash_match_o        <=  '0;
+        latched_free_slot_o         <=  '0;
     end
     else if(!stall) begin
         // deals with immediate return to FETCH_BBO state in old design
@@ -154,6 +158,8 @@ always_ff @(posedge clk) begin
         latched_cam_free_idx_o      <=  latched_cam_free_idx_i;
         latched_slot_idx_o          <=  comb_slot_idx;
         latched_rep_slot_idx_o      <=  rep_comb_slot_idx;
+        latched_hash_match_o        <=  hash_match;
+        latched_free_slot_o         <=  free_slot;
     end
 end
 
