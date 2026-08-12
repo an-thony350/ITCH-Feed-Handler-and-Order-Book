@@ -32,6 +32,8 @@ module ob_idx_req(
     output logic [5:0]          latched_cam_match_idx_o,
     output logic                latched_cam_is_full_o,
     output logic [5:0]          latched_cam_free_idx_o,
+    output logic [HASH_W-1:0]   latched_hash_idx_o,
+    output logic [HASH_W-1:0]   latched_rep_hash_idx_o,
 
     // External Memory I/O
     input order_entry_t [63:0]  cam,
@@ -109,6 +111,8 @@ always_ff @(posedge clk) begin
         latched_cam_match_idx_o     <=  '0;
         latched_cam_is_full_o       <=  '0;
         latched_cam_free_idx_o      <=  '0;
+        latched_hash_idx_o          <=  '0;
+        latched_rep_hash_idx_o      <=  '0;
     end
     else if(!stall) begin
         stage_valid_o               <=  stage_valid_i;
@@ -124,6 +128,8 @@ always_ff @(posedge clk) begin
         latched_cam_match_idx_o     <=  cam_match_idx;
         latched_cam_is_full_o       <=  cam_is_full;
         latched_cam_is_free_o       <=  cam_free_idx;
+        latched_hash_idx_o          <=  hash_idx_i;
+        latched_rep_hash_idx_o      <=  rep_hash_idx_i
     end
 end
 

@@ -29,6 +29,8 @@ module ob_idx_search(
     input logic [5:0]           latched_cam_match_idx_i,
     input logic                 latched_cam_is_full_i,
     input logic [5:0]           latched_cam_free_idx_i,
+    input logic [HASH_W-1:0]    latched_hash_idx_i,
+    input logic [HASH_W-1:0]    latched_rep_hash_idx_i,
 
     output logic [BBO_W-1:0]    latched_event_price_idx_o,
     output logic                latched_cam_hit_o,
@@ -38,10 +40,14 @@ module ob_idx_search(
     output logic [1:0]          latched_rep_slot_idx_o,
     output logic [2:0]          latched_hash_match_o,
     output logic [2:0]          latched_free_slot_o,
+    output logic [HASH_W-1:0]   latched_hash_idx_o,
+    output logic [HASH_W-1:0]   latched_rep_hash_idx_o,
+    output order_entry_t [2:0]  read_bucket_o,
+    output order_entry_t [2:0]  rep_read_bucket_o,
 
-    // External Memory I/O
-    input order_entry_t [2:0]   read_bucket,
-    input order_entry_t [2:0]   rep_read_bucket
+    // External Memory I/O - BRAM dout pins
+    input order_entry_t [2:0]   read_bucket_i,
+    input order_entry_t [2:0]   rep_read_bucket_i
 );
 
 // Internal Registers
@@ -64,21 +70,21 @@ always_comb begin
     rep_hash_match  =   '0;
     rep_free_slot   =   '0;
 
-    hash_match[0]        =   (read_bucket[0].valid && read_bucket[0].orn == latched_rdata.orn && ~read_bucket[0].tombstone);
-    hash_match[1]        =   (read_bucket[1].valid && read_bucket[1].orn == latched_rdata.orn && ~read_bucket[1].tombstone);
-    hash_match[2]        =   (read_bucket[2].valid && read_bucket[2].orn == latched_rdata.orn && ~read_bucket[2].tombstone);
+    hash_match[0]        =   (read_bucket_i[0].valid && read_bucket_i[0].orn == latched_rdata.orn && ~read_bucket_i[0].tombstone);
+    hash_match[1]        =   (read_bucket_i[1].valid && read_bucket_i[1].orn == latched_rdata.orn && ~read_bucket_i[1].tombstone);
+    hash_match[2]        =   (read_bucket_i[2].valid && read_bucket_i[2].orn == latched_rdata.orn && ~read_bucket_i[2].tombstone);
 
-    free_slot[0]         = (!read_bucket[0].valid || read_bucket[0].tombstone);
-    free_slot[1]         = (!read_bucket[1].valid || read_bucket[1].tombstone);
-    free_slot[2]         = (!read_bucket[2].valid || read_bucket[2].tombstone);
+    free_slot[0]         = (!read_bucket_i[0].valid || read_bucket_i[0].tombstone);
+    free_slot[1]         = (!read_bucket_i[1].valid || read_bucket_i[1].tombstone);
+    free_slot[2]         = (!read_bucket_i[2].valid || read_bucket_i[2].tombstone);
 
-    rep_hash_match[0]    =   (rep_read_bucket[0].valid && rep_read_bucket[0].orn == latched_rdata.orn && ~rep_read_bucket[0].tombstone);
-    rep_hash_match[1]    =   (rep_read_bucket[1].valid && rep_read_bucket[1].orn == latched_rdata.orn && ~rep_read_bucket[1].tombstone);
-    rep_hash_match[2]    =   (rep_read_bucket[2].valid && rep_read_bucket[2].orn == latched_rdata.orn && ~rep_read_bucket[2].tombstone);
+    rep_hash_match[0]    =   (rep_read_bucket_i[0].valid && rep_read_bucket_i[0].orn == latched_rdata.orn && ~rep_read_bucket_i[0].tombstone);
+    rep_hash_match[1]    =   (rep_read_bucket_i[1].valid && rep_read_bucket_i[1].orn == latched_rdata.orn && ~rep_read_bucket_i[1].tombstone);
+    rep_hash_match[2]    =   (rep_read_bucket_i[2].valid && rep_read_bucket_i[2].orn == latched_rdata.orn && ~rep_read_bucket_i[2].tombstone);
 
-    rep_free_slot[0]    = (!rep_read_bucket[0].valid || rep_read_bucket[0].tombstone);
-    rep_free_slot[1]    = (!rep_read_bucket[1].valid || rep_read_bucket[1].tombstone);
-    rep_free_slot[2]    = (!rep_read_bucket[2].valid || rep_read_bucket[2].tombstone);
+    rep_free_slot[0]    = (!rep_read_bucket_i[0].valid || rep_read_bucket_i[0].tombstone);
+    rep_free_slot[1]    = (!rep_read_bucket_i[1].valid || rep_read_bucket_i[1].tombstone);
+    rep_free_slot[2]    = (!rep_read_bucket_i[2].valid || rep_read_bucket_i[2].tombstone);
 end
 
 
@@ -90,7 +96,6 @@ always_comb begin
 
     if(latched_is_add_i) begin
         if(free_slot != 3'b000) begin
-            // some type of logic specifying no forward instuction?
             if      (free_slot[0]) comb_slot_idx = 2'd0;
             else if (free_slot[1]) comb_slot_idx = 2'd1;
             else                   comb_slot_idx = 2'd2;
@@ -135,6 +140,10 @@ always_ff @(posedge clk) begin
         latched_rep_slot_idx_o      <=  '0;
         latched_hash_match_o        <=  '0;
         latched_free_slot_o         <=  '0;
+        latched_hash_idx_o          <=  '0;
+        latched_rep_hash_idx_o      <=  '0;
+        read_bucket_o               <=  '0;
+        rep_read_bucket_o           <=  '0;
     end
     else if(!stall) begin
         // deals with immediate return to FETCH_BBO state in old design
@@ -160,6 +169,10 @@ always_ff @(posedge clk) begin
         latched_rep_slot_idx_o      <=  rep_comb_slot_idx;
         latched_hash_match_o        <=  hash_match;
         latched_free_slot_o         <=  free_slot;
+        latched_hash_idx_o          <=  latched_hash_idx_i;
+        latched_rep_hash_idx_o      <=  latched_rep_hash_idx_i;
+        read_bucket_o               <=  read_bucket_i;
+        rep_read_bucket_o           <=  rep_read_bucket_i;
     end
 end
 
