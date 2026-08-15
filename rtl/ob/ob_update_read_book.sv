@@ -43,8 +43,6 @@ module ob_update_read_book(
     output logic [1:0]          latched_rep_slot_idx_o,
     output order_entry_t        latched_lookup_entry_o,
     output logic [BBO_W-1:0]    latched_lookup_price_idx_o,
-    output logic                latched_bid_valid_rst_o,
-    output logic                latched_ask_valid_rst_o,
     output logic                reg_target_val_o,
     output logic [BBO_W-1:0]    reg_chosen_row_o,
     output logic                reg_target_side_o,
@@ -93,8 +91,6 @@ always_ff @(posedge clk) begin
         latched_rep_slot_idx_o      <=  '0;
         latched_lookup_entry_o      <=  '0;
         latched_lookup_price_idx_o  <=  '0;
-        latched_bid_valid_rst_o     <=  1'b0;
-        latched_ask_valid_rst_o     <=  1'b0;
         reg_target_val_o            <=  1'b0;
         reg_chosen_row              <=  '0;
         reg_target_side_o           <=  1'b0;
