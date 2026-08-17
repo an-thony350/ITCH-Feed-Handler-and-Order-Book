@@ -86,7 +86,7 @@ always_ff @(posedge clk) begin
         latched_read_bucket_o       <=  '0;
         latched_rep_read_bucket_o   <=  '0;
     end
-    else if(!stall) begin
+    else begin
         stage_valid_o               <=  stage_valid_i;
         latched_rdata_o             <=  latched_rdata_i;
         latched_base_price_o        <=  latched_base_price_i;

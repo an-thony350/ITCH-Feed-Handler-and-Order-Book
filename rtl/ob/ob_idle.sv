@@ -37,7 +37,7 @@ always_ff @(posedge clk) begin
         latched_is_replace_o    <=  1'b0;
         latched_is_delete_o     <=  1'b0;
     end
-    else if (!stall) begin
+    else begin
         stage_valid_o           <=  stage_valid_i;
         latched_rdata_o         <=  rdata_i;
         latched_base_price_o    <=  base_price_i;

@@ -144,7 +144,7 @@ always_ff @(posedge clk) begin
         read_bucket_o               <=  '0;
         rep_read_bucket_o           <=  '0;
     end
-    else if(!stall) begin
+    else begin
         // deals with immediate return to FETCH_BBO state in old design
         if(hash_match == 3'b000 && !latched_cam_hit_i) begin
             stage_valid_o   <=  1'b0;
