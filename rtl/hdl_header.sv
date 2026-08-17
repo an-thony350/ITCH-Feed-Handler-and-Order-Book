@@ -83,6 +83,15 @@ package hdl_header;
         logic [SHARES_W-1:0]    ask_shares;
     } bbo_t;
 
+    typedef struct packed {
+        logic                   valid;
+        logic [ORN_W-1:0]       orn;
+        logic                   side;
+        logic [SHARES_W-1:0]    shares;
+        logic [PRICE_W-1:0]     price;
+        logic                   tombstone;
+    } order_entry_t;
+
     // Relevant Order book functions
 
     function automatic logic is_add_msg(input logic [MSG_W-1:0] msg);
