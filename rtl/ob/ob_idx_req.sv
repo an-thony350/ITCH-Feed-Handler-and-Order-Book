@@ -35,20 +35,8 @@ module ob_idx_req(
     output logic [HASH_W-1:0]   latched_rep_hash_idx_o,
 
     // External Memory I/O
-    input order_entry_t [63:0]  cam,
-
-    output logic [HASH_W-1:0]   addr_a,
-    output logic [HASH_W-1:0]   addr_b
+    input order_entry_t [63:0]  cam
 );
-
-// Price logic (for price book) - Only works if delta < $164.83
-    function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
-        (* use_dsp = "yes" *) logic [PRICE_W-1:0] delta;
-        begin
-            delta = price - latched_base_price;
-            return delta[BBO_W-1:0];
-        end
-    endfunction
 
 // internal registers
 
@@ -86,12 +74,6 @@ always_comb begin
             cam_free_idx    =   6'(i);
         end
     end
-end
-
-// True Dual-Port BRAM Writes (double check this)
-always_comb begin
-    addr_a  =   hash_idx_i;
-    addr_b  =   rep_hash_idx_i;
 end
 
 // Sequential logic

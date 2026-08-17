@@ -26,7 +26,6 @@ module ob_idx_search(
     input logic [BBO_W-1:0]     latched_event_price_idx_i,
     input logic                 latched_cam_hit_i,
     input logic [5:0]           latched_cam_match_idx_i,
-    input logic                 latched_cam_is_full_i,
     input logic [5:0]           latched_cam_free_idx_i,
     input logic [HASH_W-1:0]    latched_hash_idx_i,
     input logic [HASH_W-1:0]    latched_rep_hash_idx_i,
@@ -111,9 +110,6 @@ always_comb begin
                     if      (rep_free_slot[0]) rep_comb_slot_idx = 2'd0;
                     else if (rep_free_slot[1]) rep_comb_slot_idx = 2'd1;
                     else                       rep_comb_slot_idx = 2'd2;
-                end
-                else if(latched_cam_is_full) begin
-                    // forwarding logic
                 end
             end
         end
