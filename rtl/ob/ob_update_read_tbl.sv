@@ -4,7 +4,6 @@ module ob_update_read_tbl(
     // Control Signals
     input logic                 clk,
     input logic                 rst_n,
-    input logic                 stall,
 
     // Instruction Data I/O
     input logic                 stage_valid_i,

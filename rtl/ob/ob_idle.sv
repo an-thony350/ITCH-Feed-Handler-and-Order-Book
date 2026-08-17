@@ -6,7 +6,6 @@ module ob_idle(
     // Control signals
     input logic                 clk,
     input logic                 rst_n,
-    input logic                 stall,
 
     // Instruction Data I/O
     input logic                 stage_valid_i,
