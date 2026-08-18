@@ -38,7 +38,7 @@ always_ff @(posedge clk) begin
         latched_base_price_o    <=  '0;
 
         current_best_bid_o      <=  '0;
-        current_best_ask_o      <=  '0;
+        current_best_ask_o      <=  BBO_W'(BBO_DEPTH-1);
         bid_is_zero_o           <=  1'b0;
         ask_is_zero_o           <=  1'b0;
     end
