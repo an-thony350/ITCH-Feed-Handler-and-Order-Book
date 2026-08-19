@@ -56,8 +56,8 @@ module ob_issue_book_read(
 
 // Combinational bid/ask address writes
 always_comb begin
-    bid_addr_a  =   price_to_idx(latched_lookup_entry_i.price);
-    ask_addr_a  =   price_to_idx(latched_lookup_entry_i.price);
+    bid_addr_a  =   price_to_idx(latched_lookup_entry_i.price, latched_base_price_i);
+    ask_addr_a  =   price_to_idx(latched_lookup_entry_i.price, latched_base_price_i);
 
     bid_addr_b  =   latched_event_price_idx_i;
     ask_addr_b  =   latched_event_price_idx_i;
@@ -101,11 +101,11 @@ always_ff @(posedge clk) begin
         latched_slot_idx_o          <=  latched_slot_idx_i;
         latched_rep_slot_idx_o      <=  latched_rep_slot_idx_i;
         latched_lookup_entry_o      <=  latched_lookup_entry_i;
-        latched_lookup_price_idx_o  <=  price_to_idx(latched_lookup_entry_i.price);
+        latched_lookup_price_idx_o  <=  price_to_idx(latched_lookup_entry_i.price, latched_base_price_i);
         latched_hash_idx_o          <=  latched_hash_idx_i;
         latched_rep_hash_idx_o      <=  latched_rep_hash_idx_i;
-        latched_read_bucket_o       <=  read_bucket_i;
-        latched_rep_read_bucket_o   <=  rep_read_bucket_i;
+        latched_read_bucket_o       <=  latched_read_bucket_i;
+        latched_rep_read_bucket_o   <=  latched_rep_read_bucket_i;
     end
 end
 

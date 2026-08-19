@@ -22,7 +22,7 @@ module ob_idle(
 
     // External Memory I/O - BRAM addr pins
     output logic [HASH_W-1:0]   hash_idx_o,
-    output logic [HASH_W-1:0]   rep_hash_idx_o,
+    output logic [HASH_W-1:0]   rep_hash_idx_o
 );
 
 always_ff @(posedge clk) begin

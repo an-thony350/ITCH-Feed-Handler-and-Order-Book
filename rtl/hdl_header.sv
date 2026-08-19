@@ -39,15 +39,6 @@ package hdl_header;
     parameter int  CHUNK_W      =   6;
     parameter int  MAX_PROBES   =   2;
 
-    // local params for order book
-
-    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
-    localparam int BBO_DEPTH  = 1 << BBO_W;
-    localparam int CHUNK_LEN  = 1 << (BBO_W-6);
-    localparam int ENTRY_W    = $bits(order_entry_t);
-    localparam int BUCKET_W   = 3 * ENTRY_W;
-
-
     localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
     localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
     localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
@@ -92,6 +83,14 @@ package hdl_header;
         logic                   tombstone;
     } order_entry_t;
 
+    // local params for order book
+
+    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
+    localparam int BBO_DEPTH  = 1 << BBO_W;
+    localparam int CHUNK_LEN  = 1 << (BBO_W-6);
+    localparam int ENTRY_W    = $bits(order_entry_t);
+    localparam int BUCKET_W   = 3 * ENTRY_W;
+
     // Relevant Order book functions
 
     function automatic logic is_add_msg(input logic [MSG_W-1:0] msg);
@@ -115,7 +114,7 @@ package hdl_header;
     endfunction
 
     // Price logic (for price book) - Only works if delta < $164.83
-    function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price);
+    function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price, input logic [PRICE_W-1:0] latched_base_price);
         (* use_dsp = "yes" *) logic [PRICE_W-1:0] delta;
         begin
             delta = price - latched_base_price;

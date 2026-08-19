@@ -68,17 +68,17 @@ always_comb begin
     rep_hash_match  =   '0;
     rep_free_slot   =   '0;
 
-    hash_match[0]        =   (read_bucket_i[0].valid && read_bucket_i[0].orn == latched_rdata.orn && ~read_bucket_i[0].tombstone);
-    hash_match[1]        =   (read_bucket_i[1].valid && read_bucket_i[1].orn == latched_rdata.orn && ~read_bucket_i[1].tombstone);
-    hash_match[2]        =   (read_bucket_i[2].valid && read_bucket_i[2].orn == latched_rdata.orn && ~read_bucket_i[2].tombstone);
+    hash_match[0]        =   (read_bucket_i[0].valid && read_bucket_i[0].orn == latched_rdata_i.orn && ~read_bucket_i[0].tombstone);
+    hash_match[1]        =   (read_bucket_i[1].valid && read_bucket_i[1].orn == latched_rdata_i.orn && ~read_bucket_i[1].tombstone);
+    hash_match[2]        =   (read_bucket_i[2].valid && read_bucket_i[2].orn == latched_rdata_i.orn && ~read_bucket_i[2].tombstone);
 
     free_slot[0]         = (!read_bucket_i[0].valid || read_bucket_i[0].tombstone);
     free_slot[1]         = (!read_bucket_i[1].valid || read_bucket_i[1].tombstone);
     free_slot[2]         = (!read_bucket_i[2].valid || read_bucket_i[2].tombstone);
 
-    rep_hash_match[0]    =   (rep_read_bucket_i[0].valid && rep_read_bucket_i[0].orn == latched_rdata.orn && ~rep_read_bucket_i[0].tombstone);
-    rep_hash_match[1]    =   (rep_read_bucket_i[1].valid && rep_read_bucket_i[1].orn == latched_rdata.orn && ~rep_read_bucket_i[1].tombstone);
-    rep_hash_match[2]    =   (rep_read_bucket_i[2].valid && rep_read_bucket_i[2].orn == latched_rdata.orn && ~rep_read_bucket_i[2].tombstone);
+    rep_hash_match[0]    =   (rep_read_bucket_i[0].valid && rep_read_bucket_i[0].orn == latched_rdata_i.orn && ~rep_read_bucket_i[0].tombstone);
+    rep_hash_match[1]    =   (rep_read_bucket_i[1].valid && rep_read_bucket_i[1].orn == latched_rdata_i.orn && ~rep_read_bucket_i[1].tombstone);
+    rep_hash_match[2]    =   (rep_read_bucket_i[2].valid && rep_read_bucket_i[2].orn == latched_rdata_i.orn && ~rep_read_bucket_i[2].tombstone);
 
     rep_free_slot[0]    = (!rep_read_bucket_i[0].valid || rep_read_bucket_i[0].tombstone);
     rep_free_slot[1]    = (!rep_read_bucket_i[1].valid || rep_read_bucket_i[1].tombstone);
@@ -142,7 +142,7 @@ always_ff @(posedge clk) begin
     end
     else begin
         // deals with immediate return to FETCH_BBO state in old design
-        if(hash_match == 3'b000 && !latched_cam_hit_i) begin
+        if(!latched_is_add_i && hash_match == 3'b000 && !latched_cam_hit_i) begin
             stage_valid_o   <=  1'b0;
         end
         else begin

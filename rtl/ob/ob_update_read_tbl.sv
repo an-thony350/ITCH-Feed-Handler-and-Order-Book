@@ -49,7 +49,6 @@ module ob_update_read_tbl(
 
 
     // External Memory I/O
-    input order_entry_t         dout_a,
     input order_entry_t [63:0]  cam
 );
 
@@ -91,8 +90,8 @@ always_ff @(posedge clk) begin
         latched_rep_slot_idx_o      <=  latched_rep_slot_idx_i;
         latched_hash_idx_o          <=  latched_hash_idx_i;
         latched_rep_hash_idx_o      <=  latched_rep_hash_idx_i;
-        latched_read_bucket_o       <=  read_bucket_i;
-        latched_rep_read_bucket_o   <=  rep_read_bucket_i;
+        latched_read_bucket_o       <=  latched_read_bucket_i;
+        latched_rep_read_bucket_o   <=  latched_rep_read_bucket_i;
 
 
         if((latched_hash_match_i == 3'b000 && latched_cam_hit_i) || (latched_is_add_i && latched_free_slot_i == 3'b000)) begin
@@ -105,7 +104,7 @@ always_ff @(posedge clk) begin
             latched_cam_idx_o       <=  latched_cam_match_idx_i;
             latched_lookup_entry_o  <=  cam[latched_cam_match_idx_i];
         end
-        else latched_lookup_entry_o <=  dout_a;
+        else latched_lookup_entry_o <=  latched_read_bucket_i[latched_slot_idx_i];
     end
 end
 

@@ -57,7 +57,7 @@ always_comb begin
 
     // CAM hit logic
     for(int i = 0; i < 64; i++) begin
-        cam_match_vec[i]    =   (cam[i].valid && ~cam[i].tombstone && (cam[i].orn == latched_rdata_i.orn))
+        cam_match_vec[i]    =   (cam[i].valid && ~cam[i].tombstone && (cam[i].orn == latched_rdata_i.orn));
     end
 
     cam_hit = |cam_match_vec;
@@ -80,6 +80,7 @@ end
 
 always_ff @(posedge clk) begin
     if(!rst_n) begin
+        stage_valid_o               <=  1'b0;
         latched_rdata_o             <=  '0;
         latched_base_price_o        <=  '0;
         latched_is_add_o            <=  1'b0;
@@ -104,13 +105,13 @@ always_ff @(posedge clk) begin
         latched_is_replace_o        <=  latched_is_replace_i;
         latched_is_delete_o         <=  latched_is_delete_i;
 
-        latched_event_price_idx_o   <=  price_to_idx(latched_rdata_i.price);
+        latched_event_price_idx_o   <=  price_to_idx(latched_rdata_i.price, latched_base_price_i);
         latched_cam_hit_o           <=  cam_hit;
         latched_cam_match_idx_o     <=  cam_match_idx;
         latched_cam_is_full_o       <=  cam_is_full;
-        latched_cam_is_free_o       <=  cam_free_idx;
+        latched_cam_free_idx_o      <=  cam_free_idx;
         latched_hash_idx_o          <=  hash_idx_i;
-        latched_rep_hash_idx_o      <=  rep_hash_idx_i
+        latched_rep_hash_idx_o      <=  rep_hash_idx_i;
     end
 end
 

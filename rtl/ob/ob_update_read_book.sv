@@ -66,7 +66,7 @@ logic                   immediate_level_depleted;
 
 // Comb. Logic
 always_comb begin
-    immediate_book_shares       =   latched_lookup_entry_i.side ? bid_dout_a : bid_dout_b;
+    immediate_book_shares       =   latched_lookup_entry_i.side ? bid_dout_a : ask_dout_a;
     immediate_level_depleted    =   latched_is_reduce_i ?
                                     (immediate_book_shares == latched_rdata_i.shares) :
                                     (immediate_book_shares == latched_lookup_entry_i.shares);
@@ -91,8 +91,9 @@ always_ff @(posedge clk) begin
         latched_lookup_entry_o      <=  '0;
         latched_lookup_price_idx_o  <=  '0;
         reg_target_val_o            <=  1'b0;
-        reg_chosen_row              <=  '0;
+        reg_chosen_row_o            <=  '0;
         reg_target_side_o           <=  1'b0;
+        reg_we_en_o                 <=  1'b0;
         latched_book_shares_o       <=  '0;
         latched_event_shares_o      <=  '0;
         latched_hash_idx_o          <=  '0;
@@ -118,8 +119,8 @@ always_ff @(posedge clk) begin
         latched_lookup_price_idx_o  <=  latched_lookup_price_idx_i;
         latched_hash_idx_o          <=  latched_hash_idx_i;
         latched_rep_hash_idx_o      <=  latched_rep_hash_idx_i;
-        latched_read_bucket_o       <=  read_bucket_i;
-        latched_rep_read_bucket_o   <=  rep_read_bucket_i;
+        latched_read_bucket_o       <=  latched_read_bucket_i;
+        latched_rep_read_bucket_o   <=  latched_rep_read_bucket_i;
 
         if(latched_is_add_i) begin
             reg_target_val_o    <=  1'b1;
@@ -132,6 +133,12 @@ always_ff @(posedge clk) begin
             reg_chosen_row_o    <=  latched_lookup_price_idx_i;
             reg_target_side_o   <=  latched_lookup_entry_i.side;
             reg_we_en_o         <=  immediate_level_depleted;
+        end
+        else begin
+            reg_target_val_o    <=  1'b0;
+            reg_chosen_row_o    <=  '0;
+            reg_target_side_o   <=  1'b0;
+            reg_we_en_o         <=  1'b0;
         end
 
         if(latched_lookup_entry_i.side) latched_book_shares_o   <=  bid_dout_a;
