@@ -15,6 +15,8 @@ from typing import Any
 
 import cocotb
 from cocotb.triggers import FallingEdge, RisingEdge
+from cocotb.clock import Clock
+
 
 from itch_harness.axis import (
     drive_order_book_top_event,
@@ -30,6 +32,7 @@ from itch_harness.scoreboard import (
 
 TARGET_LOCATE = 1
 BASE_PRICE = 9000
+CLOCK_PERIOD = 10
 
 # order_book.sv currently indexes 4096 price levels using a 12-bit delta from
 # base_price_i. Keep this explicit so an out-of-window oracle fails clearly
@@ -125,7 +128,8 @@ async def initialise_order_book_top(
 ) -> None:
     """Start and reset order_book_top with stable configuration inputs."""
 
-    await start_clock(dut)
+    cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD, unit="ns").start())
+    cocotb.start_soon(Clock(dut.bram_clk, CLOCK_PERIOD / 2, unit="ns").start())
 
     dut.rdata_i.value = 0
     dut.valid_i.value = 0

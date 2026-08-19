@@ -175,7 +175,6 @@ def snapshot_to_expected_state(snapshot: Any) -> dict[str, Any]:
 
 
 async def initialise_order_book(dut: Any) -> None:
-    period_ns = 10
     cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD, unit="ns").start())
     cocotb.start_soon(Clock(dut.bram_clk, CLOCK_PERIOD / 2, unit="ns").start())
 
