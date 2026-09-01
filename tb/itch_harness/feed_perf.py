@@ -14,16 +14,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import cocotb
+from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
 from .axis import reset_dut
 from .perf import (
     bytes_per_cycle,
     clock_period_ns_from_mhz,
+    clock_period_ps_from_mhz,
     cycles_to_ns,
     messages_per_second,
     resolve_clock_mhz,
-    start_perf_clock,
     throughput_gbps,
     transfer_window_cycles,
 )
@@ -776,9 +777,38 @@ async def initialise_perf_feed_handler(
     ),
     reset_cycles: int = 5,
 ) -> tuple[float, int]:
-    """Start the clock, reset the full chain and wait out BRAM clearing."""
+    """Start the data/BRAM clocks, reset the full chain and wait out BRAM clearing."""
 
-    resolved_clock_mhz = await start_perf_clock(dut, clock_mhz=clock_mhz)
+    resolved_clock_mhz = resolve_clock_mhz(clock_mhz)
+    data_clock_period_ps = clock_period_ps_from_mhz(resolved_clock_mhz)
+
+    # The pipelined order book multi-pumps its BRAM at exactly 2x the data clock.
+    # If the rounded simulator period is odd, move it by 1 ps so the BRAM clock
+    # can remain phase-locked at an exact 2:1 ratio rather than slowly drifting.
+    if data_clock_period_ps % 2:
+        data_clock_period_ps += 1
+
+    data_clock_high_ps = data_clock_period_ps // 2
+    bram_clock_period_ps = data_clock_period_ps // 2
+    bram_clock_high_ps = bram_clock_period_ps // 2
+
+    cocotb.start_soon(
+        Clock(
+            dut.clk,
+            data_clock_period_ps,
+            unit="ps",
+            period_high=data_clock_high_ps,
+        ).start()
+    )
+    cocotb.start_soon(
+        Clock(
+            dut.bram_clk,
+            bram_clock_period_ps,
+            unit="ps",
+            period_high=bram_clock_high_ps,
+        ).start()
+    )
+
     reset_to_ready_cycles = await reset_perf_feed_handler(
         dut,
         base_prices=base_prices,
