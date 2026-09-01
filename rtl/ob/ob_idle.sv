@@ -1,6 +1,26 @@
-import hdl_header::*;
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 11.08.2026 15:45:04
+// Design Name: Order Book Idle Block
+// Module Name: ob_idle
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module represents the IDLE state in the old order book design
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
 
-// Stage 0
+import hdl_header::*;
 
 module ob_idle(
     // Control signals

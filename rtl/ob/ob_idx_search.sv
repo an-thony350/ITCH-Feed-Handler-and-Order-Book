@@ -1,3 +1,27 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 11.08.2026 18:28:31
+// Design Name: Order Book Index Search Block
+// Module Name: ob_idx_search
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module represents the IDX_SEARCH state in the old order book
+//              design. This block uses thee 3-way associative hashing to determine
+//              a hash entry/use the CAM if entries are full
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module ob_idx_search(

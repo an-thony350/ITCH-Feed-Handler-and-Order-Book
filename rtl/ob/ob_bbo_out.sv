@@ -1,3 +1,26 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 17.08.2026 01:38:47
+// Design Name: Order Book BBO Output Block
+// Module Name: ob_bbo_out
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module is used to act out the final states of the order book
+//              outputting the BBO data, recalculating the new price
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module ob_bbo_out(

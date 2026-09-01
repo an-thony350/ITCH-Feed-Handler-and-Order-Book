@@ -1,3 +1,67 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 29.06.2026 15:15:19
+// Design Name: Order Book
+// Module Name: order_book
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: The order book carries both combinational and sequential logic
+// through a Mealy model state machne of 14 states allowing for both accurate data
+// capture of orders for a specific stock, as well as two price books determining the
+// best buy and sell prices
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created & base structure formed
+// Revision 0.02 - All instructions except for Replace
+// Revision 0.10 - Valid/ready handshake & replacement state added
+// Revision 1.00 - Addition of base price logic (with symbol router) & pipelined
+//                 registers for the price books
+// Revision 1.01 - Addition of delta price functions, and explicit bit specification
+//                 to remove verilator warinings
+// Revision 1.02 - Latching of multiple registers, avoiding hash collisions
+// Revision 1.10 - Compatibility with symbol router & top module
+// Revision 2.00 - Change of hash collision traversal - using probe searching
+//                 rather than linked list traversal (see note [1] in comments)
+// Revision 2.01 - Addition of header package file (hdl_header), cleaning up data IO
+// Revision 2.10 - Chunk/bit priority encoders for BBO output traversal & tombstone
+//                 additions in probe searching logic to fix key hashing collision
+//                 faults introduced with probe searching
+// Revision 2.11 - debug & cleanup
+// Revision 3.00 - Change of how three books are written to, implemented as True-Port
+//                 BRAM, ensuring design is synthesizable in Vivado w/o high LUT use
+// Revision 3.10 - Pipelining and replicating registers to optimise timing
+// Revision 3.11 - Increasing price window by increasing BBO_W and relevent logic
+// Revision 3.20 - Increased Hash Width to help track stocks better by losing less
+//                 orders
+// Revision 3.21 - Reverted Hash Width change, and increased MAX_PROBES to use less
+//                 BRAM
+// Revision 4.00 - Changed order & price books to use 3-way Set Assocciative Hashing
+//                 rather than 1-way - reducing no. hash collisions, also reduced
+//                 probe number to 3 instead of 32 reducing max clock cycle latency
+// Revision 4.10 - Added Content Addressable Memory to remove probing
+// Revision 5.00 - Order book now fully pipelined, this module now acts as a top
+//                 top module, holding all the blocks which are similar to that of
+//                 the Mealy state machine
+// Additional Comments:
+// [1]: In the previous design, a Linked List was formed to determine hash entries
+//      and indexes. If a hash index was already in use, it would have a reference
+//      index which pointed to another index in the order book. This would allow
+//      the traversal of indexes until the correct ORN is found. Given the heavy
+//      data requirement, we have chosen to change this to a probe seaching method
+//      this method effectively works on spacial locality, where in a hash collision
+//      the index will increase by 1 and look into the new address to se if a slot
+//      is free. If so, the hash index for that ORN is updated accordingly. This is
+//      less heavy on resources and faster, but will cause data to be lost if there
+//      are no free slots in range [hash_idx, hash_idx + MAX_PROBES)
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module order_book(
@@ -27,6 +91,24 @@ logic [63:0]            bid_active_chunks [CHUNK_LEN-1:0];
 logic [63:0]            ask_active_chunks [CHUNK_LEN-1:0];
 logic [CHUNK_LEN-1:0]   bid_enc_valid;
 logic [CHUNK_LEN-1:0]   ask_enc_valid;
+
+logic [63:0]            current_bid_chunk;
+logic [63:0]            current_ask_chunk;
+
+// prefetched chunk words (BRAM read data, 2 stages ahead of UPDATE_WRITE)
+logic [63:0]            bid_chunk_a, bid_chunk_b;
+logic [63:0]            ask_chunk_a, ask_chunk_b;
+logic [63:0]            q_bid_chunk_a, q_bid_chunk_b;
+logic [63:0]            q_ask_chunk_a, q_ask_chunk_b;
+
+// full-word write signals for the chunk BRAMs
+logic                   cw_we_bid,  cw2_we_bid,  cw_we_ask,  cw2_we_ask;
+logic [BBO_W-7:0]       cw_row_bid, cw2_row_bid, cw_row_ask, cw2_row_ask;
+logic [63:0]            cw_dat_bid, cw2_dat_bid, cw_dat_ask, cw2_dat_ask;
+logic                   same_word;
+
+// combinational chunk index for the shadow read (one cycle ahead of the registered one)
+logic [BBO_W-7:0]       next_target_chunk_idx;
 
 logic [BBO_W-1:0]       current_best_bid;
 logic [BBO_W-1:0]       current_best_ask;
@@ -77,6 +159,8 @@ logic [SHARES_W-1:0]    bbo_bid_dout;
 logic [SHARES_W-1:0]    bbo_ask_dout;
 logic [BBO_W-1:0]       next_best_bid;
 logic [BBO_W-1:0]       next_best_ask;
+logic [BBO_W-1:0]       bbo_rd_bid_addr;
+logic [BBO_W-1:0]       bbo_rd_ask_addr;
 
 // MUXed write register outputs for book write ports - used to differentiate between CLEAR state and other states
 logic                   ot_we_a_m;
@@ -209,10 +293,8 @@ logic [1:0]             UPDATERDBK_UPDATEWR_latched_slot_idx;
 logic [1:0]             UPDATERDBK_UPDATEWR_latched_rep_slot_idx;
 order_entry_t           UPDATERDBK_UPDATEWR_latched_lookup_entry;
 logic [BBO_W-1:0]       UPDATERDBK_UPDATEWR_latched_lookup_price_idx;
-logic                   UPDATERDBK_UPDATEWR_reg_target_val;
-logic [BBO_W-1:0]       UPDATERDBK_UPDATEWR_reg_chosen_row;
-logic                   UPDATERDBK_UPDATEWR_reg_target_side;
-logic                   UPDATERDBK_UPDATEWR_reg_we_en;
+logic [SHARES_W-1:0]    UPDATERDBK_UPDATEWR_reduced_shares;
+logic                   UPDATERDBK_UPDATEWR_full_exec;
 logic [SHARES_W-1:0]    UPDATERDBK_UPDATEWR_latched_book_shares;
 logic [SHARES_W-1:0]    UPDATERDBK_UPDATEWR_latched_event_shares;
 logic [HASH_W-1:0]      UPDATERDBK_UPDATEWR_hash_idx;
@@ -312,47 +394,91 @@ always_ff @(posedge clk) begin
     end
 end
 
+always_ff @(posedge clk) begin
+    q_bid_chunk_a <= bid_chunk_a;
+    q_bid_chunk_b <= bid_chunk_b;
+    q_ask_chunk_a <= ask_chunk_a;
+    q_ask_chunk_b <= ask_chunk_b;
+end
+
+assign same_word = chunk_we && chunk2_we && (chunk_side == chunk2_side) &&
+                   (chunk_row[BBO_W-1:6] == chunk2_row[BBO_W-1:6]);
+
+always_comb begin
+    // defaults: channel 1 edits the lookup word (event word for adds), channel 2 the event word
+    cw_we_bid  = 1'b0;
+    cw_row_bid = chunk_row[BBO_W-1:6];
+    cw_dat_bid = UPDATERDBK_UPDATEWR_is_add ? q_bid_chunk_b : q_bid_chunk_a;
+
+    cw_we_ask  = 1'b0;
+    cw_row_ask = chunk_row[BBO_W-1:6];
+    cw_dat_ask = UPDATERDBK_UPDATEWR_is_add ? q_ask_chunk_b : q_ask_chunk_a;
+
+    cw2_we_bid = 1'b0;  cw2_row_bid = chunk2_row[BBO_W-1:6];  cw2_dat_bid = q_bid_chunk_b;
+    cw2_we_ask = 1'b0;  cw2_row_ask = chunk2_row[BBO_W-1:6];  cw2_dat_ask = q_ask_chunk_b;
+
+    if(clearing) begin
+        cw_we_bid  = 1'b1;  cw_row_bid = clear_idx[BBO_W-7:0];  cw_dat_bid = '0;
+        cw_we_ask  = 1'b1;  cw_row_ask = clear_idx[BBO_W-7:0];  cw_dat_ask = '0;
+    end
+    else begin
+        if(chunk_we) begin
+            if(chunk_side) begin
+                cw_we_bid = 1'b1;
+                cw_dat_bid[chunk_row[5:0]] = chunk_val;
+                if(same_word) cw_dat_bid[chunk2_row[5:0]] = chunk2_val;
+            end
+            else begin
+                cw_we_ask = 1'b1;
+                cw_dat_ask[chunk_row[5:0]] = chunk_val;
+                if(same_word) cw_dat_ask[chunk2_row[5:0]] = chunk2_val;
+            end
+        end
+
+        if(chunk2_we && !same_word) begin
+            if(chunk2_side) begin
+                cw2_we_bid = 1'b1;
+                cw2_dat_bid[chunk2_row[5:0]] = chunk2_val;
+            end
+            else begin
+                cw2_we_ask = 1'b1;
+                cw2_dat_ask[chunk2_row[5:0]] = chunk2_val;
+            end
+        end
+    end
+end
+
 // Sequential Logic dealing with clear state and clock synchronisation
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        for(int i = 0; i < CHUNK_LEN; i++) begin
-            bid_active_chunks[i] <= '0;
-            ask_active_chunks[i] <= '0;
+        bid_enc_valid <= '0;
+        ask_enc_valid <= '0;
+    end
+    else if(clearing) begin
+        if (clear_idx < BBO_W'(64)) begin
+            cam[clear_idx[5:0]] <= '0;
         end
-        bid_enc_valid   <=  '0;
-        ask_enc_valid   <=  '0;
-        for(int i = 0; i < 64; i++) cam[i]  <=  '0;
-
     end
     else begin
-      if(cam_we) cam[cam_idx]   <=    cam_data;
+      if(cam_we) cam[cam_idx] <= cam_data;
 
       if(chunk_we) begin
         if(chunk_side) begin
-            bid_active_chunks[chunk_row[BBO_W-1:6]][chunk_row[5:0]] <=  chunk_val;
-            if(chunk_val) bid_enc_valid[chunk_row[BBO_W-1:6]]   <=  1'b1;
-            else if(bid_active_chunks[chunk_row[BBO_W-1:6]] == (64'h1 << chunk_row[5:0]))
-            bid_enc_valid[chunk_row[BBO_W-1:6]] <=  1'b0;
+            if(chunk_val) bid_enc_valid[chunk_row[BBO_W-1:6]] <= 1'b1;
+            else if(q_bid_chunk_a == (64'h1 << chunk_row[5:0]))
+                bid_enc_valid[chunk_row[BBO_W-1:6]] <= 1'b0;
         end
         else begin
-            ask_active_chunks[chunk_row[BBO_W-1:6]][chunk_row[5:0]] <=  chunk_val;
-            if(chunk_val) ask_enc_valid[chunk_row[BBO_W-1:6]]   <=  1'b1;
-            else if(ask_active_chunks[chunk_row[BBO_W-1:6]] == (64'h1 << chunk_row[5:0]))
-            ask_enc_valid[chunk_row[BBO_W-1:6]] <=  1'b0;
+            if(chunk_val) ask_enc_valid[chunk_row[BBO_W-1:6]] <= 1'b1;
+            else if(q_ask_chunk_a == (64'h1 << chunk_row[5:0]))
+                ask_enc_valid[chunk_row[BBO_W-1:6]] <= 1'b0;
         end
       end
 
       if(chunk2_we) begin
-        if(chunk2_side) begin
-            bid_active_chunks[chunk2_row[BBO_W-1:6]][chunk2_row[5:0]] <=  chunk2_val;
-            bid_enc_valid[chunk2_row[BBO_W-1:6]]                      <=  1'b1;
-        end
-        else begin
-            ask_active_chunks[chunk2_row[BBO_W-1:6]][chunk2_row[5:0]] <=  chunk2_val;
-            ask_enc_valid[chunk2_row[BBO_W-1:6]]                      <=  1'b1;
-        end
+        if(chunk2_side) bid_enc_valid[chunk2_row[BBO_W-1:6]] <= 1'b1;
+        else            ask_enc_valid[chunk2_row[BBO_W-1:6]] <= 1'b1;
       end
-
     end
 end
 
@@ -564,10 +690,8 @@ ob_update_read_book update_read_book_block(
     .latched_rep_slot_idx_o(UPDATERDBK_UPDATEWR_latched_rep_slot_idx),
     .latched_lookup_entry_o(UPDATERDBK_UPDATEWR_latched_lookup_entry),
     .latched_lookup_price_idx_o(UPDATERDBK_UPDATEWR_latched_lookup_price_idx),
-    .reg_target_val_o(UPDATERDBK_UPDATEWR_reg_target_val),
-    .reg_chosen_row_o(UPDATERDBK_UPDATEWR_reg_chosen_row),
-    .reg_target_side_o(UPDATERDBK_UPDATEWR_reg_target_side),
-    .reg_we_en_o(UPDATERDBK_UPDATEWR_reg_we_en),
+    .latched_reduced_shares_o(UPDATERDBK_UPDATEWR_reduced_shares),
+    .latched_full_exec_o(UPDATERDBK_UPDATEWR_full_exec),
     .latched_book_shares_o(UPDATERDBK_UPDATEWR_latched_book_shares),
     .latched_event_shares_o(UPDATERDBK_UPDATEWR_latched_event_shares),
     .latched_hash_idx_o(UPDATERDBK_UPDATEWR_hash_idx),
@@ -604,10 +728,8 @@ ob_update_write update_write_block(
     .latched_rep_slot_idx_i(UPDATERDBK_UPDATEWR_latched_rep_slot_idx),
     .latched_lookup_entry_i(UPDATERDBK_UPDATEWR_latched_lookup_entry),
     .latched_lookup_price_idx_i(UPDATERDBK_UPDATEWR_latched_lookup_price_idx),
-    .reg_target_val_i(UPDATERDBK_UPDATEWR_reg_target_val),
-    .reg_chosen_row_i(UPDATERDBK_UPDATEWR_reg_chosen_row),
-    .reg_target_side_i(UPDATERDBK_UPDATEWR_reg_target_side),
-    .reg_we_en_i(UPDATERDBK_UPDATEWR_reg_we_en),
+    .latched_reduced_shares_i(UPDATERDBK_UPDATEWR_reduced_shares),
+    .latched_full_exec_i(UPDATERDBK_UPDATEWR_full_exec),
     .latched_book_shares_i(UPDATERDBK_UPDATEWR_latched_book_shares),
     .latched_event_shares_i(UPDATERDBK_UPDATEWR_latched_event_shares),
     .latched_hash_idx_i(UPDATERDBK_UPDATEWR_hash_idx),
@@ -674,6 +796,7 @@ ob_evaluate_bbo evaluate_bbo_block(
     .search_side_o(BBOEVAL_BBORESOLVE_search_side),
     .new_bbo_o(BBOEVAL_BBORESOLVE_new_bbo),
     .target_chunk_idx_o(BBOEVAL_BBORESOLVE_target_chunk_idx),
+    .next_target_chunk_idx_o(next_target_chunk_idx),
     .bid_is_zero_o(BBOEVAL_BBORESOLVE_bid_is_zero),
     .ask_is_zero_o(BBOEVAL_BBORESOLVE_ask_is_zero)
 );
@@ -685,8 +808,8 @@ ob_bbo_resolve bbo_resolve_block(
     .latched_base_price_i(BBOEVAL_BBORESOLVE_base_price),
     .stage_valid_o(BBORESOLVE_BBOOUT_stage_valid),
     .latched_base_price_o(BBORESOLVE_BBOOUT_base_price),
-    .bid_active_chunks(bid_active_chunks),
-    .ask_active_chunks(ask_active_chunks),
+    .target_bid_chunk_i(current_bid_chunk),
+    .target_ask_chunk_i(current_ask_chunk),
     .current_best_bid_i(BBOEVAL_BBORESOLVE_current_best_bid),
     .current_best_ask_i(BBOEVAL_BBORESOLVE_current_best_ask),
     .search_side_i(BBOEVAL_BBORESOLVE_search_side),
@@ -696,6 +819,8 @@ ob_bbo_resolve bbo_resolve_block(
     .ask_is_zero_i(BBOEVAL_BBORESOLVE_ask_is_zero),
     .next_best_bid_o(next_best_bid),
     .next_best_ask_o(next_best_ask),
+    .bbo_rd_bid_addr_o(bbo_rd_bid_addr),
+    .bbo_rd_ask_addr_o(bbo_rd_ask_addr),
     .bid_is_zero_o(BBORESOLVE_BBOOUT_bid_is_zero),
     .ask_is_zero_o(BBORESOLVE_BBOOUT_ask_is_zero)
 );
@@ -808,6 +933,78 @@ multi_pumped_bram #(
     .wr_addr_b(ask_wr_addr_b),
     .wr_data_a(ask_din_a_m),
     .wr_data_b(ask_din_b)
+);
+
+multi_pumped_bram #(
+    .ADDRESS_W(BBO_W-6),
+    .DATA_W(64)
+) bid_chunks(
+    .bram_clk(bram_clk),
+    .rst_n(rst_n),
+    .rd_addr_a(bid_addr_a[BBO_W-1:6]),
+    .rd_addr_b(bid_addr_b[BBO_W-1:6]),
+    .rd_data_a(bid_chunk_a),
+    .rd_data_b(bid_chunk_b),
+    .wr_we_a(cw_we_bid),
+    .wr_addr_a(cw_row_bid),
+    .wr_data_a(cw_dat_bid),
+    .wr_we_b(cw2_we_bid),
+    .wr_addr_b(cw2_row_bid),
+    .wr_data_b(cw2_dat_bid)
+);
+
+multi_pumped_bram #(
+    .ADDRESS_W(BBO_W-6),
+    .DATA_W(64)
+) ask_chunks (
+    .bram_clk(bram_clk),
+    .rst_n(rst_n),
+    .rd_addr_a(ask_addr_a[BBO_W-1:6]),
+    .rd_addr_b(ask_addr_b[BBO_W-1:6]),
+    .rd_data_a(ask_chunk_a),
+    .rd_data_b(ask_chunk_b),
+    .wr_we_a(cw_we_ask),
+    .wr_addr_a(cw_row_ask),
+    .wr_data_a(cw_dat_ask),
+    .wr_we_b(cw2_we_ask),
+    .wr_addr_b(cw2_row_ask),
+    .wr_data_b(cw2_dat_ask)
+);
+
+multi_pumped_bram #(
+    .ADDRESS_W(BBO_W-6),
+    .DATA_W(64)
+) shadow_bid_chunks (
+    .bram_clk(bram_clk),
+    .rst_n(rst_n),
+    .rd_addr_a(next_target_chunk_idx),
+    .rd_addr_b('0),
+    .rd_data_a(current_bid_chunk),
+    .rd_data_b(),
+    .wr_we_a(cw_we_bid),
+    .wr_addr_a(cw_row_bid),
+    .wr_data_a(cw_dat_bid),
+    .wr_we_b(cw2_we_bid),
+    .wr_addr_b(cw2_row_bid),
+    .wr_data_b(cw2_dat_bid)
+);
+
+multi_pumped_bram #(
+    .ADDRESS_W(BBO_W-6),
+    .DATA_W(64)
+) shadow_ask_chunks (
+    .bram_clk(bram_clk),
+    .rst_n(rst_n),
+    .rd_addr_a(next_target_chunk_idx),
+    .rd_addr_b('0),
+    .rd_data_a(current_ask_chunk),
+    .rd_data_b(),
+    .wr_we_a(cw_we_ask),
+    .wr_addr_a(cw_row_ask),
+    .wr_data_a(cw_dat_ask),
+    .wr_we_b(cw2_we_ask),
+    .wr_addr_b(cw2_row_ask),
+    .wr_data_b(cw2_dat_ask)
 );
 
 endmodule

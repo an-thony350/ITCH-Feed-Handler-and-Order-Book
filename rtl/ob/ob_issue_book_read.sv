@@ -1,3 +1,26 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 12.08.2026 01:50:22
+// Design Name: Order Book Issue Book Read Block
+// Module Name: ob_issue_book_read
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module forms the delta price value for the price books, and then
+//              asserts the data values for a sequential bram write
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module ob_issue_book_read(

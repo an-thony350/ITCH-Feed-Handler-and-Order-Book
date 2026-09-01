@@ -1,3 +1,28 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 18.08.2026 01:34:23
+// Design Name: Multi Pumped BRAM
+// Module Name: multi_pumped_bram
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module is used to syntheise order and price books into BRAM
+//              it is held in this block to allow for the bram_clk, which is ran
+//              at double the clock frequency of the order book system allowing
+//              for 4 read/writes per order book clock cycle
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module multi_pumped_bram #(
@@ -29,7 +54,7 @@ localparam int BRAM_DEPTH = 1 << ADDRESS_W;
 // Internal registers
 
 // BRAM block
-(*ram_style = "block" *) logic [DATA_W-1:0] bram [BRAM_DEPTH-1:0];
+(* ram_style = "block", cascade_height = 2 *) logic [DATA_W-1:0] bram [BRAM_DEPTH-1:0];
 
 // phase signal for bram_clk
 logic clk_phase;

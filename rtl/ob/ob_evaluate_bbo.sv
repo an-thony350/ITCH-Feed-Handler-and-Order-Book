@@ -1,3 +1,25 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 17.08.2026 01:38:47
+// Design Name: Order Book BBO Evaluate Block
+// Module Name: ob_bbo_evaluate
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module is used as the bit search of the bbo outputs
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module ob_evaluate_bbo(
@@ -34,6 +56,7 @@ module ob_evaluate_bbo(
     output logic                search_side_o,
     output logic                new_bbo_o,
     output logic [(BBO_W-7):0]  target_chunk_idx_o,
+    output logic [(BBO_W-7):0]  next_target_chunk_idx_o,
     output logic                bid_is_zero_o,
     output logic                ask_is_zero_o
 );
@@ -88,6 +111,9 @@ always_comb begin
     new_bbo     =   (bid_depleted && current_best_bid_i != '0) || (ask_depleted && current_best_ask_i != BBO_W'(BBO_DEPTH-1));
     bid_is_zero =   (bid_enc_valid_i == '0);
     ask_is_zero =   (ask_enc_valid_i == '0);
+
+    if(ask_depleted) next_target_chunk_idx_o = find_lsb_chunk(ask_enc_valid_i);
+    else             next_target_chunk_idx_o = find_msb_chunk(bid_enc_valid_i);
 end
 
 // Sequential Logic
@@ -110,6 +136,7 @@ always_ff @(posedge clk) begin
         new_bbo_o                   <=  new_bbo;
         bid_is_zero_o               <=  bid_is_zero;
         ask_is_zero_o               <=  ask_is_zero;
+        target_chunk_idx_o          <=  next_target_chunk_idx_o;
 
         if(ask_depleted) begin
             target_chunk_idx_o      <=  find_lsb_chunk(ask_enc_valid_i);

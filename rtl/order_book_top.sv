@@ -26,6 +26,7 @@
 // Revision 0.03 - Restore fixed locate-1 routing and retain only base-price control
 // Revision 1.00 - Intorduction of multiple base prices & thus order books - also fixed
 //                 naming conventions (i.e. internal regs named source_dest_signal)
+// Revision 1.10 - Addition of bram clock for new order book
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
