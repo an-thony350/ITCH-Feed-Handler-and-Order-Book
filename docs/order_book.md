@@ -1,5 +1,7 @@
 # Order Book
 
+> Note that this is the description of the v2 varient of the order book, given the extent of changes in the v3 varient, its description can be found through the [pipelined order book](/docs/pipelined_order_book.md) markdown file. However, descriptions of the symbol router and top module still apply here.
+
 The Order Book takes in data from the data handler, determining the stock which the data belongs to, passing the data to the correct order book, and updating the order book and bid/ask price books.
 
 ---

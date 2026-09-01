@@ -1,8 +1,9 @@
 # ITCH 5.0 Feed Handler and FPGA Hardware Order Book
 
-SystemVerilog RTL, Python reference models, and layered verification for a Nasdaq TotalView-ITCH 5.0-style feed handler and hardware order book.
 
-The project accepts Ethernet II / IPv4 / UDP / MoldUDP64-style frames, recovers variable-length ITCH messages, decodes displayed-book events, maintains price-level state, and emits best-bid/best-offer updates. The current real-silicon target is the **PYNQ-Z1 / Zynq-7020**, with frames replayed from the Processing System into the Programmable Logic through AXI DMA.
+This project wraps historical Nasdaq TotalView-ITCH 5.0 data with Ethernet II, IPv4, UDP, and MOLDUDP64 headers. It then recovers variable-length ITCH messages, decodes book events, maintains price-level states, and emits best-bid/ask updates.
+
+RTL is written in SystemVerilog, with Python-controlled PS and reference models for verification. Updates for the hardware system have been made to emulate a high-frequency-trading system.
 
 ---
 
@@ -11,41 +12,40 @@ The project accepts Ethernet II / IPv4 / UDP / MoldUDP64-style frames, recovers 
 - [ITCH 5.0 Feed Handler and FPGA Hardware Order Book](#itch-50-feed-handler-and-fpga-hardware-order-book)
   - [Contents](#contents)
   - [Project status](#project-status)
-  - [System architecture](#system-architecture)
-    - [Host, Processing System, and Programmable Logic](#host-processing-system-and-programmable-logic)
-    - [PL hot path](#pl-hot-path)
-  - [PYNQ-Z1 hardware model](#pynq-z1-hardware-model)
-  - [Protocol and book model](#protocol-and-book-model)
-    - [Relevant ITCH message types](#relevant-itch-message-types)
-    - [Data representation](#data-representation)
-  - [RTL datapath](#rtl-datapath)
-  - [Golden model and verification](#golden-model-and-verification)
-  - [Vivado and PYNQ-Z1 build](#vivado-and-pynq-z1-build)
-    - [Current block design](#current-block-design)
-    - [Address map](#address-map)
-  - [Measured implementation results](#measured-implementation-results)
-    - [Utilisation](#utilisation)
-  - [Latency and throughput design decisions](#latency-and-throughput-design-decisions)
-    - [Network ingress](#network-ingress)
-    - [Decoder and order book](#decoder-and-order-book)
-  - [Further documentation](#further-documentation)
-  - [Continuous integration](#continuous-integration)
+- [System architecture](#system-architecture)
+  - [Host, Processing System, and Programmable Logic](#host-processing-system-and-programmable-logic)
+  - [PL hot path](#pl-hot-path)
+- [ZCU106 hardware model](#zcu106-hardware-model)
+- [Protocol and book model](#protocol-and-book-model)
+  - [Relevant ITCH message types](#relevant-itch-message-types)
+  - [Data representation](#data-representation)
+- [RTL datapath](#rtl-datapath)
+- [Golden model and verification](#golden-model-and-verification)
+- [Vivado and ZCU106 build](#vivado-and-zcu106-build)
+  - [Current block design](#current-block-design)
+  - [Address map](#address-map)
+- [Measured implementation results](#measured-implementation-results)
+  - [Utilisation](#utilisation)
+- [Latency and throughput design decisions](#latency-and-throughput-design-decisions)
+  - [Network ingress](#network-ingress)
+  - [Decoder and order book](#decoder-and-order-book)
+- [Further documentation](#further-documentation)
+- [Continuous integration](#continuous-integration)
 
 ---
 
 ## Project status
 
-As of **30 July 2026**, the project has a complete simulated path from encapsulated market-data-style Ethernet frames to a hardware-maintained BBO:
+As of **1st September 2026**, this project has a complete simulated path from market data wrapped in ethernet frames to a hardware-maintained BBO:
 
 ```text
 Ethernet II -> IPv4 -> UDP -> MoldUDP64 -> ITCH realignment
     -> ITCH decode -> symbol routing -> order book -> BBO
 ```
 
-The host-side Python flow generates deterministic BinaryFILE stimulus, network frames, normalised events, and expected book states. Cocotb/Verilator tests exercise the parser, sequence handling, decoder, order book, and complete network-to-book path. The latest PYNQ-Z1 implementation is routed, timing-clean at **106.667 MHz**, and has a generated bitstream.
+The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path. The latest ZCU106 is implemented at **100 MHz** in the datapath domain, and **156.25 MHz** in the networking domain.
 
-The current hardware demonstration uses **PS-to-PL DMA replay**, rather than direct Ethernet into the FPGA fabric. Automated board-versus-golden replay, complete internal-table comparison after every event, and tick-to-trade egress remain future work.
-
+> Note that the current hardware demonstration uses PS-to-PL DMA replay, rather than direct Ethernet into the FPGA fabric.
 ---
 
 ## System architecture
@@ -119,9 +119,9 @@ The stages are separated so they can be tested independently before being integr
 
 ---
 
-## PYNQ-Z1 hardware model
+## ZCU106 hardware model
 
-The PYNQ-Z1 Ethernet connector is attached to the Zynq **Processing System**, not directly to the Programmable Logic. The current board path therefore replays generated frames from PS DDR through an MM2S AXI DMA into the same AXI-Stream ingress interface used in simulation.
+The ZCU106 Ethernet connector is attached to the Zynq Processing System, not directly to the Programmable Logic. The current board path therefore replays generated frames from PS DDR through an MM2S AXI DMA into the same AXI-Stream ingress interface used in simulation.
 
 A future direct-wire version requires a networking FPGA board whose Ethernet MAC, PHY, or SFP/QSFP transceiver path is accessible from the PL fabric. On that platform, the DMA source can be replaced by a MAC/CMAC stream while retaining the downstream protocol and book pipeline.
 
@@ -156,7 +156,8 @@ Other ITCH messages may still pass through MoldUDP64 sequencing, but messages th
 ### Data representation
 
 - ITCH integers are parsed as **big-endian unsigned integers**.
-- ITCH `Price(4)` values are kept as integers with four implied decimal places.
+- ITCH `Price(4)` values are modified in the PS to have a \$0.01 tick
+(rather than the original $0.0001)
 - The RTL price and configured base price use the same integer unit.
 - The hardware price book is a bounded dense window indexed relative to the configured base price.
 - Real multi-symbol data is filtered or routed before it enters an individual hardware book.
@@ -189,7 +190,7 @@ The golden-model architecture, verification layers, current coverage, and remain
 
 ---
 
-## Vivado and PYNQ-Z1 build
+## Vivado and ZCU106 build
 
 ### Current block design
 
@@ -214,11 +215,14 @@ The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: fram
 
 | Peripheral | Base address | Direction / use |
 |---|---|---|
-| AXI DMA | `0x40400000` | PS control; MM2S frame input |
-| Bid BBO GPIO | `0x41200000` | PL to PS; bid price and shares |
-| Ask BBO GPIO | `0x41210000` | PL to PS; ask price and shares |
-| BBO-valid GPIO | `0x41220000` | PL to PS; update indication |
-| Base-price GPIO | `0x41230000 - 0x41250000` | PS to PL; price-window base |
+| AXI DMA | `0x80400000` | PS control; MM2S frame input |
+| Bid BBO GPIO | `0x80030000` | PL to PS; bid price and shares |
+| Ask BBO GPIO | `0x80020000` | PL to PS; ask price and shares |
+| meta GPIO (valid bit) | `0x80010000` | PL to PS; update indication |
+| Base-price GPIO | `0x80000000` | PS to PL; price-window base |
+| Base-price 2 GPIO | `0x80050000` | PS to PL; price-window base |
+
+> Note that multiple base price GPIOs are used for 2 stocks each
 
 ---
 
@@ -226,57 +230,58 @@ The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: fram
 
 Reports on these values can be found in [`implementation_reports`](implementation_reports)
 
-Latest routed build captured on **30 July 2026**:
+Latest routed build captured on **1st September 2026**:
 
 | Item | Result |
 |---|---:|
 | Vivado version | 2023.2 |
-| Project | `Feed_Handler_v2.0` |
-| Target board | PYNQ-Z1 |
-| Clock period | **9.375 ns** |
-| Clock frequency | **106.667 MHz** |
-| WNS | **+0.020 ns** |
+| Project | `Feed_Handler_v3.0` |
+| Target board | ZCU106 |
+| Clock period (Networking) | **6.400 ns** |
+| Clock frequency (Netowrking) | **156.25 MHz** |
+| Clock period (Data Handling) | **10.000 ns** |
+| Clock frequency (Data Handling) | **100 MHz** |
+| WNS | **+0.089 ns** |
 | TNS | **0.000 ns** |
 
 ### Utilisation
 
 | Resource | Used | Available | Utilisation |
 |---|---:|---:|---:|
-| Slice LUTs | 35,384 | 53,200 | 66.51% |
-| LUTRAM | 8726 | 17,400 | 50.15% |
-| Slice registers | 32,625 | 106,400 | 30.66% |
-| Block RAM tiles | 130 | 140 | 92.86% |
-| DSPs | 0 | 220 | 0.00% |
+| LUTs | 30,312 | 230,400 | 13.16% |
+| LUTRAM | 1,575 | 101,760 | 1.55% |
+| Flip-Flops | 40,477 | 460,800 | 8.78% |
+| Block RAM | 250 | 312 | 80.13% |
+| Ultra RAM | 0 | 96 | 0.00% |
+| DSPs | 0 | 1728 | 0.00% |
 
-
-The routed design is primarily **BRAM-constrained**. This favours performance improvements that spend LUTs and registers on parallel byte handling while avoiding additional block-memory structures.
+Currently, the BRAM is the limiting resource (not allowing us to track more than 1 stock at a time). However, future varients are planning to use URAM to split the memory access.
 
 ---
 
 ## Latency and throughput design decisions
 
-The cycle counts below assume no downstream backpressure and use the routed **106.667 MHz** clock. Nanosecond figures are rounded from the 9.375 ns period.
+The cycle counts below assume no downstream backpressure and use the routed **100 MHz** clock for the data domain, and **156.25 MHz** for the networking domain. Nanosecond figures are rounded from the 10/6.4 ns period.
 
 ### Network ingress
 
 | Stage | First output / completion | Sustained behaviour | Current limiter |
 |---|---|---|---|
-| `frame_crack` | **11 cycles / 103.1 ns** to the first MoldUDP64 beat | Up to one 32-bit beat per cycle after the fixed header | The 42-byte Ethernet/IPv4/UDP prefix must arrive before payload forwarding |
-| `mold_deframe` + sequence guard | **24 cycles / 225.0 ns** to sequence status; about **33 cycles / 309.4 ns** to the first ITCH-payload beat | About four payload bytes per six cycles, approximately **0.569 Gbit/s** | A stored 32-bit beat is consumed one byte per cycle, with output and length-token handshakes |
-| `realign` | About **4 cycles / 37.5 ns** to the first aligned ITCH beat | About four payload bytes per six cycles, approximately **0.569 Gbit/s** | The stage repeats byte-serial unpacking and repacking and cannot accept a new beat while holding one |
-| Complete ingress | About **50 cycles / 468.8 ns** from the first Ethernet beat to the first aligned ITCH beat | Raw recovered-ITCH ceiling of about **0.569 Gbit/s** | Duplicated byte-serial work in `mold_deframe` and `realign` |
+| `frame_crack` | **11 cycles / 70.4 ns** to the first MoldUDP64 beat | Up to one 32-bit beat per cycle after the fixed header | The 42-byte Ethernet/IPv4/UDP prefix must arrive before payload forwarding |
+| `mold_deframe` + sequence guard | **24 cycles / 153.6 ns** to sequence status; about **33 cycles / 211.2 ns** to the first ITCH-payload beat | About four payload bytes per six cycles at **10 Gbit/s** | A stored 32-bit beat is consumed one byte per cycle, with output and length-token handshakes |
+| `realign` | About **4 cycles / 25.6 ns** to the first aligned ITCH beat | About four payload bytes per six cycles at **10 Gbit/s** | The stage repeats byte-serial unpacking and repacking and cannot accept a new beat while holding one |
+| Complete ingress | About **50 cycles / 320.0 ns** from the first Ethernet beat to the first aligned ITCH beat | Raw recovered-ITCH ceiling of **10 Gbit/s** | Duplicated byte-serial work in `mold_deframe` and `realign` |
 
 ### Decoder and order book
 
 | Stage | Latency | Initiation behaviour | Reason for the decision |
 |---|---|---|---|
-| `data_handler` | About **4-8 cycles / 37.5-75 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
-| `symbol_router` | **1 cycle / 9.375 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` | About **11 cycles / 103.125 ns** in the collision-free, no-rescan common case | About **11-14 cycles** per common event, or **9.70-7.62 million events/s**. | Synchronous BRAM reads and a serial update FSM provide deterministic ordering without overlapping RMW hazards |
+| `data_handler` | About **4-8 cycles / 40-80 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
+| `symbol_router` | **1 cycle / 10 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
+| `order_book` |  **10 cycles / 100 ns**, or **10 million events/s**. | Initiation of this block requires 16,384 clock cycles to reset order and price books |
 
-Replace adds approximately one cycle, an updated best bid/ask level adds two search cycles. The serial book deliberately prioritises correctness and bounded operation-dependent latency over an initiation interval of one. A pipelined version would require explicit same-reference and same-level forwarding or stalls.
+Although at 100 MHz the end-to-end latency of the decoder and order book is slightly higher. This table doesnt account for the pipelining impact caused by the system. However for multiple entries (assuming we have the optimal messages of v2), there is a clear latency winner in this system. This is proved in the [pipelined_order_book](/docs/pipelined_order_book.md) markdown file.
 
-The routed worst setup path is in the order-book memory path, from an order-table BRAM output through price-index/control logic to a price-book BRAM address. It has **8.492 ns** data-path delay, six logic levels, and approximately equal logic and routing delay. Increasing the global clock is therefore not the first ingress optimisation: the immediate objective is fewer cycles and fewer message-boundary bubbles at the existing timing-clean frequency.
 
 ---
 
@@ -289,7 +294,8 @@ The routed worst setup path is in the order-book memory path, from an order-tabl
 - [`docs/networking_ingress.md`](docs/networking_ingress.md) — detailed Ethernet/IPv4/UDP/MoldUDP64 ingress behaviour
 - [`docs/moldudp64_sequence_handling.md`](docs/moldudp64_sequence_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
 - [`docs/data_handler.md`](docs/data_handler.md) — ITCH decoder details
-- [`docs/order_book.md`](docs/order_book.md) — hardware order-book implementation
+- [`docs/order_book.md`](docs/order_book.md) — v2 hardware order-book implementation
+- [`docs/pipelined_order_book.md`](docs/pipelined_order_book.md) - v3 varient of the order book specifically
 - [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project
 
 ---

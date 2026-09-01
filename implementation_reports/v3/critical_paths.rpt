@@ -1,0 +1,859 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2023.2 (win64) Build 4029153 Fri Oct 13 20:14:34 MDT 2023
+| Date              : Tue Sep  1 03:27:55 2026
+| Host              : dkeL running 64-bit major release  (build 9200)
+| Command           : report_timing -max_paths 10 -file ./design_evidence/critical_paths.rpt
+| Design            : itch_zcu106_system_wrapper
+| Device            : xczu7ev-ffvc1156
+| Speed File        : -2  PRODUCTION 1.30 05-15-2022
+| Design State      : Physopt postRoute
+| Temperature Grade : E
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.089ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/bram_reg_bram_2/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o_reg/D
+                            (rising edge-triggered cell FDRE clocked by data_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             data_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (data_clk_itch_zcu106_system_clk_wiz_0_0 rise@10.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns)
+  Data Path Delay:        4.372ns  (logic 1.489ns (34.056%)  route 2.883ns (65.944%))
+  Logic Levels:           7  (CARRY8=2 LUT3=1 LUT5=2 LUT6=2)
+  Clock Path Skew:        -0.382ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.790ns = ( 13.790 - 10.000 )
+    Source Clock Delay      (SCD):    3.631ns = ( 8.631 - 5.000 )
+    Clock Pessimism Removal (CPR):    -0.541ns
+  Clock Uncertainty:      0.182ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.101ns
+    Phase Error              (PE):    0.120ns
+  Clock Net Delay (Source):      1.613ns (routing 0.171ns, distribution 1.442ns)
+  Clock Net Delay (Destination): 1.260ns (routing 0.155ns, distribution 1.105ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     5.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     5.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     6.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     6.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     6.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     7.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.613     8.631    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/bram_clk
+    RAMB36_X1Y70         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/bram_reg_bram_2/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X1Y70         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[28])
+                                                      0.852     9.483 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/bram_reg_bram_2/DOUTBDOUT[28]
+                         net (fo=2, routed)           0.724    10.207    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/bram_reg_bram_2_1[28]
+    SLICE_X63Y343        LUT3 (Prop_D5LUT_SLICEM_I0_O)
+                                                      0.066    10.273 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/latched_read_bucket_o_reg[0][orn][34]_srl2___inst_ob_stock0_idx_req_block_latched_base_price_o_reg_r_i_1/O
+                         net (fo=2, routed)           1.062    11.335    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_req_block/ot_dout_a[0][orn]_0[34]
+    SLICE_X93Y340        LUT6 (Prop_D6LUT_SLICEM_I3_O)
+                                                      0.037    11.372 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_req_block/stage_valid_o5_carry__0_i_5/O
+                         net (fo=1, routed)           0.025    11.397    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o5_carry__1_0[3]
+    SLICE_X93Y340        CARRY8 (Prop_CARRY8_SLICEM_S[3]_CO[7])
+                                                      0.163    11.560 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o5_carry__0/CO[7]
+                         net (fo=1, routed)           0.026    11.586    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o5_carry__0_n_0
+    SLICE_X93Y341        CARRY8 (Prop_CARRY8_SLICEM_CI_CO[5])
+                                                      0.077    11.663 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o5_carry__1/CO[5]
+                         net (fo=3, routed)           0.340    12.003    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/CO[0]
+    SLICE_X95Y336        LUT5 (Prop_D5LUT_SLICEL_I4_O)
+                                                      0.066    12.069 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/stage_valid_o_i_3/O
+                         net (fo=2, routed)           0.224    12.292    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/bram_reg_bram_0_2
+    SLICE_X95Y336        LUT6 (Prop_F6LUT_SLICEL_I5_O)
+                                                      0.089    12.381 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/order_table/stage_valid_o_i_2/O
+                         net (fo=3, routed)           0.458    12.839    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_req_block/stage_valid_o_reg_1
+    SLICE_X93Y336        LUT5 (Prop_E5LUT_SLICEM_I2_O)
+                                                      0.139    12.978 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_req_block/stage_valid_o_i_1/O
+                         net (fo=1, routed)           0.025    13.003    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o_reg_0
+    SLICE_X93Y336        FDRE                                         r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o_reg/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                     10.000    10.000 r
+    PS8_X0Y0             PS8                          0.000    10.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143    10.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025    10.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488    11.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT1)
+                                                      0.630    12.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT1
+                         net (fo=1, routed)           0.220    12.506    itch_zcu106_system_i/clk_wiz_0/inst/data_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y70         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024    12.530 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout2_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=40062, routed)       1.260    13.790    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/clk
+    SLICE_X93Y336        FDRE                                         r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o_reg/C
+                         clock pessimism             -0.541    13.249
+                         clock uncertainty           -0.182    13.067
+    SLICE_X93Y336        FDRE (Setup_EFF2_SLICEM_C_D)
+                                                      0.025    13.092    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/idx_search_block/stage_valid_o_reg
+  -------------------------------------------------------------------
+                         required time                         13.092
+                         arrival time                         -13.003
+  -------------------------------------------------------------------
+                         slack                                  0.089
+
+Slack (MET) :             0.098ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_9/ADDRARDADDR[5]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.275ns  (logic 1.230ns (28.774%)  route 3.045ns (71.226%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.218ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.791ns = ( 8.791 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.265ns (routing 0.155ns, distribution 1.110ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.247     6.035    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X95Y185        LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.035     6.070 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3/O
+                         net (fo=1, routed)           0.380     6.450    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3_n_0
+    SLICE_X92Y163        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.036     6.486 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_1/O
+                         net (fo=2, routed)           0.362     6.848    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[3]
+    SLICE_X88Y147        LUT3 (Prop_G6LUT_SLICEM_I1_O)
+                                                      0.037     6.885 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_12/O
+                         net (fo=16, routed)          0.907     7.792    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[3]
+    RAMB36_X3Y21         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_9/ADDRARDADDR[5]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.265     8.791    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X3Y21         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_9/CLKARDCLK
+                         clock pessimism             -0.492     8.299
+                         clock uncertainty           -0.057     8.241
+    RAMB36_X3Y21         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[5])
+                                                     -0.352     7.889    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_9
+  -------------------------------------------------------------------
+                         required time                          7.889
+                         arrival time                          -7.792
+  -------------------------------------------------------------------
+                         slack                                  0.098
+
+Slack (MET) :             0.105ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[5]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.165ns  (logic 1.230ns (29.535%)  route 2.935ns (70.465%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.321ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.688ns = ( 8.688 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.162ns (routing 0.155ns, distribution 1.007ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.247     6.035    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X95Y185        LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.035     6.070 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3/O
+                         net (fo=1, routed)           0.380     6.450    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3_n_0
+    SLICE_X92Y163        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.036     6.486 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_1/O
+                         net (fo=2, routed)           0.362     6.848    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[3]
+    SLICE_X88Y147        LUT3 (Prop_G6LUT_SLICEM_I1_O)
+                                                      0.037     6.885 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_12/O
+                         net (fo=16, routed)          0.797     7.682    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[3]
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[5]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.162     8.688    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/CLKARDCLK
+                         clock pessimism             -0.492     8.196
+                         clock uncertainty           -0.057     8.138
+    RAMB36_X2Y20         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[5])
+                                                     -0.352     7.786    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4
+  -------------------------------------------------------------------
+                         required time                          7.786
+                         arrival time                          -7.682
+  -------------------------------------------------------------------
+                         slack                                  0.105
+
+Slack (MET) :             0.131ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[2]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.160ns  (logic 1.242ns (29.854%)  route 2.918ns (70.146%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.321ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.688ns = ( 8.688 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.162ns (routing 0.155ns, distribution 1.007ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.209     5.996    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X97Y185        LUT6 (Prop_C6LUT_SLICEL_I1_O)
+                                                      0.035     6.031 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[0]_i_5/O
+                         net (fo=1, routed)           0.425     6.456    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[0]_i_5_n_0
+    SLICE_X92Y164        LUT6 (Prop_A6LUT_SLICEL_I4_O)
+                                                      0.050     6.506 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[0]_i_1/O
+                         net (fo=2, routed)           0.259     6.766    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[0]
+    SLICE_X91Y146        LUT3 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.035     6.801 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_15/O
+                         net (fo=16, routed)          0.877     7.677    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[0]
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[2]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.162     8.688    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/CLKARDCLK
+                         clock pessimism             -0.492     8.196
+                         clock uncertainty           -0.057     8.138
+    RAMB36_X2Y20         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[2])
+                                                     -0.330     7.808    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4
+  -------------------------------------------------------------------
+                         required time                          7.808
+                         arrival time                          -7.677
+  -------------------------------------------------------------------
+                         slack                                  0.131
+
+Slack (MET) :             0.139ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_12/ADDRARDADDR[5]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.237ns  (logic 1.230ns (29.032%)  route 3.007ns (70.968%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.215ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.794ns = ( 8.794 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.268ns (routing 0.155ns, distribution 1.113ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.247     6.035    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X95Y185        LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.035     6.070 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3/O
+                         net (fo=1, routed)           0.380     6.450    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3_n_0
+    SLICE_X92Y163        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.036     6.486 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_1/O
+                         net (fo=2, routed)           0.362     6.848    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[3]
+    SLICE_X88Y147        LUT3 (Prop_G6LUT_SLICEM_I1_O)
+                                                      0.037     6.885 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_12/O
+                         net (fo=16, routed)          0.869     7.754    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[3]
+    RAMB36_X3Y22         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_12/ADDRARDADDR[5]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.268     8.794    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X3Y22         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_12/CLKARDCLK
+                         clock pessimism             -0.492     8.302
+                         clock uncertainty           -0.057     8.244
+    RAMB36_X3Y22         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[5])
+                                                     -0.352     7.892    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_12
+  -------------------------------------------------------------------
+                         required time                          7.892
+                         arrival time                          -7.754
+  -------------------------------------------------------------------
+                         slack                                  0.139
+
+Slack (MET) :             0.151ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_0/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_15/ADDRARDADDR[5]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.010ns  (logic 1.246ns (31.074%)  route 2.764ns (68.926%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.430ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.676ns = ( 8.676 - 5.000 )
+    Source Clock Delay      (SCD):    3.613ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.595ns (routing 0.171ns, distribution 1.424ns)
+  Clock Net Delay (Destination): 1.150ns (routing 0.155ns, distribution 0.995ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.595     3.613    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X4Y38         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_0/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X4Y38         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTPBDOUTP[1])
+                                                      0.891     4.504 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_0/DOUTPBDOUTP[1]
+                         net (fo=6, routed)           0.474     4.979    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[33]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I3_O)
+                                                      0.123     5.102 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.634    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.758 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.247     6.005    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X95Y185        LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.035     6.040 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3/O
+                         net (fo=1, routed)           0.380     6.420    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_3_n_0
+    SLICE_X92Y163        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.036     6.456 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[3]_i_1/O
+                         net (fo=2, routed)           0.362     6.818    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[3]
+    SLICE_X88Y147        LUT3 (Prop_G6LUT_SLICEM_I1_O)
+                                                      0.037     6.855 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_12/O
+                         net (fo=16, routed)          0.768     7.623    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[3]
+    RAMB36_X2Y29         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_15/ADDRARDADDR[5]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.150     8.676    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X2Y29         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_15/CLKARDCLK
+                         clock pessimism             -0.492     8.184
+                         clock uncertainty           -0.057     8.126
+    RAMB36_X2Y29         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[5])
+                                                     -0.352     7.774    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_15
+  -------------------------------------------------------------------
+                         required time                          7.774
+                         arrival time                          -7.623
+  -------------------------------------------------------------------
+                         slack                                  0.151
+
+Slack (MET) :             0.156ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[6]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.181ns  (logic 1.322ns (31.622%)  route 2.859ns (68.378%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.321ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.688ns = ( 8.688 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.162ns (routing 0.155ns, distribution 1.007ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.521     6.309    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X89Y161        LUT6 (Prop_A6LUT_SLICEM_I0_O)
+                                                      0.038     6.347 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_3/O
+                         net (fo=1, routed)           0.102     6.449    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/current_best_ask_reg[4]_1
+    SLICE_X89Y161        LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.125     6.574 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/current_best_ask[4]_i_1/O
+                         net (fo=2, routed)           0.225     6.799    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[4]
+    SLICE_X88Y155        LUT3 (Prop_F6LUT_SLICEM_I1_O)
+                                                      0.037     6.836 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_11/O
+                         net (fo=16, routed)          0.862     7.698    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[4]
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[6]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.162     8.688    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/CLKARDCLK
+                         clock pessimism             -0.492     8.196
+                         clock uncertainty           -0.057     8.138
+    RAMB36_X2Y20         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[6])
+                                                     -0.285     7.853    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4
+  -------------------------------------------------------------------
+                         required time                          7.853
+                         arrival time                          -7.698
+  -------------------------------------------------------------------
+                         slack                                  0.156
+
+Slack (MET) :             0.163ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/latched_rdata_o_reg[shares][2]/C
+                            (rising edge-triggered cell FDRE clocked by data_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/bid_chunks/bram_reg_bram_0/DINADIN[8]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - data_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.370ns  (logic 0.842ns (19.269%)  route 3.528ns (80.731%))
+  Logic Levels:           8  (CARRY8=2 LUT2=2 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.024ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.853ns = ( 8.853 - 5.000 )
+    Source Clock Delay      (SCD):    3.336ns
+    Clock Pessimism Removal (CPR):    -0.541ns
+  Clock Uncertainty:      0.182ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.101ns
+    Phase Error              (PE):    0.120ns
+  Clock Net Delay (Source):      1.312ns (routing 0.171ns, distribution 1.141ns)
+  Clock Net Delay (Destination): 1.327ns (routing 0.155ns, distribution 1.172ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT1)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT1
+                         net (fo=1, routed)           0.251     1.996    itch_zcu106_system_i/clk_wiz_0/inst/data_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y70         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.024 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout2_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=40062, routed)       1.312     3.336    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/clk
+    SLICE_X66Y226        FDRE                                         r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/latched_rdata_o_reg[shares][2]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X66Y226        FDRE (Prop_EFF_SLICEL_C_Q)
+                                                      0.079     3.415 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/latched_rdata_o_reg[shares][2]/Q
+                         net (fo=37, routed)          0.821     4.236    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/latched_rdata_i[shares][2]
+    SLICE_X71Y184        LUT6 (Prop_A6LUT_SLICEM_I4_O)
+                                                      0.053     4.289 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_811/O
+                         net (fo=1, routed)           0.013     4.302    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_811_n_0
+    SLICE_X71Y184        CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.192     4.494 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_527/CO[7]
+                         net (fo=1, routed)           0.026     4.520    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_527_n_0
+    SLICE_X71Y185        CARRY8 (Prop_CARRY8_SLICEM_CI_CO[2])
+                                                      0.057     4.577 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_333/CO[2]
+                         net (fo=1, routed)           0.330     4.907    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/update_write_block/level_depleted_w00_out
+    SLICE_X75Y183        LUT5 (Prop_B6LUT_SLICEL_I4_O)
+                                                      0.051     4.958 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_252/O
+                         net (fo=4, routed)           0.431     5.388    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/chunk_we_5
+    SLICE_X94Y183        LUT2 (Prop_D6LUT_SLICEM_I0_O)
+                                                      0.051     5.439 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_517/O
+                         net (fo=1, routed)           0.045     5.484    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_517_n_0
+    SLICE_X94Y183        LUT6 (Prop_H6LUT_SLICEM_I2_O)
+                                                      0.101     5.585 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_323/O
+                         net (fo=65, routed)          0.333     5.919    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_323_n_0
+    SLICE_X96Y191        LUT2 (Prop_D5LUT_SLICEM_I1_O)
+                                                      0.135     6.054 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_95__1/O
+                         net (fo=142, routed)         0.793     6.847    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_95__1_n_0
+    SLICE_X102Y202       LUT6 (Prop_G6LUT_SLICEL_I1_O)
+                                                      0.123     6.970 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/update_read_book_block/bram_reg_bram_0_i_42__4/O
+                         net (fo=1, routed)           0.736     7.706    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/bid_chunks/bram_data_b[8]
+    RAMB36_X4Y40         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/bid_chunks/bram_reg_bram_0/DINADIN[8]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.327     8.853    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/bid_chunks/bram_clk
+    RAMB36_X4Y40         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/bid_chunks/bram_reg_bram_0/CLKARDCLK
+                         clock pessimism             -0.541     8.312
+                         clock uncertainty           -0.182     8.130
+    RAMB36_X4Y40         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_DINADIN[8])
+                                                     -0.261     7.869    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/bid_chunks/bram_reg_bram_0
+  -------------------------------------------------------------------
+                         required time                          7.869
+                         arrival time                          -7.706
+  -------------------------------------------------------------------
+                         slack                                  0.163
+
+Slack (MET) :             0.164ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[3]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.119ns  (logic 1.233ns (29.935%)  route 2.886ns (70.065%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.321ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.688ns = ( 8.688 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.162ns (routing 0.155ns, distribution 1.007ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.210     5.997    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X97Y185        LUT6 (Prop_D6LUT_SLICEL_I4_O)
+                                                      0.036     6.033 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[1]_i_4/O
+                         net (fo=1, routed)           0.579     6.612    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[1]_i_4_n_0
+    SLICE_X93Y135        LUT6 (Prop_A6LUT_SLICEM_I4_O)
+                                                      0.038     6.650 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[1]_i_1/O
+                         net (fo=2, routed)           0.054     6.704    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[1]
+    SLICE_X93Y134        LUT3 (Prop_G6LUT_SLICEM_I1_O)
+                                                      0.037     6.741 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_14/O
+                         net (fo=16, routed)          0.895     7.636    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[1]
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/ADDRARDADDR[3]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.162     8.688    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X2Y20         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4/CLKARDCLK
+                         clock pessimism             -0.492     8.196
+                         clock uncertainty           -0.057     8.138
+    RAMB36_X2Y20         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[3])
+                                                     -0.338     7.800    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_4
+  -------------------------------------------------------------------
+                         required time                          7.800
+                         arrival time                          -7.636
+  -------------------------------------------------------------------
+                         slack                                  0.164
+
+Slack (MET) :             0.166ns  (required time - arrival time)
+  Source:                 itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Destination:            itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_5/ADDRARDADDR[6]
+                            (rising edge-triggered cell RAMB36E2 clocked by bram_clk_itch_zcu106_system_clk_wiz_0_0  {rise@0.000ns fall@2.500ns period=5.000ns})
+  Path Group:             bram_clk_itch_zcu106_system_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.000ns  (bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@5.000ns - bram_clk_itch_zcu106_system_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        4.174ns  (logic 1.322ns (31.670%)  route 2.852ns (68.330%))
+  Logic Levels:           5  (LUT3=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.317ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.692ns = ( 8.692 - 5.000 )
+    Source Clock Delay      (SCD):    3.517ns
+    Clock Pessimism Removal (CPR):    -0.492ns
+  Clock Uncertainty:      0.057ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.090ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.499ns (routing 0.171ns, distribution 1.328ns)
+  Clock Net Delay (Destination): 1.166ns (routing 0.155ns, distribution 1.011ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.664     1.872    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     1.745 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     1.990    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.018 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.499     3.517    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_clk
+    RAMB36_X3Y35         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/CLKBWRCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X3Y35         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKBWRCLK_DOUTBDOUT[0])
+                                                      0.963     4.480 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg_bram_1/DOUTBDOUT[0]
+                         net (fo=4, routed)           0.617     5.097    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[36]
+    SLICE_X100Y185       LUT5 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.035     5.132 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11/O
+                         net (fo=5, routed)           0.532     5.664    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[5]_i_11_n_0
+    SLICE_X98Y185        LUT6 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.124     5.788 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8/O
+                         net (fo=6, routed)           0.521     6.309    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_8_n_0
+    SLICE_X89Y161        LUT6 (Prop_A6LUT_SLICEM_I0_O)
+                                                      0.038     6.347 f  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_best_ask[4]_i_3/O
+                         net (fo=1, routed)           0.102     6.449    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/current_best_ask_reg[4]_1
+    SLICE_X89Y161        LUT6 (Prop_H6LUT_SLICEM_I3_O)
+                                                      0.125     6.574 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/current_best_ask[4]_i_1/O
+                         net (fo=2, routed)           0.225     6.799    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/D[4]
+    SLICE_X88Y155        LUT3 (Prop_F6LUT_SLICEM_I1_O)
+                                                      0.037     6.836 r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_0_i_11/O
+                         net (fo=16, routed)          0.856     7.691    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_addr_a[4]
+    RAMB36_X2Y21         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_5/ADDRARDADDR[6]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock bram_clk_itch_zcu106_system_clk_wiz_0_0 rise edge)
+                                                      5.000     5.000 r
+    PS8_X0Y0             PS8                          0.000     5.000 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     5.143    itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y85        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     5.168 r  itch_zcu106_system_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.488     6.656    itch_zcu106_system_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     7.286 r  itch_zcu106_system_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     7.502    itch_zcu106_system_i/clk_wiz_0/inst/bram_clk_itch_zcu106_system_clk_wiz_0_0
+    BUFGCE_X1Y59         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     7.526 r  itch_zcu106_system_i/clk_wiz_0/inst/clkout1_buf/O
+    X2Y2 (CLOCK_ROOT)    net (fo=2910, routed)        1.166     8.692    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_clk
+    RAMB36_X2Y21         RAMB36E2                                     r  itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_5/CLKARDCLK
+                         clock pessimism             -0.492     8.200
+                         clock uncertainty           -0.057     8.142
+    RAMB36_X2Y21         RAMB36E2 (Setup_RAMB36E2_RAMB36_CLKARDCLK_ADDRARDADDR[6])
+                                                     -0.285     7.857    itch_zcu106_system_i/order_book_top_0/inst/ob_stock0/shadow_ask_price_book/bram_reg_bram_5
+  -------------------------------------------------------------------
+                         required time                          7.857
+                         arrival time                          -7.691
+  -------------------------------------------------------------------
+                         slack                                  0.166
