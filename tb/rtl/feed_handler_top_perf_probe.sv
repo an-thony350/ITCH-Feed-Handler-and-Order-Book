@@ -14,6 +14,7 @@ module feed_handler_top_perf_probe #(
     parameter logic [15:0] EXPECTED_DST_PORT = 16'd0
 ) (
     input  logic       clk,
+    input  logic       bram_clk,
     input  logic       rst_n,
 
     // Order-book base-price configuration.
@@ -104,6 +105,7 @@ module feed_handler_top_perf_probe #(
         .EXPECTED_DST_PORT (EXPECTED_DST_PORT)
     ) dut (
         .clk                     (clk),
+        .bram_clk                (bram_clk),
         .rst_n                   (rst_n),
 
         .base_price_stock0_i     (base_price_stock0_i),

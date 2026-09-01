@@ -27,6 +27,7 @@ from typing import Any
 
 import cocotb
 from cocotb.triggers import ReadOnly, RisingEdge
+from cocotb.clock import Clock
 
 from golden.network_encapsulator import assert_roundtrip, encapsulate_bytes
 from itch_harness.axis import (
@@ -43,6 +44,7 @@ SYNTHETIC_INPUT_FILENAME = "itch_synthetic.bin"
 
 TARGET_LOCATE = 1
 BASE_PRICE = 9000
+CLOCK_PERIOD = 10 # in nanoseconds, can be changed
 
 G3_1_MESSAGES_PER_PACKET = 1
 G3_2_MESSAGES_PER_PACKET = 3
@@ -186,7 +188,8 @@ def build_frames(
 async def initialise_feed_handler(dut: Any) -> None:
     """Start/reset the complete feed handler with stable book configuration."""
 
-    await start_clock(dut)
+    cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD, unit="ns").start())
+    cocotb.start_soon(Clock(dut.bram_clk, CLOCK_PERIOD / 2, unit="ns").start())
 
     dut.base_price_stock0_i.value = BASE_PRICE
 
