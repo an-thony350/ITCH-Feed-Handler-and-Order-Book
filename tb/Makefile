@@ -61,7 +61,18 @@ $(REPO_ROOT)/rtl/realign.sv \
 $(REPO_ROOT)/rtl/ingress_top.sv \
 $(REPO_ROOT)/rtl/data_handler.sv \
 $(REPO_ROOT)/rtl/symbol_router.sv \
-$(REPO_ROOT)/rtl/order_book.sv \
+$(REPO_ROOT)/rtl/ob/order_book_v3.sv \
+$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
+$(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_idle.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_req.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_search.sv \
+$(REPO_ROOT)/rtl/ob/ob_issue_book_read.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_write.sv \
 $(REPO_ROOT)/rtl/order_book_top.sv \
 $(REPO_ROOT)/rtl/feed_handler_top.sv
 
@@ -76,7 +87,18 @@ $(REPO_ROOT)/rtl/realign.sv \
 $(REPO_ROOT)/rtl/ingress_top.sv \
 $(REPO_ROOT)/rtl/data_handler.sv \
 $(REPO_ROOT)/rtl/symbol_router.sv \
-$(REPO_ROOT)/rtl/order_book.sv \
+$(REPO_ROOT)/rtl/ob/order_book_v3.sv \
+$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
+$(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_idle.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_req.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_search.sv \
+$(REPO_ROOT)/rtl/ob/ob_issue_book_read.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_write.sv \
 $(REPO_ROOT)/rtl/order_book_top.sv \
 $(REPO_ROOT)/rtl/feed_handler_top.sv \
 $(REPO_ROOT)/tb/rtl/feed_handler_top_perf_probe.sv
@@ -92,14 +114,36 @@ MODULE ?= test_data_handler
 else ifeq ($(TOPLEVEL),order_book_top)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/symbol_router.sv \
-$(REPO_ROOT)/rtl/order_book.sv \
+$(REPO_ROOT)/rtl/ob/order_book_v3.sv \
+$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
+$(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_idle.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_req.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_search.sv \
+$(REPO_ROOT)/rtl/ob/ob_issue_book_read.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_write.sv \
 $(REPO_ROOT)/rtl/order_book_top.sv
 
 MODULE ?= test_order_book_top
 
 else ifeq ($(TOPLEVEL),order_book)
 VERILOG_SOURCES += \
-$(REPO_ROOT)/rtl/order_book.sv
+$(REPO_ROOT)/rtl/ob/order_book_v3.sv \
+$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
+$(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_idle.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_req.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_search.sv \
+$(REPO_ROOT)/rtl/ob/ob_issue_book_read.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_write.sv
 
 MODULE ?= test_order_book
 

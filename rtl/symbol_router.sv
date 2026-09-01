@@ -22,6 +22,7 @@
 // Revision 0.02 - Make target locate and base price configurable from the top level
 // Revision 0.03 - Restore fixed locate-1 routing and keep only PS-configurable base price
 // Revision 1.00 - Intorduction of multiple base prices & thus order books
+// Revision 1.01 - Bugfix
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +92,7 @@ end
 
 
 
-assign ready_o = (!valid_i)  || ready_i[target_idx];
+assign ready_o = ready_i[target_idx];
 
 always_ff@(posedge clk) begin
     if(!rst_n) begin

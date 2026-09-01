@@ -39,6 +39,14 @@ package hdl_header;
     parameter int  CHUNK_W      =   6;
     parameter int  MAX_PROBES   =   2;
 
+    localparam logic [MSG_W-1:0] MSG_ADD_A    = 8'h41; // A
+    localparam logic [MSG_W-1:0] MSG_ADD_F    = 8'h46; // F
+    localparam logic [MSG_W-1:0] MSG_EXEC     = 8'h45; // E
+    localparam logic [MSG_W-1:0] MSG_EXEC_PX  = 8'h43; // C
+    localparam logic [MSG_W-1:0] MSG_DELETE   = 8'h44; // D
+    localparam logic [MSG_W-1:0] MSG_REPLACE  = 8'h55; // U
+    localparam logic [MSG_W-1:0] MSG_CANCEL   = 8'h58; // X
+
     typedef struct packed {
         logic [MSG_W-1:0]       message_type;
         logic [STOCK_W-1:0]     stock_locate;
@@ -65,6 +73,84 @@ package hdl_header;
         logic [PRICE_W-1:0]     ask_price;
         logic [SHARES_W-1:0]    ask_shares;
     } bbo_t;
+
+    typedef struct packed {
+        logic                   valid;
+        logic [ORN_W-1:0]       orn;
+        logic                   side;
+        logic [SHARES_W-1:0]    shares;
+        logic [PRICE_W-1:0]     price;
+        logic                   tombstone;
+    } order_entry_t;
+
+    // local params for order book
+
+    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
+    localparam int BBO_DEPTH  = 1 << BBO_W;
+    localparam int CHUNK_LEN  = 1 << (BBO_W-6);
+    localparam int ENTRY_W    = $bits(order_entry_t);
+    localparam int BUCKET_W   = 3 * ENTRY_W;
+
+    // Relevant Order book functions
+
+    function automatic logic is_add_msg(input logic [MSG_W-1:0] msg);
+        return (msg == MSG_ADD_A) || (msg == MSG_ADD_F);
+    endfunction
+
+    function automatic logic is_reduce_msg(input logic [MSG_W-1:0] msg);
+        return (msg == MSG_EXEC) || (msg == MSG_EXEC_PX) || (msg == MSG_CANCEL);
+    endfunction
+
+    // Hashing function
+    function automatic logic [HASH_W-1:0] hash_orn(input logic [ORN_W-1:0] orn);
+        logic [HASH_W-1:0] h;
+        begin
+            h = '0;
+            for (int bit_i = 0; bit_i < ORN_W; bit_i++) begin
+                h[bit_i % HASH_W] = h[bit_i % HASH_W] ^ orn[bit_i];
+            end
+            return h;
+        end
+    endfunction
+
+    // Price logic (for price book) - Only works if delta < $164.83
+    function automatic logic [BBO_W-1:0] price_to_idx(input logic [PRICE_W-1:0] price, input logic [PRICE_W-1:0] latched_base_price);
+        (* use_dsp = "yes" *) logic [PRICE_W-1:0] delta;
+        begin
+            delta = price - latched_base_price;
+            return delta[BBO_W-1:0];
+        end
+    endfunction
+
+    // Hierarchical Search: Level 1 (Find the 64-bit chunk)
+    function automatic logic [(BBO_W-6)-1:0] find_msb_chunk(input logic [CHUNK_LEN-1:0] vec);
+        for (int i = CHUNK_LEN-1; i >= 0; i--) begin
+            if (vec[i]) return (BBO_W-6)'(i);
+        end
+        return '0;
+    endfunction
+
+    function automatic logic [(BBO_W-6)-1:0] find_lsb_chunk(input logic [CHUNK_LEN-1:0] vec);
+        for (int i = 0; i < CHUNK_LEN; i++) begin
+            if (vec[i]) return (BBO_W-6)'(i);
+        end
+        return '0;
+    endfunction
+
+    // Hierarchical Search: Level 2 (Find the exact bit in the chunk)
+    function automatic logic [5:0] find_msb_bit(input logic [63:0] vec);
+        for (int i = 63; i >= 0; i--) begin
+            if (vec[i]) return 6'(i);
+        end
+        return '0;
+    endfunction
+
+    function automatic logic [5:0] find_lsb_bit(input logic [63:0] vec);
+        for (int i = 0; i < 64; i++) begin
+            if (vec[i]) return 6'(i);
+        end
+        return '0;
+    endfunction
 
     // Derived packed widths. These avoid overloading existing BBO_W, which is
     // currently 12 in the project package rather than the packed bbo_t width.

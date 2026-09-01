@@ -7,6 +7,7 @@ from typing import Any
 
 import cocotb
 from cocotb.triggers import RisingEdge
+from cocotb.clock import Clock
 
 from golden.contracts import NormalisedEvent, Op, Side
 from golden.order_book import OrderBook
@@ -23,6 +24,7 @@ from itch_harness.scoreboard import assert_bbo_matches_word, signal_value_to_int
 
 BASE_PRICE = 9000
 LOCATE = 1
+CLOCK_PERIOD = 10 # in nanoseconds, can be changed
 
 
 # Event / expected-state helpers
@@ -173,7 +175,8 @@ def snapshot_to_expected_state(snapshot: Any) -> dict[str, Any]:
 
 
 async def initialise_order_book(dut: Any) -> None:
-    await start_clock(dut)
+    cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD, unit="ns").start())
+    cocotb.start_soon(Clock(dut.bram_clk, CLOCK_PERIOD / 2, unit="ns").start())
 
     dut.valid_i.value = 0
     dut.rdata_i.value = 0

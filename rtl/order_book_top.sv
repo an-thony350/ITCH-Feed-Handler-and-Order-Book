@@ -26,6 +26,7 @@
 // Revision 0.03 - Restore fixed locate-1 routing and retain only base-price control
 // Revision 1.00 - Intorduction of multiple base prices & thus order books - also fixed
 //                 naming conventions (i.e. internal regs named source_dest_signal)
+// Revision 1.10 - Addition of bram clock for new order book
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +35,7 @@ import hdl_header::*;
 
 module order_book_top(
     input   logic                   clk,
+    input   logic                   bram_clk,
     input   logic                   rst_n,
 
     // base-price configuration from PS, normally driven by AXI GPIO
@@ -118,6 +120,7 @@ symbol_router router(
 
 order_book ob_stock0(
     .clk          (clk),
+    .bram_clk     (bram_clk),
     .rst_n        (rst_n),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock0),
@@ -129,6 +132,7 @@ order_book ob_stock0(
 
 order_book ob_stock1(
     .clk          (clk),
+    .bram_clk     (bram_clk),
     .rst_n        (rst_n),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock1),
@@ -140,6 +144,7 @@ order_book ob_stock1(
 
 order_book ob_stock2(
     .clk          (clk),
+    .bram_clk     (bram_clk),
     .rst_n        (rst_n),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock2),
