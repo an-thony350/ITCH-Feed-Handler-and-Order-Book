@@ -1,4 +1,4 @@
-set bd_name "v3release"
+set bd_name "v3_release"
 
 puts "Setting correct implementation settings"
 set_property strategy Performance_ExtraTimingOpt [get_runs impl_1]

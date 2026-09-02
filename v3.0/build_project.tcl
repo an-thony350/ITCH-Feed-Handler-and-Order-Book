@@ -15,7 +15,7 @@ puts "Building Block Design..."
 source ./bd.tcl
 
 puts "Generating HDL Wrapper..."
-set bd_name "v3release"
+set bd_name "v3_release"
 make_wrapper -files [get_files ${bd_name}.bd] -top
 add_files -norecurse ${project_dir}/${project_name}.gen/sources_1/bd/${bd_name}/hdl/${bd_name}_wrapper.v
 
