@@ -9,13 +9,15 @@
 // - session/seq/count sideband feeds mold_seq_guard for Phase-4 A/B + gap policy.
 //
 // Timing architecture:
-// - The fixed 20-byte MoldUDP64 header is decoded one 32-bit beat per cycle.
+// - The fixed 20-byte MoldUDP64 header is decoded across three 64-bit beats.
+// - Header beat 2 contains bytes 16..19 of the header plus up to four body
+//   bytes. Those body bytes are normalised into one partial FIFO entry.
 // - Body input is decoupled from parsing by a four-entry register FIFO.
-// - Aligned payload runs use a direct full-beat fast path: four payload bytes
+// - Aligned payload runs use a direct full-beat fast path: eight payload bytes
 //   are removed and emitted in one cycle.
 // - Only message-prefix bytes and unaligned message tails use the one-byte
 //   boundary path. The design therefore keeps the useful parallelisation
-//   without unrolling four dependent parser transitions into one cycle.
+//   without unrolling eight dependent parser transitions into one cycle.
 // - There are no variable-width reservoir shifts and no combinational
 //   consume-then-append feedback path.
 // - Input ready depends only on registered state, datagram completion and FIFO
@@ -80,8 +82,8 @@ module mold_deframe #(
 );
 
   initial begin
-    if ((AXIS_DATA_W != 32) || (AXIS_KEEP_W != 4)) begin
-      $error("mold_deframe timing-fixed implementation requires 32-bit AXIS");
+    if ((AXIS_DATA_W != 64) || (AXIS_KEEP_W != 8)) begin
+      $error("mold_deframe timing-fixed implementation requires 64-bit AXIS");
     end
     if (BODY_FIFO_DEPTH < 2) begin
       $error("mold_deframe BODY_FIFO_DEPTH must be at least two");
@@ -103,13 +105,14 @@ module mold_deframe #(
                              ? 1 : $clog2(BODY_FIFO_DEPTH);
   localparam int BODY_FIFO_CW = $clog2(BODY_FIFO_DEPTH + 1);
   localparam int PACK_COUNT_W = $clog2(AXIS_KEEP_W + 1);
+  localparam int BODY_LANE_W  = $clog2(AXIS_KEEP_W);
 
   localparam logic [DGRAM_LEN_W-1:0] MOLD_HDR_BYTES_DGRAM =
       DGRAM_LEN_W'(MOLD_HDR_BYTES);
 
   state_t state;
 
-  logic [2:0] header_beat_idx;
+  logic [1:0] header_beat_idx;
 
   logic [DGRAM_LEN_W-1:0] dgram_len;
   logic [DGRAM_LEN_W-1:0] dgram_bytes_seen;
@@ -122,9 +125,8 @@ module mold_deframe #(
   logic [MOLD_MSG_LEN_W-1:0] pending_msg_len;
   logic [MOLD_MSG_LEN_W-1:0] payload_left;
 
-  // Four complete input beats are buffered independently of the parser. This
-  // removes the previous timing path in which parser consumption changed the
-  // byte position used by same-cycle input append logic.
+  // Complete body beats plus the normalised partial body from header beat 2
+  // are buffered independently of the parser.
   axis_data_t body_fifo_data [0:BODY_FIFO_DEPTH-1];
   axis_keep_t body_fifo_keep [0:BODY_FIFO_DEPTH-1];
   logic       body_fifo_last [0:BODY_FIFO_DEPTH-1];
@@ -132,7 +134,7 @@ module mold_deframe #(
   logic [BODY_FIFO_AW-1:0] body_wr_ptr;
   logic [BODY_FIFO_AW-1:0] body_rd_ptr;
   logic [BODY_FIFO_CW-1:0] body_fifo_count;
-  logic [1:0]              body_head_lane;
+  logic [BODY_LANE_W-1:0]  body_head_lane;
 
   axis_data_t payload_pack_data;
   logic [PACK_COUNT_W-1:0] payload_pack_count;
@@ -155,17 +157,21 @@ module mold_deframe #(
   axis_data_t body_head_data;
   axis_keep_t body_head_keep;
   logic       body_head_last;
-  logic [2:0] body_head_byte_count;
+  logic [PACK_COUNT_W-1:0] body_head_byte_count;
   logic [7:0] body_head_byte;
   logic       body_head_is_last_lane;
 
   function automatic logic last_keep_is_contiguous(input axis_keep_t keep);
     case (keep)
-      4'b1000,
-      4'b1100,
-      4'b1110,
-      4'b1111: last_keep_is_contiguous = 1'b1;
-      default: last_keep_is_contiguous = 1'b0;
+      8'b1000_0000,
+      8'b1100_0000,
+      8'b1110_0000,
+      8'b1111_0000,
+      8'b1111_1000,
+      8'b1111_1100,
+      8'b1111_1110,
+      8'b1111_1111: last_keep_is_contiguous = 1'b1;
+      default:       last_keep_is_contiguous = 1'b0;
     endcase
   endfunction
 
@@ -180,25 +186,35 @@ module mold_deframe #(
     end
   endfunction
 
-  function automatic logic [2:0] keep_byte_count(input axis_keep_t keep);
+  function automatic logic [PACK_COUNT_W-1:0] keep_byte_count(
+    input axis_keep_t keep
+  );
     case (keep)
-      4'b1000: keep_byte_count = 3'd1;
-      4'b1100: keep_byte_count = 3'd2;
-      4'b1110: keep_byte_count = 3'd3;
-      4'b1111: keep_byte_count = 3'd4;
-      default: keep_byte_count = 3'd0;
+      8'b1000_0000: keep_byte_count = PACK_COUNT_W'(1);
+      8'b1100_0000: keep_byte_count = PACK_COUNT_W'(2);
+      8'b1110_0000: keep_byte_count = PACK_COUNT_W'(3);
+      8'b1111_0000: keep_byte_count = PACK_COUNT_W'(4);
+      8'b1111_1000: keep_byte_count = PACK_COUNT_W'(5);
+      8'b1111_1100: keep_byte_count = PACK_COUNT_W'(6);
+      8'b1111_1110: keep_byte_count = PACK_COUNT_W'(7);
+      8'b1111_1111: keep_byte_count = PACK_COUNT_W'(8);
+      default:       keep_byte_count = '0;
     endcase
   endfunction
 
   function automatic logic [7:0] selected_lane_byte(
     input axis_data_t data,
-    input logic [1:0] lane
+    input logic [BODY_LANE_W-1:0] lane
   );
     case (lane)
-      2'd0: selected_lane_byte = data[31:24];
-      2'd1: selected_lane_byte = data[23:16];
-      2'd2: selected_lane_byte = data[15:8];
-      default: selected_lane_byte = data[7:0];
+      BODY_LANE_W'(0): selected_lane_byte = data[63:56];
+      BODY_LANE_W'(1): selected_lane_byte = data[55:48];
+      BODY_LANE_W'(2): selected_lane_byte = data[47:40];
+      BODY_LANE_W'(3): selected_lane_byte = data[39:32];
+      BODY_LANE_W'(4): selected_lane_byte = data[31:24];
+      BODY_LANE_W'(5): selected_lane_byte = data[23:16];
+      BODY_LANE_W'(6): selected_lane_byte = data[15:8];
+      default:         selected_lane_byte = data[7:0];
     endcase
   endfunction
 
@@ -206,26 +222,34 @@ module mold_deframe #(
     input logic [PACK_COUNT_W-1:0] count
   );
     case (count)
-      PACK_COUNT_W'(1): keep_from_count = 4'b1000;
-      PACK_COUNT_W'(2): keep_from_count = 4'b1100;
-      PACK_COUNT_W'(3): keep_from_count = 4'b1110;
-      PACK_COUNT_W'(4): keep_from_count = 4'b1111;
-      default:          keep_from_count = 4'b0000;
+      PACK_COUNT_W'(1): keep_from_count = 8'b1000_0000;
+      PACK_COUNT_W'(2): keep_from_count = 8'b1100_0000;
+      PACK_COUNT_W'(3): keep_from_count = 8'b1110_0000;
+      PACK_COUNT_W'(4): keep_from_count = 8'b1111_0000;
+      PACK_COUNT_W'(5): keep_from_count = 8'b1111_1000;
+      PACK_COUNT_W'(6): keep_from_count = 8'b1111_1100;
+      PACK_COUNT_W'(7): keep_from_count = 8'b1111_1110;
+      PACK_COUNT_W'(8): keep_from_count = 8'b1111_1111;
+      default:          keep_from_count = 8'b0000_0000;
     endcase
   endfunction
 
   function automatic axis_data_t insert_pack_byte(
-    input axis_data_t                  data,
-    input logic [PACK_COUNT_W-1:0]     count,
-    input logic [7:0]                  byte_value
+    input axis_data_t              data,
+    input logic [PACK_COUNT_W-1:0] count,
+    input logic [7:0]              byte_value
   );
     axis_data_t result;
     begin
       result = data;
       case (count)
-        PACK_COUNT_W'(0): result[31:24] = byte_value;
-        PACK_COUNT_W'(1): result[23:16] = byte_value;
-        PACK_COUNT_W'(2): result[15:8]  = byte_value;
+        PACK_COUNT_W'(0): result[63:56] = byte_value;
+        PACK_COUNT_W'(1): result[55:48] = byte_value;
+        PACK_COUNT_W'(2): result[47:40] = byte_value;
+        PACK_COUNT_W'(3): result[39:32] = byte_value;
+        PACK_COUNT_W'(4): result[31:24] = byte_value;
+        PACK_COUNT_W'(5): result[23:16] = byte_value;
+        PACK_COUNT_W'(6): result[15:8]  = byte_value;
         default:          result[7:0]   = byte_value;
       endcase
       insert_pack_byte = result;
@@ -248,8 +272,9 @@ module mold_deframe #(
   assign body_head_byte_count = keep_byte_count(body_head_keep);
   assign body_head_byte       = selected_lane_byte(body_head_data, body_head_lane);
   assign body_head_is_last_lane =
-      (body_head_byte_count != 3'd0)
-      && ({1'b0, body_head_lane} == (body_head_byte_count - 3'd1));
+      (body_head_byte_count != '0)
+      && ({1'b0, body_head_lane}
+          == (body_head_byte_count - PACK_COUNT_W'(1)));
 
   assign payload_output_fire    = m_payload_tvalid_o && m_payload_tready_i;
   assign msg_len_output_fire    = m_msg_len_valid_o && m_msg_len_ready_i;
@@ -289,7 +314,7 @@ module mold_deframe #(
   assign input_fire = s_axis_tvalid_i && s_axis_tready_o;
 
   // The guard decision is made from header fields registered in the preceding
-  // cycle. It is therefore not part of the four-byte payload fast path.
+  // cycle. It is therefore not part of the eight-byte payload fast path.
   assign guard_seq_valid = rst_n && (state == ST_GUARD);
 
   mold_seq_guard #(
@@ -323,7 +348,8 @@ module mold_deframe #(
     logic parser_fault;
     logic [MOLD_ERR_W-1:0] parser_fault_bits;
 
-    logic [2:0] input_bytes;
+    logic [PACK_COUNT_W-1:0] input_bytes;
+    logic [PACK_COUNT_W-1:0] header_body_bytes;
     logic [DGRAM_LEN_W-1:0] seen_after_input;
     logic [DGRAM_LEN_W-1:0] body_total_bytes;
     logic [DGRAM_LEN_W-1:0] consumed_after;
@@ -392,10 +418,11 @@ module mold_deframe #(
       parser_fault      = 1'b0;
       parser_fault_bits = '0;
 
-      input_bytes       = 3'd0;
-      seen_after_input  = dgram_bytes_seen;
-      body_total_bytes  = dgram_len - MOLD_HDR_BYTES_DGRAM;
-      consumed_after    = body_bytes_consumed;
+      input_bytes        = '0;
+      header_body_bytes  = '0;
+      seen_after_input   = dgram_bytes_seen;
+      body_total_bytes   = dgram_len - MOLD_HDR_BYTES_DGRAM;
+      consumed_after     = body_bytes_consumed;
       bytes_after_length = '0;
 
       seq_full          = seq_o;
@@ -440,7 +467,7 @@ module mold_deframe #(
         end
 
         if (state == ST_HEADER) begin
-          if (header_beat_idx == 3'd0) begin
+          if (header_beat_idx == 2'd0) begin
             dgram_len           <= s_dgram_len_i;
             dgram_bytes_seen    <= DGRAM_LEN_W'(input_bytes);
             body_bytes_consumed <= '0;
@@ -468,18 +495,29 @@ module mold_deframe #(
             end
           end
 
-          if (input_bytes != AXIS_KEEP_W) begin
+          // Beats 0 and 1 are entirely header and therefore must be full.
+          if ((header_beat_idx < 2'd2)
+              && (input_bytes != PACK_COUNT_W'(AXIS_KEEP_W))) begin
             parser_fault_bits[MOLD_ERR_SHORT_DGRAM] = 1'b1;
             parser_fault = 1'b1;
           end
 
-          if (s_axis_tlast_i && (header_beat_idx != 3'd4)) begin
+          if (s_axis_tlast_i && (header_beat_idx < 2'd2)) begin
+            parser_fault_bits[MOLD_ERR_SHORT_DGRAM] = 1'b1;
+            parser_fault = 1'b1;
+          end
+
+          // Header beat 2 contains four mandatory header bytes followed by up
+          // to four body bytes. A header-only control datagram therefore ends
+          // here with tkeep=11110000.
+          if ((header_beat_idx == 2'd2)
+              && (input_bytes < PACK_COUNT_W'(4))) begin
             parser_fault_bits[MOLD_ERR_SHORT_DGRAM] = 1'b1;
             parser_fault = 1'b1;
           end
 
           if (s_axis_tlast_i) begin
-            if (header_beat_idx == 3'd0) begin
+            if (header_beat_idx == 2'd0) begin
               if (DGRAM_LEN_W'(input_bytes) != s_dgram_len_i) begin
                 parser_fault_bits[MOLD_ERR_LEN_OVERRUN] = 1'b1;
                 parser_fault = 1'b1;
@@ -491,37 +529,37 @@ module mold_deframe #(
           end
 
           unique case (header_beat_idx)
-            3'd0: begin
-              session_o[MOLD_SESSION_W-1 -: 32] <= s_axis_tdata_i;
-              header_beat_idx <= 3'd1;
+            2'd0: begin
+              session_o[MOLD_SESSION_W-1 -: 64] <= s_axis_tdata_i;
+              header_beat_idx <= 2'd1;
             end
 
-            3'd1: begin
-              session_o[MOLD_SESSION_W-33 -: 32] <= s_axis_tdata_i;
-              header_beat_idx <= 3'd2;
+            2'd1: begin
+              session_o[15:0] <= s_axis_tdata_i[63:48];
+              seq_o[63:16]    <= s_axis_tdata_i[47:0];
+              header_beat_idx <= 2'd2;
             end
 
-            3'd2: begin
-              session_o[15:0] <= s_axis_tdata_i[31:16];
-              seq_o[63:48]    <= s_axis_tdata_i[15:0];
-              header_beat_idx <= 3'd3;
-            end
-
-            3'd3: begin
-              seq_o[47:16]    <= s_axis_tdata_i;
-              header_beat_idx <= 3'd4;
-            end
-
-            3'd4: begin
-              seq_full = {seq_o[63:16], s_axis_tdata_i[31:16]};
+            2'd2: begin
+              seq_full = {seq_o[63:16], s_axis_tdata_i[63:48]};
               count_ext = '0;
-              count_ext[MOLD_COUNT_W-1:0] = s_axis_tdata_i[15:0];
+              count_ext[MOLD_COUNT_W-1:0] = s_axis_tdata_i[47:32];
 
               seq_o           <= seq_full;
-              count_o         <= s_axis_tdata_i[15:0];
+              count_o         <= s_axis_tdata_i[47:32];
               expected_next_o <= seq_full + count_ext;
               header_beat_idx <= '0;
               state           <= ST_GUARD;
+
+              header_body_bytes = input_bytes - PACK_COUNT_W'(4);
+
+              if (!parser_fault && (header_body_bytes != '0)) begin
+                body_fifo_data[body_wr_ptr] <= {s_axis_tdata_i[31:0], 32'h0000_0000};
+                body_fifo_keep[body_wr_ptr] <= keep_from_count(header_body_bytes);
+                body_fifo_last[body_wr_ptr] <= s_axis_tlast_i;
+                body_wr_ptr                 <= ptr_increment(body_wr_ptr);
+                push_body                   = 1'b1;
+              end
             end
 
             default: begin
@@ -574,7 +612,10 @@ module mold_deframe #(
         if (guard_accept_packet) begin
           messages_left <= count_o;
 
-          if (dgram_end_seen) begin
+          // With 64-bit input, header beat 2 can already contain up to four
+          // body bytes. End-of-datagram is therefore only an overrun when no
+          // buffered body bytes exist for a non-control packet.
+          if (dgram_end_seen && (body_fifo_count == '0)) begin
             parser_fault_bits[MOLD_ERR_COUNT_OVERRUN] = 1'b1;
             parser_fault = 1'b1;
           end else begin
@@ -654,8 +695,8 @@ module mold_deframe #(
               // Full-beat fast path. It is intentionally narrow: only an
               // aligned, full input beat and an empty pack register qualify.
               // Every decision uses registered state, so this path does not
-              // chain four byte-level FSM transitions.
-              if ((body_head_lane == 2'd0)
+              // chain eight byte-level FSM transitions.
+              if ((body_head_lane == BODY_LANE_W'(0))
                   && (body_head_keep == {AXIS_KEEP_W{1'b1}})
                   && (payload_pack_count == '0)
                   && (payload_left >= MOLD_MSG_LEN_W'(AXIS_KEEP_W))
@@ -716,8 +757,9 @@ module mold_deframe #(
                                     body_head_byte
                                   );
                 pack_count_after = payload_pack_count + PACK_COUNT_W'(1);
-                slow_would_emit  = (pack_count_after == PACK_COUNT_W'(AXIS_KEEP_W))
-                                || final_datagram;
+                slow_would_emit  =
+                    (pack_count_after == PACK_COUNT_W'(AXIS_KEEP_W))
+                    || final_datagram;
                 consumed_after   = body_bytes_consumed + DGRAM_LEN_W'(1);
 
                 if (final_datagram) begin
@@ -783,7 +825,7 @@ module mold_deframe #(
           pop_body       = 1'b1;
           body_head_lane <= '0;
         end else begin
-          body_head_lane <= body_head_lane + 2'd1;
+          body_head_lane <= body_head_lane + BODY_LANE_W'(1);
         end
       end
 
