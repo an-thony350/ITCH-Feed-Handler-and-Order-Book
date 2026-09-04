@@ -34,6 +34,16 @@ module frame_crack_tb;
   int unsigned  drop_pulses;
   logic [FRAME_ERR_W-1:0] last_drop_err;
 
+  initial begin
+    if (AXIS_DATA_W != 64) begin
+      $fatal(1, "frame_crack_tb expects AXIS_DATA_W == 64, got %0d", AXIS_DATA_W);
+    end
+
+    if (AXIS_KEEP_W != 8) begin
+      $fatal(1, "frame_crack_tb expects AXIS_KEEP_W == 8, got %0d", AXIS_KEEP_W);
+    end
+  end
+
   frame_crack #(
     .CHECK_DST_PORT    (1'b1),
     .EXPECTED_DST_PORT (EXPECTED_PORT)
@@ -91,11 +101,11 @@ module frame_crack_tb;
 
   task automatic clear_scoreboard();
     rx_bytes.delete();
-    rx_packets    = 0;
-    start_pulses  = 0;
+    rx_packets     = 0;
+    start_pulses   = 0;
     last_start_len = '0;
-    drop_pulses   = 0;
-    last_drop_err = '0;
+    drop_pulses    = 0;
+    last_drop_err  = '0;
   endtask
 
   task automatic reset_dut();
@@ -280,6 +290,50 @@ module frame_crack_tb;
     end
   endtask
 
+  task automatic test_payload_length_sweep();
+    byte unsigned payload[];
+    byte unsigned frame[];
+
+    $display("TEST payload lengths exercise all 64-bit final tkeep patterns");
+
+    // 1..24 covers every payload length modulo eight three times. Because the
+    // fixed Ethernet/IPv4/UDP prefix is 42 bytes, it also exercises every
+    // possible final input tkeep value around the six-byte alignment carry.
+    for (int payload_len = 1; payload_len <= 24; payload_len++) begin
+      clear_scoreboard();
+      payload = new[payload_len];
+
+      foreach (payload[i]) begin
+        payload[i] = byte'(8'h20 + i + payload_len);
+      end
+
+      build_frame(
+        payload,
+        ETHERTYPE_IPV4,
+        IPV4_IHL_MIN,
+        16'h0000,
+        IP_PROTO_UDP,
+        EXPECTED_PORT,
+        frame
+      );
+      send_frame(frame);
+      wait_for_packets(1);
+      expect_payload(payload);
+
+      if (start_pulses != 1) begin
+        $fatal(1, "Payload length %0d produced %0d dgram_start pulses", payload_len, start_pulses);
+      end
+
+      if (last_start_len != payload_len) begin
+        $fatal(1, "Payload length %0d reported dgram_len %0d", payload_len, last_start_len);
+      end
+
+      if (drop_pulses != 0) begin
+        $fatal(1, "Payload length %0d unexpectedly dropped: err=0x%04x", payload_len, last_drop_err);
+      end
+    end
+  endtask
+
   task automatic test_bad_ethertype_drop();
     byte unsigned payload[];
     byte unsigned frame[];
@@ -375,6 +429,7 @@ module frame_crack_tb;
   initial begin
     reset_dut();
     test_valid_payload();
+    test_payload_length_sweep();
     test_bad_ethertype_drop();
     test_bad_dst_port_drop();
     test_output_backpressure();
