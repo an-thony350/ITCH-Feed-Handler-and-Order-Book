@@ -9,9 +9,6 @@ format can be reused by multiple test modules.
 from __future__ import annotations
 
 
-WORD_BYTES = 4
-AXIS_KEEP_W = 4
-
 SESSION = b"ITCHTEST01"  # exactly 10 bytes
 SRC_PORT = 40_000
 DST_PORT = 50_000
@@ -68,7 +65,6 @@ def add_order_payload(
 
     assert len(payload) == 36
     return payload
-
 
 
 def add_order_with_mpid_payload(
@@ -313,28 +309,3 @@ def build_eth_ipv4_udp_frame(
     )
 
     return eth + ipv4 + udp + udp_payload
-
-
-def frame_to_axis_words(frame: bytes) -> list[tuple[int, int, bool]]:
-    """Split a frame into 32-bit AXIS beats.
-
-    Byte lane 0 maps to tdata[31:24]. Final tkeep is MSB-contiguous:
-        1 byte  -> 1000
-        2 bytes -> 1100
-        3 bytes -> 1110
-        4 bytes -> 1111
-    """
-
-    words: list[tuple[int, int, bool]] = []
-
-    for offset in range(0, len(frame), WORD_BYTES):
-        chunk = frame[offset : offset + WORD_BYTES]
-        valid_bytes = len(chunk)
-
-        data = int.from_bytes(chunk.ljust(WORD_BYTES, b"\x00"), "big")
-        keep = ((1 << valid_bytes) - 1) << (AXIS_KEEP_W - valid_bytes)
-        last = offset + WORD_BYTES >= len(frame)
-
-        words.append((data, keep, last))
-
-    return words

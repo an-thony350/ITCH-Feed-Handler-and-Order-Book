@@ -19,16 +19,20 @@ from typing import Any, Callable
 import cocotb
 from cocotb.triggers import RisingEdge
 
-from itch_harness.axis import clock_cycles, reset_dut, start_clock
+from itch_harness.axis import (
+    axis_bytes_to_words,
+    axis_word_bytes,
+    clock_cycles,
+    reset_dut,
+    start_clock,
+)
 from itch_harness.ingress_packets import (
     SESSION,
-    WORD_BYTES,
     add_order_payload,
     build_eth_ipv4_udp_frame,
     build_mold_datagram,
     cancel_order_payload,
     delete_order_payload,
-    frame_to_axis_words,
     replace_order_payload,
 )
 from itch_harness.scoreboard import signal_value_to_int
@@ -57,7 +61,16 @@ async def drive_axis_frame(
 ) -> None:
     """Drive one Ethernet frame as one AXIS packet."""
 
-    for word, keep, last in frame_to_axis_words(frame):
+    word_bytes = axis_word_bytes(
+        dut.s_frame_tdata_i,
+        dut.s_frame_tkeep_i,
+        interface_name="s_frame",
+    )
+
+    for word, keep, last in axis_bytes_to_words(
+        frame,
+        word_bytes=word_bytes,
+    ):
         dut.s_frame_tdata_i.value = word
         dut.s_frame_tkeep_i.value = keep
         dut.s_frame_tlast_i.value = int(last)
@@ -93,6 +106,10 @@ class IngressMonitor:
 
         self.messages: list[bytes] = []
         self._current_message = bytearray()
+        self._itch_word_bytes = axis_word_bytes(
+            dut.m_itch_tdata_o,
+            interface_name="m_itch",
+        )
 
         self.seq_samples: list[dict[str, int]] = []
         self.heartbeat_count = 0
@@ -131,10 +148,14 @@ class IngressMonitor:
                 self.eos_count += 1
 
             if signal_value_to_int(self.dut.frame_drop_o.value) == 1:
-                self.frame_drop_errs.append(signal_value_to_int(self.dut.frame_err_o.value))
+                self.frame_drop_errs.append(
+                    signal_value_to_int(self.dut.frame_err_o.value)
+                )
 
             if signal_value_to_int(self.dut.mold_drop_o.value) == 1:
-                self.mold_drop_errs.append(signal_value_to_int(self.dut.mold_err_o.value))
+                self.mold_drop_errs.append(
+                    signal_value_to_int(self.dut.mold_err_o.value)
+                )
 
             realign_err = signal_value_to_int(self.dut.realign_err_o.value)
             if realign_err != 0:
@@ -147,7 +168,9 @@ class IngressMonitor:
 
             if output_fire:
                 word = signal_value_to_int(self.dut.m_itch_tdata_o.value)
-                self._current_message.extend(word.to_bytes(WORD_BYTES, "big"))
+                self._current_message.extend(
+                    word.to_bytes(self._itch_word_bytes, "big")
+                )
 
                 if signal_value_to_int(self.dut.m_itch_tlast_o.value) == 1:
                     self.messages.append(bytes(self._current_message))

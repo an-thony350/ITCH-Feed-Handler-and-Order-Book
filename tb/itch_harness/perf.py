@@ -19,8 +19,7 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
-from .axis import reset_dut
-from .ingress_packets import WORD_BYTES, frame_to_axis_words
+from .axis import axis_bytes_to_words, axis_word_bytes, reset_dut
 from .scoreboard import signal_value_to_int
 
 
@@ -299,6 +298,10 @@ class IngressPerfMonitor:
         self.running = True
         self.cycle = 0
         self._current_message = bytearray()
+        self._itch_word_bytes = axis_word_bytes(
+            dut.m_itch_tdata_o,
+            interface_name="m_itch",
+        )
 
     async def run(self) -> None:
         while self.running:
@@ -397,7 +400,9 @@ class IngressPerfMonitor:
             self.capture.itch_fire_cycles.append(self.cycle)
 
             word = signal_value_to_int(self.dut.m_itch_tdata_o.value)
-            self._current_message.extend(word.to_bytes(WORD_BYTES, "big"))
+            self._current_message.extend(
+                word.to_bytes(self._itch_word_bytes, "big")
+            )
 
             if signal_value_to_int(
                 self.dut.probe_itch_last_fire_o.value
@@ -555,7 +560,12 @@ async def drive_axis_frame_continuous(
 ) -> None:
     """Drive one Ethernet frame without source-side beat bubbles."""
 
-    words = frame_to_axis_words(frame)
+    word_bytes = axis_word_bytes(
+        dut.s_frame_tdata_i,
+        dut.s_frame_tkeep_i,
+        interface_name="s_frame",
+    )
+    words = axis_bytes_to_words(frame, word_bytes=word_bytes)
     if not words:
         raise ValueError("cannot drive an empty Ethernet frame")
 
@@ -577,9 +587,15 @@ async def drive_axis_frames_continuous(
     if not frames:
         raise ValueError("cannot drive an empty frame list")
 
+    word_bytes = axis_word_bytes(
+        dut.s_frame_tdata_i,
+        dut.s_frame_tkeep_i,
+        interface_name="s_frame",
+    )
+
     words: list[tuple[int, int, bool]] = []
     for frame in frames:
-        frame_words = frame_to_axis_words(frame)
+        frame_words = axis_bytes_to_words(frame, word_bytes=word_bytes)
         if not frame_words:
             raise ValueError("cannot drive an empty Ethernet frame")
         words.extend(frame_words)
