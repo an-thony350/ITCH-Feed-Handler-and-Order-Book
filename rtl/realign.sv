@@ -2,11 +2,10 @@
 // - Consumes a continuous byte stream of ITCH payload bytes from mold_deframe.
 // - Consumes one msg_len item per ITCH message.
 // - Emits one AXIS packet per ITCH message into data_handler.
-// - Output has no tkeep because data_handler's current contract does not use it.
+// - Output tkeep identifies the valid bytes of the final, right-zero-padded beat.
 // - Output byte order is big-endian: the ITCH message_type byte is in the
 //   most-significant output byte lane.
-// - Final beat is right-zero-padded and m_axis_tlast_o marks the last beat of
-//   that ITCH message.
+// - m_axis_tlast_o marks the last beat of each ITCH message.
 //
 // Implementation:
 // - A two-beat byte reservoir replaces the previous one-byte-per-cycle lane
@@ -14,9 +13,15 @@
 // - Up to AXIS_KEEP_W bytes are accepted and up to AXIS_KEEP_W bytes are emitted
 //   each cycle.
 // - Input acceptance and output emission may occur in the same cycle, allowing
-//   one complete payload beat per cycle when downstream is ready.
-// - The reservoir is implemented in LUTs/registers rather than BRAM because the
-//   current PYNQ build is BRAM-constrained.
+//   one complete 64-bit payload beat per cycle when downstream is ready.
+// - The reservoir remains in LUTs/registers so this migration does not introduce
+//   a new memory dependency or extra read latency.
+//
+// Timing note:
+// - The existing variable reservoir shift is intentionally retained for this
+//   first native-64-bit timing build. If implementation shows it on the critical
+//   path at 156.25 MHz, it can be replaced with a fixed-case boundary path
+//   without changing the interface or message semantics.
 
 `timescale 1ns/1ps
 `default_nettype none
@@ -42,8 +47,9 @@ module realign #(
   input  wire                       s_msg_len_valid_i,
   output logic                      s_msg_len_ready_o,
 
-  // AXIS output to existing data_handler.s_tdata_i/s_tvalid_i/s_tlast_i.
+  // AXIS output to data_handler.
   output axis_data_t m_axis_tdata_o,
+  output axis_keep_t m_axis_tkeep_o,
   output logic       m_axis_tvalid_o,
   output logic       m_axis_tlast_o,
   input  wire        m_axis_tready_i,
@@ -51,6 +57,15 @@ module realign #(
   // Error/status. Bits pulse for one cycle when an error is detected.
   output logic [REALIGN_ERR_W-1:0] realign_err_o
 );
+
+  initial begin
+    if ((AXIS_DATA_W != 64) || (AXIS_KEEP_W != 8)) begin
+      $error("realign native ingress implementation requires 64-bit AXIS");
+    end
+    if (LEN_FIFO_DEPTH < 1) begin
+      $error("realign LEN_FIFO_DEPTH must be at least one");
+    end
+  end
 
   localparam int LEN_FIFO_AW = (LEN_FIFO_DEPTH <= 1)
                              ? 1 : $clog2(LEN_FIFO_DEPTH);
@@ -90,6 +105,7 @@ module realign #(
   logic                      flush_pending_next;
 
   axis_data_t m_axis_tdata_next;
+  axis_keep_t m_axis_tkeep_next;
   logic       m_axis_tvalid_next;
   logic       m_axis_tlast_next;
 
@@ -116,8 +132,8 @@ module realign #(
     logic seen_zero;
     int   lane;
     begin
-      // Valid bytes are packed from the MSB lane downwards. For the current
-      // 32-bit ingress this accepts 1000, 1100, 1110 and 1111.
+      // Valid bytes are packed from the MSB lane downwards. For 64-bit ingress
+      // this accepts 10000000 through 11111111.
       seen_zero = 1'b0;
       last_keep_is_contiguous = (keep != '0);
 
@@ -149,6 +165,20 @@ module realign #(
       for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
         keep_byte_count += keep[AXIS_KEEP_W-1-lane];
       end
+    end
+  endfunction
+
+  function automatic axis_keep_t keep_from_count(input int count);
+    axis_keep_t keep;
+    int lane;
+    begin
+      keep = '0;
+      for (lane = 0; lane < AXIS_KEEP_W; lane++) begin
+        if (lane < count) begin
+          keep[AXIS_KEEP_W-1-lane] = 1'b1;
+        end
+      end
+      keep_from_count = keep;
     end
   endfunction
 
@@ -219,6 +249,7 @@ module realign #(
     flush_pending_next      = flush_pending;
 
     m_axis_tdata_next       = m_axis_tdata_o;
+    m_axis_tkeep_next       = m_axis_tkeep_o;
     m_axis_tvalid_next      = m_axis_tvalid_o;
     m_axis_tlast_next       = m_axis_tlast_o;
 
@@ -249,6 +280,7 @@ module realign #(
     // Retire the current output beat. A replacement beat may be loaded below in
     // the same cycle, preserving one output beat per cycle.
     if (m_axis_tvalid_o && m_axis_tready_i) begin
+      m_axis_tkeep_next  = '0;
       m_axis_tvalid_next = 1'b0;
       m_axis_tlast_next  = 1'b0;
     end
@@ -343,6 +375,7 @@ module realign #(
           end
 
           m_axis_tdata_next  = emit_data;
+          m_axis_tkeep_next  = keep_from_count(emit_bytes);
           m_axis_tvalid_next = 1'b1;
           m_axis_tlast_next  = (msg_bytes_left_work <= AXIS_KEEP_W);
 
@@ -462,6 +495,7 @@ module realign #(
       flush_pending      <= 1'b0;
 
       m_axis_tdata_o     <= '0;
+      m_axis_tkeep_o     <= '0;
       m_axis_tvalid_o    <= 1'b0;
       m_axis_tlast_o     <= 1'b0;
 
@@ -485,6 +519,7 @@ module realign #(
       flush_pending      <= flush_pending_next;
 
       m_axis_tdata_o     <= m_axis_tdata_next;
+      m_axis_tkeep_o     <= m_axis_tkeep_next;
       m_axis_tvalid_o    <= m_axis_tvalid_next;
       m_axis_tlast_o     <= m_axis_tlast_next;
 
