@@ -9,10 +9,10 @@ module network_ingress_v1_0 #
     // Do not modify the parameters beyond this line
 
     // Parameters of Axi Slave Bus Interface S00_AXIS
-    parameter integer C_S00_AXIS_TDATA_WIDTH = 32,
+    parameter integer C_S00_AXIS_TDATA_WIDTH = 64,
 
     // Parameters of Axi Master Bus Interface M00_AXIS
-    parameter integer C_M00_AXIS_TDATA_WIDTH = 32,
+    parameter integer C_M00_AXIS_TDATA_WIDTH = 64,
     parameter integer C_M00_AXIS_START_COUNT = 32
 )
 (
@@ -42,22 +42,21 @@ module network_ingress_v1_0 #
 
     // Clocking note:
     // This integration assumes S00_AXIS and M00_AXIS are on the same clock.
-    // In the block design, connect both interface clocks to the same PL clock.
-    //
-    // The ingress logic below uses s00_axis_aclk as the single clock.
-    // m00_axis_aclk is retained because it belongs to the packaged M00_AXIS
-    // interface shell.
 
     wire ingress_rst_n;
 
     assign ingress_rst_n = s00_axis_aresetn & m00_axis_aresetn;
 
     // Byte qualifier:
-    // S00_AXIS uses TKEEP because AXI DMA M_AXIS_MM2S provides TKEEP. The ingress
-    // RTL consumes this as its byte-valid mask, including on a partial final beat.
+    // S00_AXIS uses TKEEP because the upstream 32->64 AXIS Data Width Converter
+    // preserves the valid-byte mask from AXI DMA.
     //
-    // M00_AXIS retains TSTRB only because data_handler does not consume the byte
-    // qualifier and the existing packaged interface already uses TSTRB there.
+    // The native 64-bit ingress now also produces a valid-byte qualifier on its
+    // output. The packaged M00_AXIS shell retains TSTRB, so the ingress TKEEP
+    // mask is mapped directly onto TSTRB for the temporary 64->32 width
+    // converter used during timing bring-up.
+
+    wire [(C_M00_AXIS_TDATA_WIDTH/8)-1 : 0] m_itch_tkeep;
 
     ingress_top #(
         .CHECK_DST_PORT    (1'b0),
@@ -73,8 +72,9 @@ module network_ingress_v1_0 #
         .s_frame_tlast_i     (s00_axis_tlast),
         .s_frame_tready_o    (s00_axis_tready),
 
-        // AXIS ITCH-message output to data_handler.
+        // AXIS ITCH-message output.
         .m_itch_tdata_o      (m00_axis_tdata),
+        .m_itch_tkeep_o      (m_itch_tkeep),
         .m_itch_tvalid_o     (m00_axis_tvalid),
         .m_itch_tlast_o      (m00_axis_tlast),
         .m_itch_tready_i     (m00_axis_tready),
@@ -103,9 +103,10 @@ module network_ingress_v1_0 #
         .realign_err_o       ()
     );
 
-    // data_handler does not consume a byte-valid qualifier on its input.
-    // Every emitted 32-bit ITCH word is therefore presented as fully valid.
-    assign m00_axis_tstrb = {(C_M00_AXIS_TDATA_WIDTH/8){1'b1}};
+    // M00_AXIS retains TSTRB in the packaged interface shell. For this native
+    // 64-bit timing build it carries the same byte-valid information as the
+    // realign output TKEEP.
+    assign m00_axis_tstrb = m_itch_tkeep;
 
 endmodule
 

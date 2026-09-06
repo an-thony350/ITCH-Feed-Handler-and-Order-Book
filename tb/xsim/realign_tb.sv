@@ -19,15 +19,17 @@ module realign_tb;
   logic                      s_msg_len_ready_o;
 
   axis_data_t m_axis_tdata_o;
+  axis_keep_t m_axis_tkeep_o;
   logic       m_axis_tvalid_o;
   logic       m_axis_tlast_o;
   logic       m_axis_tready_i;
 
   logic [REALIGN_ERR_W-1:0] realign_err_o;
 
-  localparam int RX_DEPTH = 64;
+  localparam int RX_DEPTH = 128;
 
   axis_data_t rx_data [RX_DEPTH];
+  axis_keep_t rx_keep [RX_DEPTH];
   logic       rx_last [RX_DEPTH];
   int unsigned rx_beats;
   int unsigned rx_packets;
@@ -50,6 +52,7 @@ module realign_tb;
     .s_msg_len_ready_o   (s_msg_len_ready_o),
 
     .m_axis_tdata_o      (m_axis_tdata_o),
+    .m_axis_tkeep_o      (m_axis_tkeep_o),
     .m_axis_tvalid_o     (m_axis_tvalid_o),
     .m_axis_tlast_o      (m_axis_tlast_o),
     .m_axis_tready_i     (m_axis_tready_i),
@@ -58,6 +61,10 @@ module realign_tb;
   );
 
   initial begin
+    if ((AXIS_DATA_W != 64) || (AXIS_KEEP_W != 8)) begin
+      $fatal(1, "realign_tb requires AXIS_DATA_W=64 and AXIS_KEEP_W=8");
+    end
+
     clk = 1'b0;
     forever #5 clk = ~clk;
   end
@@ -69,6 +76,7 @@ module realign_tb;
       end
 
       rx_data[rx_beats] = m_axis_tdata_o;
+      rx_keep[rx_beats] = m_axis_tkeep_o;
       rx_last[rx_beats] = m_axis_tlast_o;
       rx_beats = rx_beats + 1;
 
@@ -82,6 +90,35 @@ module realign_tb;
       last_err   = realign_err_o;
     end
   end
+
+  function automatic axis_keep_t keep_from_count(input int unsigned count);
+    axis_keep_t keep;
+    begin
+      keep = '0;
+      for (int lane = 0; lane < AXIS_KEEP_W; lane++) begin
+        if (lane < count) begin
+          keep[AXIS_KEEP_W-1-lane] = 1'b1;
+        end
+      end
+      return keep;
+    end
+  endfunction
+
+  function automatic axis_data_t payload_word(
+    input logic [7:0] base,
+    input int unsigned count
+  );
+    axis_data_t data;
+    begin
+      data = '0;
+      for (int lane = 0; lane < AXIS_KEEP_W; lane++) begin
+        if (lane < count) begin
+          data[AXIS_DATA_W-1-(8*lane) -: 8] = base + lane;
+        end
+      end
+      return data;
+    end
+  endfunction
 
   task automatic clear_scoreboard();
     rx_beats   = 0;
@@ -171,6 +208,7 @@ module realign_tb;
   task automatic expect_beat(
     input int unsigned beat_idx,
     input axis_data_t expected_data,
+    input axis_keep_t expected_keep,
     input logic       expected_last
   );
     if (beat_idx >= rx_beats) begin
@@ -180,6 +218,11 @@ module realign_tb;
     if (rx_data[beat_idx] !== expected_data) begin
       $fatal(1, "Beat %0d data mismatch: got %016h expected %016h",
              beat_idx, rx_data[beat_idx], expected_data);
+    end
+
+    if (rx_keep[beat_idx] !== expected_keep) begin
+      $fatal(1, "Beat %0d tkeep mismatch: got %02h expected %02h",
+             beat_idx, rx_keep[beat_idx], expected_keep);
     end
 
     if (rx_last[beat_idx] !== expected_last) begin
@@ -221,7 +264,12 @@ module realign_tb;
 
     wait_for_packets(1);
     wait_for_beats(1);
-    expect_beat(0, 64'h41_01_02_03_04_00_00_00, 1'b1);
+    expect_beat(
+      0,
+      64'h41_01_02_03_04_00_00_00,
+      8'b1111_1000,
+      1'b1
+    );
     expect_no_error();
   endtask
 
@@ -230,13 +278,13 @@ module realign_tb;
     clear_scoreboard();
 
     send_len(16'd10);
-    send_payload_beat(64'h10_11_12_13_14_15_16_17, 8'hff,       1'b0);
+    send_payload_beat(64'h10_11_12_13_14_15_16_17, 8'hff,         1'b0);
     send_payload_beat(64'h18_19_00_00_00_00_00_00, 8'b1100_0000, 1'b1);
 
     wait_for_packets(1);
     wait_for_beats(2);
-    expect_beat(0, 64'h10_11_12_13_14_15_16_17, 1'b0);
-    expect_beat(1, 64'h18_19_00_00_00_00_00_00, 1'b1);
+    expect_beat(0, 64'h10_11_12_13_14_15_16_17, 8'hff,         1'b0);
+    expect_beat(1, 64'h18_19_00_00_00_00_00_00, 8'b1100_0000, 1'b1);
     expect_no_error();
   endtask
 
@@ -250,8 +298,8 @@ module realign_tb;
 
     wait_for_packets(2);
     wait_for_beats(2);
-    expect_beat(0, 64'hAA_BB_CC_00_00_00_00_00, 1'b1);
-    expect_beat(1, 64'hDD_EE_FF_99_00_00_00_00, 1'b1);
+    expect_beat(0, 64'hAA_BB_CC_00_00_00_00_00, 8'b1110_0000, 1'b1);
+    expect_beat(1, 64'hDD_EE_FF_99_00_00_00_00, 8'b1111_0000, 1'b1);
     expect_no_error();
   endtask
 
@@ -266,19 +314,49 @@ module realign_tb;
     // long because only three valid payload bytes remain in this datagram.
     send_len(16'd10);
     send_len(16'd3);
-    send_payload_beat(64'h01_02_03_04_05_06_07_08, 8'hff,       1'b0);
+    send_payload_beat(64'h01_02_03_04_05_06_07_08, 8'hff,         1'b0);
     send_payload_beat(64'h09_0A_0B_0C_0D_00_00_00, 8'b1111_1000, 1'b1);
 
     wait_for_packets(2);
     wait_for_beats(3);
-    expect_beat(0, 64'h01_02_03_04_05_06_07_08, 1'b0);
-    expect_beat(1, 64'h09_0A_00_00_00_00_00_00, 1'b1);
-    expect_beat(2, 64'h0B_0C_0D_00_00_00_00_00, 1'b1);
+    expect_beat(0, 64'h01_02_03_04_05_06_07_08, 8'hff,         1'b0);
+    expect_beat(1, 64'h09_0A_00_00_00_00_00_00, 8'b1100_0000, 1'b1);
+    expect_beat(2, 64'h0B_0C_0D_00_00_00_00_00, 8'b1110_0000, 1'b1);
     expect_no_error();
+  endtask
+
+  task automatic test_final_tkeep_patterns();
+    axis_data_t first_data;
+    axis_data_t final_data;
+    axis_keep_t final_keep;
+    int unsigned message_len;
+
+    $display("TEST all eight 64-bit final tkeep patterns");
+
+    for (int tail_bytes = 1; tail_bytes <= AXIS_KEEP_W; tail_bytes++) begin
+      clear_scoreboard();
+
+      message_len = AXIS_KEEP_W + tail_bytes;
+      first_data  = payload_word(8'h20, AXIS_KEEP_W);
+      final_data  = payload_word(8'h80, tail_bytes);
+      final_keep  = keep_from_count(tail_bytes);
+
+      send_len(message_len);
+      send_payload_beat(first_data, 8'hff, 1'b0);
+      send_payload_beat(final_data, final_keep, 1'b1);
+
+      wait_for_packets(1);
+      wait_for_beats(2);
+
+      expect_beat(0, first_data, 8'hff, 1'b0);
+      expect_beat(1, final_data, final_keep, 1'b1);
+      expect_no_error();
+    end
   endtask
 
   task automatic test_output_backpressure();
     axis_data_t held_data;
+    axis_keep_t held_keep;
     logic       held_last;
 
     $display("TEST output backpressure holds beat stable");
@@ -293,6 +371,7 @@ module realign_tb;
     end
 
     held_data = m_axis_tdata_o;
+    held_keep = m_axis_tkeep_o;
     held_last = m_axis_tlast_o;
 
     repeat (5) begin
@@ -300,7 +379,9 @@ module realign_tb;
       if (!m_axis_tvalid_o) begin
         $fatal(1, "Output valid dropped under backpressure");
       end
-      if ((m_axis_tdata_o !== held_data) || (m_axis_tlast_o !== held_last)) begin
+      if ((m_axis_tdata_o !== held_data)
+          || (m_axis_tkeep_o !== held_keep)
+          || (m_axis_tlast_o !== held_last)) begin
         $fatal(1, "Output beat changed under backpressure");
       end
     end
@@ -308,7 +389,7 @@ module realign_tb;
     m_axis_tready_i <= 1'b1;
     wait_for_packets(1);
     wait_for_beats(1);
-    expect_beat(0, 64'h80_81_82_83_84_85_86_87, 1'b1);
+    expect_beat(0, 64'h80_81_82_83_84_85_86_87, 8'hff, 1'b1);
     expect_no_error();
   endtask
 
@@ -320,6 +401,33 @@ module realign_tb;
     wait_for_error(REALIGN_ERR_LEN_ZERO);
   endtask
 
+  task automatic test_bad_tkeep_error();
+    $display("TEST non-contiguous final tkeep error");
+    clear_scoreboard();
+
+    send_len(16'd3);
+    send_payload_beat(64'hA0_B0_C0_00_00_00_00_00, 8'b1010_0000, 1'b1);
+    wait_for_error(REALIGN_ERR_BAD_TKEEP);
+  endtask
+
+  task automatic test_payload_underflow_error();
+    $display("TEST payload underflow error");
+    clear_scoreboard();
+
+    send_len(16'd10);
+    send_payload_beat(64'h10_11_12_13_14_15_16_17, 8'hff, 1'b1);
+    wait_for_error(REALIGN_ERR_PAYLOAD_UNDERFLOW);
+  endtask
+
+  task automatic test_payload_overflow_error();
+    $display("TEST payload overflow error");
+    clear_scoreboard();
+
+    send_len(16'd3);
+    send_payload_beat(64'h31_32_33_34_00_00_00_00, 8'b1111_0000, 1'b1);
+    wait_for_error(REALIGN_ERR_PAYLOAD_OVERFLOW);
+  endtask
+
   initial begin
     reset_dut();
 
@@ -327,8 +435,20 @@ module realign_tb;
     test_multibeat_message();
     test_two_messages_one_payload_beat();
     test_straddled_boundary();
+    test_final_tkeep_patterns();
     test_output_backpressure();
+
+    reset_dut();
     test_zero_length_error();
+
+    reset_dut();
+    test_bad_tkeep_error();
+
+    reset_dut();
+    test_payload_underflow_error();
+
+    reset_dut();
+    test_payload_overflow_error();
 
     $display("realign_tb PASS");
     $finish;

@@ -20,8 +20,9 @@ module ingress_top #(
   input  wire       s_frame_tlast_i,
   output logic       s_frame_tready_o,
 
-  // AXIS ITCH-message output to data_handler.
+  // AXIS ITCH-message output from realign.
   output axis_data_t m_itch_tdata_o,
+  output axis_keep_t m_itch_tkeep_o,
   output logic       m_itch_tvalid_o,
   output logic       m_itch_tlast_o,
   input  wire       m_itch_tready_i,
@@ -151,6 +152,7 @@ module ingress_top #(
     .s_msg_len_ready_o   (msg_len_ready),
 
     .m_axis_tdata_o      (m_itch_tdata_o),
+    .m_axis_tkeep_o      (m_itch_tkeep_o),
     .m_axis_tvalid_o     (m_itch_tvalid_o),
     .m_axis_tlast_o      (m_itch_tlast_o),
     .m_axis_tready_i     (m_itch_tready_i),
