@@ -1,0 +1,86 @@
+SIM ?= verilator
+TOPLEVEL_LANG = verilog
+
+PWD := $(shell pwd)
+REPO_ROOT := $(PWD)/..
+TESTS_DIR := $(PWD)/tests
+
+TOPLEVEL = line_rate_perf_probe
+MODULE = test_line_rate_regression
+
+LINE_RATE_MODE ?= campaign
+LINE_RATE_EVENT_COUNT ?=
+LINE_RATE_ENFORCE ?= 0
+LINE_RATE_RESULTS_DIR ?= $(REPO_ROOT)/build/perf/line_rate
+
+export LINE_RATE_MODE
+export LINE_RATE_EVENT_COUNT
+export LINE_RATE_ENFORCE
+export LINE_RATE_RESULTS_DIR
+
+VERILOG_SOURCES = \
+$(REPO_ROOT)/rtl/hdl_header.sv \
+$(REPO_ROOT)/rtl/frame_crack.sv \
+$(REPO_ROOT)/rtl/mold_seq_guard.sv \
+$(REPO_ROOT)/rtl/mold_deframe.sv \
+$(REPO_ROOT)/rtl/realign.sv \
+$(REPO_ROOT)/rtl/ingress_top.sv \
+$(REPO_ROOT)/rtl/data_handler.sv \
+$(REPO_ROOT)/rtl/symbol_router.sv \
+$(REPO_ROOT)/rtl/ob/order_book_v3.sv \
+$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
+$(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
+$(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_idle.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_req.sv \
+$(REPO_ROOT)/rtl/ob/ob_idx_search.sv \
+$(REPO_ROOT)/rtl/ob/ob_issue_book_read.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
+$(REPO_ROOT)/rtl/ob/ob_update_write.sv \
+$(REPO_ROOT)/rtl/order_book_top.sv \
+$(PWD)/rtl/event_async_fifo_sim.sv \
+$(PWD)/rtl/line_rate_perf_probe.sv
+
+export PYTHONPATH := $(TESTS_DIR):$(PWD):$(REPO_ROOT):$(PYTHONPATH)
+
+EXTRA_ARGS += --sv
+EXTRA_ARGS += --timing
+EXTRA_ARGS += --trace
+EXTRA_ARGS += --trace-structs
+# Keep existing ingress width/lint warnings visible without turning unrelated
+# warnings into a failure of the new performance harness itself.
+EXTRA_ARGS += -Wno-fatal
+
+.PHONY: measure smoke gate order-book-ii1 full clean-line-rate
+
+# Measurement mode is the correct first run on the current baseline. It records
+# every sustained-rate failure but does not stop at the first known bottleneck.
+measure:
+	rm -rf $(LINE_RATE_RESULTS_DIR)
+	$(MAKE) -f Makefile.line_rate clean
+	$(MAKE) -f Makefile.line_rate results.xml LINE_RATE_MODE=$(LINE_RATE_MODE) LINE_RATE_ENFORCE=0 LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
+
+smoke:
+	$(MAKE) -f Makefile.line_rate measure LINE_RATE_MODE=smoke
+
+# Gate mode is intended for the optimised candidate. It uses the same campaigns
+# but converts source stalls, unbounded FIFO growth and BBO loss into hard fails.
+gate:
+	$(MAKE) -f Makefile.line_rate clean
+	$(MAKE) -f Makefile.line_rate results.xml LINE_RATE_MODE=$(LINE_RATE_MODE) LINE_RATE_ENFORCE=1 LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
+
+# Reuse the repository's existing order_book source list for the separate II=1
+# test rather than duplicating another production source manifest here.
+order-book-ii1:
+	$(MAKE) -f Makefile clean TOPLEVEL=order_book MODULE=test_order_book_throughput
+	$(MAKE) -f Makefile results.xml TOPLEVEL=order_book MODULE=test_order_book_throughput LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
+
+full: measure order-book-ii1
+
+clean-line-rate:
+	$(MAKE) -f Makefile.line_rate clean
+	rm -f results.xml
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
