@@ -13,11 +13,18 @@ LINE_RATE_EVENT_COUNT ?=
 LINE_RATE_ENFORCE ?= 0
 LINE_RATE_RESULTS_DIR ?= $(REPO_ROOT)/build/perf/line_rate
 
+INGRESS_LINE_RATE_CLOCK_MHZ ?= 156.25
+INGRESS_LINE_RATE_RESULTS_DIR ?= $(REPO_ROOT)/build/perf/data_realign_ingress_line_rate
+LEGACY_INGRESS_LINE_RATE_RESULTS_DIR ?= $(REPO_ROOT)/build/perf/legacy_ingress_line_rate
+
 export LINE_RATE_MODE
 export LINE_RATE_EVENT_COUNT
 export LINE_RATE_ENFORCE
 export LINE_RATE_RESULTS_DIR
 
+# Legacy full-chain source list is deliberately unchanged until the merged
+# candidate has passed its isolated ingress gates and the production/Vivado
+# architecture is migrated.
 VERILOG_SOURCES = \
 $(REPO_ROOT)/rtl/hdl_header.sv \
 $(REPO_ROOT)/rtl/frame_crack.sv \
@@ -49,14 +56,14 @@ EXTRA_ARGS += --sv
 EXTRA_ARGS += --timing
 EXTRA_ARGS += --trace
 EXTRA_ARGS += --trace-structs
-# Keep existing ingress width/lint warnings visible without turning unrelated
-# warnings into a failure of the new performance harness itself.
 EXTRA_ARGS += -Wno-fatal
 
-.PHONY: measure smoke gate order-book-ii1 full clean-line-rate
+.PHONY: measure smoke gate \
+        ingress-measure ingress-smoke ingress-gate \
+        legacy-ingress-measure legacy-ingress-smoke legacy-ingress-gate \
+        order-book-ii1 full clean-line-rate
 
-# Measurement mode is the correct first run on the current baseline. It records
-# every sustained-rate failure but does not stop at the first known bottleneck.
+# Existing full-chain order-book measurement remains available and unchanged.
 measure:
 	rm -rf $(LINE_RATE_RESULTS_DIR)
 	$(MAKE) -f Makefile.line_rate clean
@@ -65,14 +72,59 @@ measure:
 smoke:
 	$(MAKE) -f Makefile.line_rate measure LINE_RATE_MODE=smoke
 
-# Gate mode is intended for the optimised candidate. It uses the same campaigns
-# but converts source stalls, unbounded FIFO growth and BBO loss into hard fails.
 gate:
 	$(MAKE) -f Makefile.line_rate clean
 	$(MAKE) -f Makefile.line_rate results.xml LINE_RATE_MODE=$(LINE_RATE_MODE) LINE_RATE_ENFORCE=1 LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
 
-# Reuse the repository's existing order_book source list for the separate II=1
-# test rather than duplicating another production source manifest here.
+# New preferred ingress measurement: frame_crack -> mold_deframe ->
+# data_realign -> always-ready normalised-event sink.
+ingress-measure:
+	rm -rf $(INGRESS_LINE_RATE_RESULTS_DIR)
+	$(MAKE) -f Makefile clean TOPLEVEL=ingress_data_realign_perf_probe MODULE=test_ingress_data_realign_line_rate
+	LINE_RATE_MODE=$(LINE_RATE_MODE) \
+	LINE_RATE_EVENT_COUNT=$(LINE_RATE_EVENT_COUNT) \
+	LINE_RATE_ENFORCE=0 \
+	LINE_RATE_RESULTS_DIR=$(INGRESS_LINE_RATE_RESULTS_DIR) \
+	CLOCK_MHZ=$(INGRESS_LINE_RATE_CLOCK_MHZ) \
+	$(MAKE) -f Makefile results.xml TOPLEVEL=ingress_data_realign_perf_probe MODULE=test_ingress_data_realign_line_rate
+
+ingress-smoke:
+	$(MAKE) -f Makefile.line_rate ingress-measure LINE_RATE_MODE=smoke
+
+ingress-gate:
+	rm -rf $(INGRESS_LINE_RATE_RESULTS_DIR)
+	$(MAKE) -f Makefile clean TOPLEVEL=ingress_data_realign_perf_probe MODULE=test_ingress_data_realign_line_rate
+	LINE_RATE_MODE=$(LINE_RATE_MODE) \
+	LINE_RATE_EVENT_COUNT=$(LINE_RATE_EVENT_COUNT) \
+	LINE_RATE_ENFORCE=1 \
+	LINE_RATE_RESULTS_DIR=$(INGRESS_LINE_RATE_RESULTS_DIR) \
+	CLOCK_MHZ=$(INGRESS_LINE_RATE_CLOCK_MHZ) \
+	$(MAKE) -f Makefile results.xml TOPLEVEL=ingress_data_realign_perf_probe MODULE=test_ingress_data_realign_line_rate
+
+# Retain the old aligned-ITCH ingress benchmark for direct A/B comparison.
+legacy-ingress-measure:
+	rm -rf $(LEGACY_INGRESS_LINE_RATE_RESULTS_DIR)
+	$(MAKE) -f Makefile clean TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_line_rate_regression
+	LINE_RATE_MODE=$(LINE_RATE_MODE) \
+	LINE_RATE_EVENT_COUNT=$(LINE_RATE_EVENT_COUNT) \
+	LINE_RATE_ENFORCE=0 \
+	LINE_RATE_RESULTS_DIR=$(LEGACY_INGRESS_LINE_RATE_RESULTS_DIR) \
+	CLOCK_MHZ=$(INGRESS_LINE_RATE_CLOCK_MHZ) \
+	$(MAKE) -f Makefile results.xml TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_line_rate_regression
+
+legacy-ingress-smoke:
+	$(MAKE) -f Makefile.line_rate legacy-ingress-measure LINE_RATE_MODE=smoke
+
+legacy-ingress-gate:
+	rm -rf $(LEGACY_INGRESS_LINE_RATE_RESULTS_DIR)
+	$(MAKE) -f Makefile clean TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_line_rate_regression
+	LINE_RATE_MODE=$(LINE_RATE_MODE) \
+	LINE_RATE_EVENT_COUNT=$(LINE_RATE_EVENT_COUNT) \
+	LINE_RATE_ENFORCE=1 \
+	LINE_RATE_RESULTS_DIR=$(LEGACY_INGRESS_LINE_RATE_RESULTS_DIR) \
+	CLOCK_MHZ=$(INGRESS_LINE_RATE_CLOCK_MHZ) \
+	$(MAKE) -f Makefile results.xml TOPLEVEL=ingress_top_perf_probe MODULE=test_ingress_line_rate_regression
+
 order-book-ii1:
 	$(MAKE) -f Makefile clean TOPLEVEL=order_book MODULE=test_order_book_throughput
 	$(MAKE) -f Makefile results.xml TOPLEVEL=order_book MODULE=test_order_book_throughput LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
