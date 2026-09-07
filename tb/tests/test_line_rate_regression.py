@@ -44,12 +44,18 @@ from itch_harness.line_rate_perf import (
     write_line_rate_summary,
 )
 from itch_harness.perf import drive_axis_frame_continuous, drive_axis_frames_continuous
+from itch_harness.scoreboard import signal_value_to_int
 
 
 DEFAULT_CAMPAIGN_EVENTS = 192
 SMOKE_CAMPAIGN_EVENTS = 48
 MAX_MOLD_BODY_BYTES = 1_452
-TIMEOUT_CYCLES_PER_BEAT = 2_000_000
+# A healthy zero-gap campaign should make progress in far fewer cycles.
+# Keep the watchdog long enough to avoid false failures, but short enough that
+# a deadlocked ready/valid boundary fails in seconds rather than minutes.
+TIMEOUT_CYCLES_PER_BEAT = 20_000
+WAIT_TIMEOUT_NETWORK_CYCLES = 20_000
+WAIT_TIMEOUT_DATA_CYCLES = 20_000
 RANDOM_SEED = 0x1_7C4
 
 
@@ -441,6 +447,88 @@ def _case_failures(record: dict[str, Any]) -> list[str]:
     return failures
 
 
+
+def _live_snapshot(dut: Any, monitor: LineRateMonitor) -> str:
+    """Return a compact snapshot of every observed ready/valid boundary."""
+
+    def value(signal: Any) -> int:
+        return signal_value_to_int(signal.value)
+
+    capture = monitor.capture
+
+    lines = [
+        "line-rate live snapshot:",
+        f"  frame      v/r={value(dut.s_frame_tvalid_i)}/{value(dut.s_frame_tready_o)}",
+        (
+            "  dgram      "
+            f"v/r={value(dut.probe_dgram_tvalid_o)}/"
+            f"{value(dut.probe_dgram_tready_o)}"
+        ),
+        (
+            "  payload    "
+            f"v/r={value(dut.probe_payload_tvalid_o)}/"
+            f"{value(dut.probe_payload_tready_o)}"
+        ),
+        (
+            "  msg_len    "
+            f"v/r={value(dut.probe_msg_len_valid_o)}/"
+            f"{value(dut.probe_msg_len_ready_o)}"
+        ),
+        (
+            "  itch       "
+            f"v/r={value(dut.probe_itch_tvalid_o)}/"
+            f"{value(dut.probe_itch_tready_o)}"
+        ),
+        (
+            "  decoded    "
+            f"v/r={value(dut.probe_decoded_valid_o)}/"
+            f"{value(dut.probe_decoded_ready_o)}"
+        ),
+        (
+            "  event FIFO "
+            f"m_v/r={value(dut.probe_fifo_m_valid_o)}/"
+            f"{value(dut.probe_fifo_m_ready_o)} "
+            f"level={value(dut.probe_event_fifo_wr_level_o)} "
+            f"full={value(dut.probe_event_fifo_full_o)} "
+            f"empty={value(dut.probe_event_fifo_empty_o)}"
+        ),
+        (
+            "  books      "
+            f"ready={value(dut.probe_book_ready_stock0_o)}/"
+            f"{value(dut.probe_book_ready_stock1_o)}/"
+            f"{value(dut.probe_book_ready_stock2_o)}"
+        ),
+        (
+            "  counts     "
+            f"frame_beats={len(capture.frame_fire_cycles)} "
+            f"itch_beats={len(capture.itch_fire_cycles)} "
+            f"itch_last={len(capture.itch_last_cycles)} "
+            f"decoded={capture.decoded_event_count} "
+            f"fifo_reads={capture.fifo_read_count} "
+            f"internal_bbo={capture.internal_bbo_count} "
+            f"external_bbo={capture.external_bbo_count}"
+        ),
+        (
+            "  stalls     "
+            f"frame={capture.frame_stall_cycles} "
+            f"dgram={capture.dgram_stall_cycles} "
+            f"payload={capture.payload_stall_cycles} "
+            f"msg_len={capture.msg_len_stall_cycles} "
+            f"itch={capture.itch_stall_cycles} "
+            f"decoded={capture.decoded_stall_cycles} "
+            f"fifo_read={capture.fifo_read_stall_cycles}"
+        ),
+        (
+            "  errors     "
+            f"frame={capture.frame_drop_errs} "
+            f"mold={capture.mold_drop_errs} "
+            f"realign={capture.realign_errs}"
+        ),
+    ]
+
+    return "\n".join(lines)
+
+
 @cocotb.test()
 async def test_pre_taxi_sustained_line_rate(dut: Any) -> None:
     """Measure the first sustained-rate bottleneck across representative campaigns."""
@@ -468,14 +556,65 @@ async def test_pre_taxi_sustained_line_rate(dut: Any) -> None:
         network_task = cocotb.start_soon(monitor.run_network())
         data_task = cocotb.start_soon(monitor.run_data())
 
-        await drive_axis_frames_continuous(
-            dut,
-            frames,
-            timeout_cycles_per_beat=TIMEOUT_CYCLES_PER_BEAT,
+
+        dut._log.info(
+            "%s: starting measured drive (%d events in %d frames)",
+            campaign.name,
+            len(campaign.payloads),
+            len(frames),
         )
-        await monitor.wait_for_decoded_events(len(campaign.payloads))
-        await monitor.wait_for_fifo_reads(len(campaign.payloads))
-        await monitor.wait_for_internal_bbos(len(campaign.payloads))
+
+        try:
+            await drive_axis_frames_continuous(
+                dut,
+                frames,
+                timeout_cycles_per_beat=TIMEOUT_CYCLES_PER_BEAT,
+            )
+        except TimeoutError as exc:
+            raise AssertionError(
+                f"{campaign.name}: Ethernet drive stopped making progress\n"
+                f"{_live_snapshot(dut, monitor)}"
+            ) from exc
+
+        dut._log.info(
+            "%s: frame drive complete; decoded=%d fifo_reads=%d internal_bbo=%d",
+            campaign.name,
+            monitor.capture.decoded_event_count,
+            monitor.capture.fifo_read_count,
+            monitor.capture.internal_bbo_count,
+        )
+
+        try:
+            await monitor.wait_for_decoded_events(
+                len(campaign.payloads),
+                timeout_cycles=WAIT_TIMEOUT_NETWORK_CYCLES,
+            )
+        except TimeoutError as exc:
+            raise AssertionError(
+                f"{campaign.name}: decoder did not produce all events\n"
+                f"{_live_snapshot(dut, monitor)}"
+            ) from exc
+
+        try:
+            await monitor.wait_for_fifo_reads(
+                len(campaign.payloads),
+                timeout_cycles=WAIT_TIMEOUT_DATA_CYCLES,
+            )
+        except TimeoutError as exc:
+            raise AssertionError(
+                f"{campaign.name}: event FIFO did not deliver all events\n"
+                f"{_live_snapshot(dut, monitor)}"
+            ) from exc
+
+        all_internal_bbos = await monitor.wait_for_internal_bbos(
+            len(campaign.payloads),
+            timeout_cycles=WAIT_TIMEOUT_DATA_CYCLES,
+        )
+        if not all_internal_bbos:
+            raise AssertionError(
+                f"{campaign.name}: order books did not produce all internal BBOs\n"
+                f"{_live_snapshot(dut, monitor)}"
+            )
 
         # A single hot book receives only one fixed RR read slot every three data
         # cycles in the current RTL. Four cycles/event is therefore sufficient
