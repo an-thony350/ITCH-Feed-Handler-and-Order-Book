@@ -51,7 +51,7 @@ module symbol_router(
     input   logic [3:0]             ready_i,
 
     // outputs to order book
-    output  o_data_t                rdata_o,
+    output  o_data_raw_t            rdata_o,
     output  logic   [PRICE_W-1:0]   base_price_o,
 
     // stock output to order book
@@ -64,6 +64,12 @@ logic [1:0] target_idx;
 logic [PRICE_W-1:0] target_base_price;
 logic       is_price_msg;
 logic       in_bounds;
+
+logic delivering;
+
+assign delivering = (valid_stock0_o && !ready_i[1]) ||
+                    (valid_stock1_o && !ready_i[2]) ||
+                    (valid_stock2_o && !ready_i[3]);
 
 always_comb begin
     target_idx  =   2'b00;
@@ -92,7 +98,7 @@ end
 
 
 
-assign ready_o = ready_i[target_idx];
+assign ready_o = ready_i[target_idx] && !delivering;
 
 always_ff@(posedge clk) begin
     if(!rst_n) begin
@@ -103,47 +109,54 @@ always_ff@(posedge clk) begin
         rdata_o                 <=  '0;
     end
     else begin
-        valid_stock0_o  <=  1'b0;
-        valid_stock1_o  <=  1'b0;
-        valid_stock2_o  <=  1'b0;
+        if(delivering) begin
+            valid_stock0_o <= valid_stock0_o;
+            valid_stock1_o <= valid_stock1_o;
+            valid_stock2_o <= valid_stock2_o;
+        end
+        else begin
+            valid_stock0_o  <=  1'b0;
+            valid_stock1_o  <=  1'b0;
+            valid_stock2_o  <=  1'b0;
 
-        if(valid_i && ready_o) begin
-            rdata_o.message_type     <=      rdata_i.message_type;
-            rdata_o.orn              <=      rdata_i.orn;
-            rdata_o.price            <=      rdata_i.price;
-            rdata_o.shares           <=      rdata_i.shares;
-            rdata_o.side             <=      rdata_i.side;
-            rdata_o.updated_orn      <=      rdata_i.updated_orn;
+            if(valid_i && ready_o) begin
+                rdata_o.message_type     <=      rdata_i.message_type;
+                rdata_o.orn              <=      rdata_i.orn;
+                rdata_o.price            <=      rdata_i.price;
+                rdata_o.shares           <=      rdata_i.shares;
+                rdata_o.side             <=      rdata_i.side;
+                rdata_o.updated_orn      <= rdata_i.updated_orn;
 
-            if(is_price_msg && ~in_bounds) begin
-                valid_stock0_o  <=  1'b0;
-                valid_stock1_o  <=  1'b0;
-                valid_stock2_o  <=  1'b0;
-                base_price_o    <=  target_base_price;
-            end
-            else begin
-                case(target_idx)
-
-                2'd1: begin
-                    valid_stock0_o  <=  1'b1;
-                    base_price_o    <=  base_price_stock0_i;
-                end
-
-                2'd2: begin
-                    valid_stock1_o  <=  1'b1;
-                    base_price_o    <=  base_price_stock1_i;
-                end
-                2'd3: begin
-                    valid_stock2_o  <=  1'b1;
-                    base_price_o    <=  base_price_stock2_i;
-                end
-
-                default: begin
+                if(is_price_msg && ~in_bounds) begin
                     valid_stock0_o  <=  1'b0;
                     valid_stock1_o  <=  1'b0;
                     valid_stock2_o  <=  1'b0;
+                    base_price_o    <=  target_base_price;
                 end
-                endcase
+                else begin
+                    case(target_idx)
+
+                    2'd1: begin
+                        valid_stock0_o  <=  1'b1;
+                        base_price_o    <=  base_price_stock0_i;
+                    end
+
+                    2'd2: begin
+                        valid_stock1_o  <=  1'b1;
+                        base_price_o    <=  base_price_stock1_i;
+                    end
+                    2'd3: begin
+                        valid_stock2_o  <=  1'b1;
+                        base_price_o    <=  base_price_stock2_i;
+                    end
+
+                    default: begin
+                        valid_stock0_o  <=  1'b0;
+                        valid_stock1_o  <=  1'b0;
+                        valid_stock2_o  <=  1'b0;
+                    end
+                    endcase
+                end
             end
         end
     end

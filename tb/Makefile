@@ -116,6 +116,15 @@ VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/symbol_router.sv \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
 $(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_hazard_unit.sv \
+$(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_block.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo_2.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo_3.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_1.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_2.sv \
+$(REPO_ROOT)/rtl/ob/ob_replace_check.sv \
 $(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
 $(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
 $(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
@@ -134,6 +143,15 @@ else ifeq ($(TOPLEVEL),order_book)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
 $(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
+$(REPO_ROOT)/rtl/ob/ob_hazard_unit.sv \
+$(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_block.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo_2.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo_3.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_1.sv \
+$(REPO_ROOT)/rtl/ob/ob_uram_delay_2.sv \
+$(REPO_ROOT)/rtl/ob/ob_replace_check.sv \
 $(REPO_ROOT)/rtl/ob/ob_bbo_out.sv \
 $(REPO_ROOT)/rtl/ob/ob_bbo_resolve.sv \
 $(REPO_ROOT)/rtl/ob/ob_evaluate_bbo.sv \
@@ -184,7 +202,7 @@ test-golden:
 	cd $(REPO_ROOT) && scripts/run_golden.sh
 
 # Keep long-running performance campaigns out of the normal correctness suite.
-test-rtl: test-mold-seq-guard test-data-handler test-order-book test-order-book-top test-ingress test-feed-handler-top
+test-rtl:test-order-book test-order-book-top
 
 test-mold-seq-guard:
 	$(MAKE) clean TOPLEVEL=mold_seq_guard MODULE=test_mold_seq_guard

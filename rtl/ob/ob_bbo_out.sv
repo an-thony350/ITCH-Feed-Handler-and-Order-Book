@@ -31,6 +31,7 @@ module ob_bbo_out(
     // Instruction Data Inputs
     input logic                 stage_valid_i,
     input logic [PRICE_W-1:0]   latched_base_price_i,
+    input logic                 latched_rep_delete_i,
 
     // External Memory Inputs
     input logic [SHARES_W-1:0]  bid_dout_a,
@@ -53,7 +54,7 @@ always_ff @(posedge clk) begin
         bbo_valid_o     <=  1'b0;
     end
     else begin
-        bbo_valid_o     <=  stage_valid_i;
+        bbo_valid_o     <=  stage_valid_i && !latched_rep_delete_i;
 
         if(bid_is_zero_i) begin
             bbo_data_o.bid_price  <= '0;
@@ -74,5 +75,4 @@ always_ff @(posedge clk) begin
         end
     end
 end
-
 endmodule

@@ -3,15 +3,14 @@
 // Company:  N/A
 // Engineers: Anthony Bartlett & Denzil Erza-Essien
 //
-// Create Date: 12.08.2026 01:50:22
-// Design Name: Order Book Issue Book Read Block
-// Module Name: ob_issue_book_read
+// Create Date: 02.09.2026 22:47:08
+// Design Name: Order Book 2nd URAM delay block Block
+// Module Name: ob_uram_delay_2
 // Project Name: Nasdaq-ITCH Feed Handler & Order Book
 // Target Devices: ZCU106
 // Tool Versions: Vivado 2023.2
 //
-// Description: This module forms the delta price value for the price books, and then
-//              asserts the data values for a sequential bram write
+// Description: This module is a pipeline delay for reads of price books using URAM
 //
 // Dependencies:
 //
@@ -20,10 +19,10 @@
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
-
 import hdl_header::*;
 
-module ob_issue_book_read(
+
+module ob_uram_delay_2(
     // Control Signals
     input logic                 clk,
     input logic                 rst_n,
@@ -54,6 +53,7 @@ module ob_issue_book_read(
     input logic [5:0]           latched_cam_idx_i,
     input logic [1:0]           latched_slot_idx_i,
     input order_entry_t         latched_lookup_entry_i,
+    input logic [BBO_W-1:0]     latched_lookup_price_idx_i,
     input logic [HASH_W-1:0]    latched_hash_idx_i,
     input order_entry_t [2:0]   latched_read_bucket_i,
 
@@ -64,21 +64,9 @@ module ob_issue_book_read(
     output order_entry_t        latched_lookup_entry_o,
     output logic [BBO_W-1:0]    latched_lookup_price_idx_o,
     output logic [HASH_W-1:0]   latched_hash_idx_o,
-    output order_entry_t [2:0]  latched_read_bucket_o,
-
-
-    // External Memory I/O
-    output logic [BBO_W-1:0]    bid_addr_a,
-    output logic [BBO_W-1:0]    ask_addr_a
+    output order_entry_t [2:0]  latched_read_bucket_o
 );
 
-// Combinational bid/ask address writes
-always_comb begin
-    bid_addr_a  =   latched_is_add_i ? latched_event_price_idx_i : price_to_idx(latched_lookup_entry_i.price, latched_base_price_i);
-    ask_addr_a  =   bid_addr_a;
-end
-
-// Sequential Logic
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o               <=  1'b0;
@@ -114,7 +102,7 @@ always_ff @(posedge clk) begin
         latched_cam_idx_o           <=  latched_cam_idx_i;
         latched_slot_idx_o          <=  latched_slot_idx_i;
         latched_lookup_entry_o      <=  latched_lookup_entry_i;
-        latched_lookup_price_idx_o  <=  price_to_idx(latched_lookup_entry_i.price, latched_base_price_i);
+        latched_lookup_price_idx_o  <=  latched_lookup_price_idx_i;
         latched_hash_idx_o          <=  latched_hash_idx_i;
         latched_read_bucket_o       <=  latched_read_bucket_i;
     end

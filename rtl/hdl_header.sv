@@ -64,6 +64,14 @@ package hdl_header;
         logic                   side;
         logic [SHARES_W-1:0]    shares;
         logic [PRICE_W-1:0]     price;
+    } o_data_raw_t;
+
+    typedef struct packed {
+        logic [MSG_W-1:0]       message_type;
+        logic [ORN_W-1:0]       orn;
+        logic                   side;
+        logic [SHARES_W-1:0]    shares;
+        logic [PRICE_W-1:0]     price;
     } o_data_t;
 
     typedef struct packed {
