@@ -4,25 +4,25 @@
 `default_nettype none
 
 module axis_source_mux (
-  input  logic        select_taxi_i,
+  input  wire        select_taxi_i,
 
-  input  logic [63:0] dma_tdata_i,
-  input  logic [7:0]  dma_tkeep_i,
-  input  logic        dma_tvalid_i,
-  input  logic        dma_tlast_i,
-  output logic        dma_tready_o,
+  input  wire [63:0] dma_tdata_i,
+  input  wire [7:0]  dma_tkeep_i,
+  input  wire        dma_tvalid_i,
+  input  wire        dma_tlast_i,
+  output wire        dma_tready_o,
 
-  input  logic [63:0] taxi_tdata_i,
-  input  logic [7:0]  taxi_tkeep_i,
-  input  logic        taxi_tvalid_i,
-  input  logic        taxi_tlast_i,
-  output logic        taxi_tready_o,
+  input  wire [63:0] taxi_tdata_i,
+  input  wire [7:0]  taxi_tkeep_i,
+  input  wire        taxi_tvalid_i,
+  input  wire        taxi_tlast_i,
+  output wire        taxi_tready_o,
 
-  output logic [63:0] m_tdata_o,
-  output logic [7:0]  m_tkeep_o,
-  output logic        m_tvalid_o,
-  output logic        m_tlast_o,
-  input  logic        m_tready_i
+  output wire [63:0] m_tdata_o,
+  output wire [7:0]  m_tkeep_o,
+  output wire        m_tvalid_o,
+  output wire        m_tlast_o,
+  input  wire        m_tready_i
 );
 
   // Source selection is static while the ingress is active:

@@ -4,17 +4,17 @@
 `default_nettype none
 
 module lane_rewire (
-  input  logic [63:0] s_tdata_i,
-  input  logic [7:0]  s_tkeep_i,
-  input  logic        s_tvalid_i,
-  input  logic        s_tlast_i,
-  output logic        s_tready_o,
+  input  wire [63:0] s_tdata_i,
+  input  wire [7:0]  s_tkeep_i,
+  input  wire        s_tvalid_i,
+  input  wire        s_tlast_i,
+  output wire        s_tready_o,
 
-  output logic [63:0] m_tdata_o,
-  output logic [7:0]  m_tkeep_o,
-  output logic        m_tvalid_o,
-  output logic        m_tlast_o,
-  input  logic        m_tready_i
+  output wire [63:0] m_tdata_o,
+  output wire [7:0]  m_tkeep_o,
+  output wire        m_tvalid_o,
+  output wire        m_tlast_o,
+  input  wire        m_tready_i
 );
 
   // Taxi places the earliest byte in the lowest lane; the project uses the
