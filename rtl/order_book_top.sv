@@ -26,6 +26,7 @@
 // Revision 0.03 - Restore fixed locate-1 routing and retain only base-price control
 // Revision 1.00 - Intorduction of multiple base prices & thus order books - also fixed
 //                 naming conventions (i.e. internal regs named source_dest_signal)
+// Revision 1.10 - Timing optimisations (adding reset signals to reduce fanout)
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -97,6 +98,8 @@ assign ob_sr_ready_bus[0]   =   1'b1;
 (* dont_touch = "true" *) logic rst_n_ob0;
 (* dont_touch = "true" *) logic rst_n_ob1;
 (* dont_touch = "true" *) logic rst_n_ob2;
+
+// Sequential logic passing reset signals - 2 flop synchronsied
 
 always_ff @(posedge clk) begin
     rst_n_r1   <= rst_n;

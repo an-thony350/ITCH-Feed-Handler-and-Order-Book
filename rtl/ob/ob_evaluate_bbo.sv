@@ -16,6 +16,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -74,11 +75,8 @@ logic       new_bbo;
 logic       bid_is_zero;
 logic       ask_is_zero;
 logic       stall_edge_detector;
+logic       rep_add_needs_read;
 
-logic rep_add_needs_read;
-assign rep_add_needs_read = latched_is_add_i && latched_rep_add_i &&
-                            (latched_event_price_idx_i != current_best_ask_i) &&
-                            (latched_event_price_idx_i != current_best_bid_i);
 
 // combinational logic for bbo_evaluation
 always_comb begin
@@ -88,9 +86,13 @@ always_comb begin
     bid_depleted    =   1'b0;
     ask_depleted    =   1'b0;
 
-    level_depleted = latched_is_reduce_i ?
-                     (latched_book_shares_i == latched_rdata_i.shares) :
-                     (latched_book_shares_i == latched_lookup_entry_i.shares);
+    level_depleted      =   latched_is_reduce_i ?
+                            (latched_book_shares_i == latched_rdata_i.shares) :
+                            (latched_book_shares_i == latched_lookup_entry_i.shares);
+
+    rep_add_needs_read  =   latched_is_add_i && latched_rep_add_i &&
+                            (latched_event_price_idx_i != current_best_ask_i) &&
+                            (latched_event_price_idx_i != current_best_bid_i);
 
     if(latched_is_add_i) begin
         if( latched_rdata_i.side && latched_event_price_idx_i > current_best_bid_i) is_better_bid  = 1'b1;

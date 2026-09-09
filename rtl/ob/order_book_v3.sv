@@ -11,9 +11,9 @@
 // Tool Versions: Vivado 2023.2
 //
 // Description: The order book carries both combinational and sequential logic
-// through a Mealy model state machne of 14 states allowing for both accurate data
-// capture of orders for a specific stock, as well as two price books determining the
-// best buy and sell prices
+// through a 16-stage pupeline allowing for both accurate data and capture of orders
+// for a specific stock, as well as two price books determining the best buy and
+// sell prices
 //
 // Dependencies:
 //
@@ -49,6 +49,13 @@
 // Revision 5.00 - Order book now fully pipelined, this module now acts as a top
 //                 top module, holding all the blocks which are similar to that of
 //                 the Mealy state machine
+// Revision 6.00 - Order book now has 16 pipeline stages rather than 10, price books
+//                 have been converted to URAM and their shhadow books have been
+//                 removed. active_chunks still have shadow books, which we plan to
+//                 remove also. Forwarding and stalling is now included in this
+//                 version, handling all issues with the new 10GbE stream. This
+//                 revision has also allowed for extreme optimisation to ensure a
+//                 greater Fmax (250 MHz) can be used
 // Additional Comments:
 // [1]: In the previous design, a Linked List was formed to determine hash entries
 //      and indexes. If a hash index was already in use, it would have a reference
@@ -97,21 +104,28 @@ logic [CHUNK_LEN-1:0]   ask_enc_valid;
 logic [63:0]            current_bid_chunk;
 logic [63:0]            current_ask_chunk;
 
-// prefetched chunk words (BRAM read data, 2 stages ahead of UPDATE_WRITE)
+// prefetched chunk words (BRAM read data, 2 stages ahead of UPDATE_WRITE hence requiring a 2-flop delay)
 logic [63:0]            bid_chunk_a;
 logic [63:0]            ask_chunk_a;
 logic [63:0]            q_bid_chunk_a;
 logic [63:0]            q_ask_chunk_a;
 
-// full-word write signals for the chunk BRAMs
-logic                   cw_we_bid,  cw_we_ask;
-logic [BBO_W-7:0]       cw_row_bid, cw_row_ask;
-logic [63:0]            cw_dat_bid, cw_dat_ask;
+// full-word write ports for the active chunk BRAMs (in the current and previous clock cycle handling some r/w errors)
+logic                   cw_we_bid;
+logic                   cw_we_ask;
+logic [BBO_W-7:0]       cw_row_bid;
+logic [BBO_W-7:0]       cw_row_ask;
+logic [63:0]            cw_dat_bid;
+logic [63:0]            cw_dat_ask;
 
-logic             prev_cw_we_bid, prev_cw_we_ask;
-logic [BBO_W-7:0] prev_cw_row_bid, prev_cw_row_ask;
-logic [63:0]      prev_cw_dat_bid, prev_cw_dat_ask;
-logic [63:0]      eff_bid_chunk, eff_ask_chunk;
+logic                   prev_cw_we_bid;
+logic                   prev_cw_we_ask;
+logic [BBO_W-7:0]       prev_cw_row_bid;
+logic [BBO_W-7:0]       prev_cw_row_ask;
+logic [63:0]            prev_cw_dat_bid;
+logic [63:0]            prev_cw_dat_ask;
+logic [63:0]            eff_bid_chunk;
+logic [63:0]            eff_ask_chunk;
 
 // combinational chunk index for the shadow read (one cycle ahead of the registered one)
 logic [BBO_W-7:0]       next_target_chunk_idx;
@@ -119,9 +133,7 @@ logic [BBO_W-7:0]       next_target_chunk_idx;
 logic [BBO_W-1:0]       current_best_bid;
 logic [BBO_W-1:0]       current_best_ask;
 
-// Dual-Port (A & B) BRAM ports - data, write-enable, & address pointer registers
-
-// order table ports
+// order table ports - BRAM synthesised
 logic [HASH_W-1:0]      ot_addr_a; // hash_idx
 order_entry_t [2:0]     ot_din_a;
 
@@ -129,7 +141,7 @@ logic                   ot_we_a;
 logic [HASH_W-1:0]      ot_wr_addr_a;
 order_entry_t [2:0]     ot_dout_a;
 
-// bid price book registers
+// bid price book ports - URAM synthesised
 logic [BBO_W-1:0]       bid_addr_a;
 logic [SHARES_W-1:0]    bid_din_a;
 
@@ -137,7 +149,7 @@ logic                   bid_we_a;
 logic [BBO_W-1:0]       bid_wr_addr_a;
 logic [SHARES_W-1:0]    bid_dout_a;
 
-// ask price book registers
+// ask price book ports - URAM synthesised
 logic [BBO_W-1:0]       ask_addr_a;
 logic [SHARES_W-1:0]    ask_din_a;
 
@@ -145,7 +157,7 @@ logic                   ask_we_a;
 logic [BBO_W-1:0]       ask_wr_addr_a;
 logic [SHARES_W-1:0]    ask_dout_a;
 
-// replicate price book output registers
+// delayed copies of the price book output ports, so they line up with the new best price
 logic [2:0]             bbo_rd_buff;
 logic [SHARES_W-1:0]    bbo_bid_shares_r;
 logic [SHARES_W-1:0]    bbo_ask_shares_r;
@@ -154,10 +166,26 @@ logic [SHARES_W-1:0]    bbo_ask_dout;
 logic [BBO_W-1:0]       next_best_bid;
 logic [BBO_W-1:0]       next_best_ask;
 
-// delayed copies of the price book write, so they line up with the new best price
-logic                w1_bid_we,   w2_bid_we,   w1_ask_we,   w2_ask_we;
-logic [BBO_W-1:0]    w1_bid_addr, w2_bid_addr, w1_ask_addr, w2_ask_addr;
-logic [SHARES_W-1:0] w1_bid_din,  w2_bid_din,  w1_ask_din,  w2_ask_din;
+// delayed copies of the price book write ports, so they line up with the new best price
+logic                   w1_bid_we;
+logic                   w2_bid_we;
+logic                   w1_ask_we;
+logic                   w2_ask_we;
+logic [BBO_W-1:0]       w1_bid_addr;
+logic [BBO_W-1:0]       w2_bid_addr;
+logic [BBO_W-1:0]       w1_ask_addr;
+logic [BBO_W-1:0]       w2_ask_addr;
+logic [SHARES_W-1:0]    w1_bid_din;
+logic [SHARES_W-1:0]    w2_bid_din;
+logic [SHARES_W-1:0]    w1_ask_din;
+logic [SHARES_W-1:0]    w2_ask_din;
+
+logic                   wrc_valid;
+logic                   wrc_side;
+logic [BBO_W-1:0]       wrc_addr;
+logic [SHARES_W-1:0]    wrc_data;
+
+
 
 // MUXed write register outputs for book write ports - used to differentiate between CLEAR state and other states
 logic                   ot_we_a_m;
@@ -169,15 +197,26 @@ logic [SHARES_W-1:0]    bid_din_a_m;
 logic                   ask_we_a_m;
 logic [BBO_W-1:0]       ask_wr_addr_a_m;
 logic [SHARES_W-1:0]    ask_din_a_m;
+logic [BBO_W-1:0]       eff_best_bid;
+logic [BBO_W-1:0]       eff_best_ask;
 
 // registers controlling the CLEAR state
-(* max_fanout = 32 *) logic               clearing;
-logic [BBO_W-1:0]   clear_idx;
+(* max_fanout = 32 *) logic                 clearing;
+logic [BBO_W-1:0]                           clear_idx;
 
 // CAM control pins
 logic                   cam_we;
 logic [5:0]             cam_idx;
 order_entry_t           cam_data;
+
+// 2-flop delay of cam ports(similar to chunks)
+logic                   cam_wr_en;
+logic [5:0]             cam_wr_idx;
+order_entry_t           cam_wr_data;
+
+(* max_fanout = 16 *) logic         cam_wr_en_q;
+(* max_fanout = 16 *) logic [5:0]   cam_wr_idx_q;
+order_entry_t                       cam_wr_data_q;
 
 // Active Chunks control pins
 logic                   chunk_we;
@@ -226,6 +265,10 @@ logic [2:0]             IDXSEARCH_UPDATERDTBL_latched_free_slot;
 logic [2:0]             IDXSEARCH_UPDATERDTBL_latched_hash_match;
 logic [HASH_W-1:0]      IDXSEARCH_UPDATERDTBL_hash_idx;
 order_entry_t [2:0]     IDXSEARCH_UPDATERDTBL_read_bucket;
+logic                   idx_search_wr0_we;
+logic [HASH_W-1:0]      idx_search_wr0_addr;
+logic [1:0]             idx_search_wr0_slot;
+order_entry_t           idx_search_wr0_data;
 
 // UPDATE_READ_TABLE State registers - outputs
 logic                   UPDATERDTBL_ISSUEBKRD_stage_valid;
@@ -305,6 +348,10 @@ logic                   UPDATERDBK_UPDATEWR_full_exec;
 logic [SHARES_W-1:0]    UPDATERDBK_UPDATEWR_latched_book_shares;
 logic [HASH_W-1:0]      UPDATERDBK_UPDATEWR_hash_idx;
 order_entry_t [2:0]     UPDATERDBK_UPDATEWR_read_bucket;
+logic                   update_read_book_wr0_valid;
+logic                   update_read_book_wr0_side;
+logic [BBO_W-1:0]       update_read_book_wr0_addr;
+logic [SHARES_W-1:0]    update_read_book_wr0_data;
 
 // UPDATE_WRITE State registers - outputs
 logic                   UPDATEWR_BBOEVAL_stage_valid;
@@ -316,16 +363,6 @@ logic [BBO_W-1:0]       UPDATEWR_BBOEVAL_latched_event_price_idx;
 order_entry_t           UPDATEWR_BBOEVAL_latched_lookup_entry;
 logic [BBO_W-1:0]       UPDATEWR_BBOEVAL_latched_lookup_price_idx;
 logic [SHARES_W-1:0]    UPDATEWR_BBOEVAL_latched_book_shares;
-
-logic                   idx_search_wr0_we;
-logic [HASH_W-1:0]      idx_search_wr0_addr;
-logic [1:0]             idx_search_wr0_slot;
-order_entry_t           idx_search_wr0_data;
-
-logic                   update_read_book_wr0_valid;
-logic                   update_read_book_wr0_side;
-logic [BBO_W-1:0]       update_read_book_wr0_addr;
-logic [SHARES_W-1:0]    update_read_book_wr0_data;
 
 // BBO Evaluation (EVALUATE_BBO & BBO_SEARCH_REQ) State registers - outputs
 logic                   BBOEVAL_BBORESOLVE_stage_valid;
@@ -359,7 +396,7 @@ logic                   BBOURAM_BBOOUT_3_stage_valid;
 logic                   BBOURAM_BBOOUT_3_bid_is_zero;
 logic                   BBOURAM_BBOOUT_3_ask_is_zero;
 
-// replace signals
+// replace signals - used for forwarding and stall conditions
 logic                   rep_side;
 
 logic                   latched_rep_delete_o_0;
@@ -389,39 +426,15 @@ logic                   latched_rep_add_o_7;
 logic                   latched_rep_add_o_8;
 logic                   latched_rep_add_o_9;
 
-logic                wrc_valid;
-logic                wrc_side;
-logic [BBO_W-1:0]    wrc_addr;
-logic [SHARES_W-1:0] wrc_data;
-
-logic [BBO_W-1:0] eff_best_bid, eff_best_ask;
-
-assign eff_best_bid = BBOEVAL_BBORESOLVE_stage_valid ? next_best_bid : current_best_bid;
-assign eff_best_ask = BBOEVAL_BBORESOLVE_stage_valid ? next_best_ask : current_best_ask;
-
+// Stall assignment
 assign stall = bbo_stall;
 
-assign eff_bid_chunk = (prev_cw_we_bid && (prev_cw_row_bid == chunk_row[BBO_W-1:6]))
-                       ? prev_cw_dat_bid : q_bid_chunk_a;
-assign eff_ask_chunk = (prev_cw_we_ask && (prev_cw_row_ask == chunk_row[BBO_W-1:6]))
-                       ? prev_cw_dat_ask : q_ask_chunk_a;
-
-
-logic         cam_wr_en;
-logic [5:0]   cam_wr_idx;
-order_entry_t cam_wr_data;
-
-always_comb begin
-    if(clearing) begin
-        cam_wr_en   = (clear_idx < BBO_W'(64));
-        cam_wr_idx  = clear_idx[5:0];
-        cam_wr_data = '0;
+// Ready signal assertion - Sequential reduces fanout
+always_ff @(posedge clk) begin
+    if(!rst_n) begin
+        ready_o <=  1'b0;
     end
-    else begin
-        cam_wr_en   = cam_we;
-        cam_wr_idx  = cam_idx;
-        cam_wr_data = cam_data;
-    end
+    else if(!stall && REPCHECK_ready && !clearing) ready_o   <=  1'b1;
 end
 
 // Sequential Logic handling the CLEAR state
@@ -436,6 +449,20 @@ always_ff @(posedge clk) begin
             clear_idx <= '0;
         end
         else clear_idx <= clear_idx + 1'b1;
+    end
+end
+
+// Combinational Logic muxing the cam signals depending on the clearing state
+always_comb begin
+    if(clearing) begin
+        cam_wr_en   = (clear_idx < BBO_W'(64));
+        cam_wr_idx  = clear_idx[5:0];
+        cam_wr_data = '0;
+    end
+    else begin
+        cam_wr_en   = cam_we;
+        cam_wr_idx  = cam_idx;
+        cam_wr_data = cam_data;
     end
 end
 
@@ -469,14 +496,6 @@ always_comb begin
     ask_addr_a  =   stall ? next_best_ask : issue_ask_addr;
 end
 
-
-always_ff @(posedge clk) begin
-    if(!rst_n) begin
-        ready_o <=  1'b0;
-    end
-    else if(!stall && REPCHECK_ready && !clearing) ready_o   <=  1'b1;
-end
-
 // Sequential BBO Logic - handles feedback within bbo blocks used in previous order book
 always_ff @(posedge clk) begin
     if(!rst_n) begin
@@ -489,15 +508,21 @@ always_ff @(posedge clk) begin
     end
 end
 
-always_ff @(posedge clk) begin
-    if(!stall) begin
-        q_bid_chunk_a <= bid_chunk_a;
-        q_ask_chunk_a <= ask_chunk_a;
-    end
-end
+// correct bid value for bbo search
+
+assign eff_best_bid = BBOEVAL_BBORESOLVE_stage_valid ? next_best_bid : current_best_bid;
+assign eff_best_ask = BBOEVAL_BBORESOLVE_stage_valid ? next_best_ask : current_best_ask;
+
+// correct chunk value for bbo search
+
+assign eff_bid_chunk = (prev_cw_we_bid && (prev_cw_row_bid == chunk_row[BBO_W-1:6]))
+                       ? prev_cw_dat_bid : q_bid_chunk_a;
+assign eff_ask_chunk = (prev_cw_we_ask && (prev_cw_row_ask == chunk_row[BBO_W-1:6]))
+                       ? prev_cw_dat_ask : q_ask_chunk_a;
+
+// Extended MUX (with claering select bit) ensuring complete clearing of bid/ask chunk arrays in a clear state
 
 always_comb begin
-    // defaults: channel 1 edits the lookup word (event word for adds), channel 2 the event word
     cw_we_bid  = 1'b0;
     cw_row_bid = chunk_row[BBO_W-1:6];
     cw_dat_bid = eff_bid_chunk;
@@ -507,8 +532,12 @@ always_comb begin
     cw_dat_ask = eff_ask_chunk;
 
     if(clearing) begin
-        cw_we_bid  = 1'b1;  cw_row_bid = clear_idx[BBO_W-7:0];  cw_dat_bid = '0;
-        cw_we_ask  = 1'b1;  cw_row_ask = clear_idx[BBO_W-7:0];  cw_dat_ask = '0;
+        cw_we_bid  = 1'b1;
+        cw_row_bid = clear_idx[BBO_W-7:0];
+        cw_dat_bid = '0;
+        cw_we_ask  = 1'b1;
+        cw_row_ask = clear_idx[BBO_W-7:0];
+        cw_dat_ask = '0;
     end
     else begin
         if(chunk_we) begin
@@ -523,6 +552,32 @@ always_comb begin
         end
     end
 end
+
+// 1-cycle delay of cam ports
+
+always_ff @(posedge clk) begin
+    if(!rst_n) cam_wr_en_q  <= 1'b0;
+    else begin
+        cam_wr_en_q         <= cam_wr_en;
+        cam_wr_idx_q        <= cam_wr_idx;
+        cam_wr_data_q       <= cam_wr_data;
+    end
+end
+
+// sequential cam write
+always_ff @(posedge clk) begin
+    if(cam_wr_en_q) cam[cam_wr_idx_q] <= cam_wr_data_q;
+end
+
+// 1-cycle delay of chunk array
+always_ff @(posedge clk) begin
+    if(!stall) begin
+        q_bid_chunk_a <= bid_chunk_a;
+        q_ask_chunk_a <= ask_chunk_a;
+    end
+end
+
+// latch of chunck ports
 
 always_ff @(posedge clk) begin
     if(!rst_n) begin
@@ -539,30 +594,14 @@ always_ff @(posedge clk) begin
     end
 end
 
+// non-blocking assignment of signal determining side used for replace ins (coming from the delete ins)
+// side must be added back to the add ins rather than used in the delete ins
+
 always_ff @(posedge clk) begin
     if(!rst_n)  rep_side <= 1'b0;
     else if(!stall && UPDATERDTBL_ISSUEBKRD_stage_valid && latched_rep_delete_o_4) begin
                 rep_side <= UPDATERDTBL_ISSUEBKRD_latched_lookup_entry.side;
     end
-end
-
-// Sequential Logic dealing with clear state and clock synchronisation
-// CAM write - clearing only picks the address, not the enable on all 64
-(* max_fanout = 16 *) logic         cam_wr_en_q;
-(* max_fanout = 16 *) logic [5:0]   cam_wr_idx_q;
-order_entry_t cam_wr_data_q;
-
-always_ff @(posedge clk) begin
-    if(!rst_n) cam_wr_en_q <= 1'b0;
-    else begin
-        cam_wr_en_q   <= cam_wr_en;
-        cam_wr_idx_q  <= cam_wr_idx;
-        cam_wr_data_q <= cam_wr_data;
-    end
-end
-
-always_ff @(posedge clk) begin
-    if(cam_wr_en_q) cam[cam_wr_idx_q] <= cam_wr_data_q;
 end
 
 // enc_valid - unchanged behaviour, but no longer gated by clearing
@@ -589,8 +628,10 @@ end
 // delay the write record by 2 cycles so it lines up with ob_evaluate_bbo's output
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        w1_bid_we <= 1'b0;  w2_bid_we <= 1'b0;
-        w1_ask_we <= 1'b0;  w2_ask_we <= 1'b0;
+        w1_bid_we <= 1'b0;
+        w2_bid_we <= 1'b0;
+        w1_ask_we <= 1'b0;
+        w2_ask_we <= 1'b0;
     end
     else begin
         w1_bid_we   <= bid_we_a && !stall;
@@ -611,7 +652,7 @@ always_ff @(posedge clk) begin
     end
 end
 
-// hold the share count at the current best price
+// hold the share count at the current best price - determines correct bbo share number
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         bbo_bid_shares_r <= '0;
@@ -619,7 +660,7 @@ always_ff @(posedge clk) begin
         bbo_rd_buff      <= '0;
     end
     else begin
-        bbo_rd_buff <= {bbo_rd_buff[1:0], stall};
+        bbo_rd_buff          <= {bbo_rd_buff[1:0], stall};
 
         if(bbo_rd_buff[2])
             bbo_bid_shares_r <= bid_dout_a;
@@ -641,6 +682,7 @@ always_ff @(posedge clk) begin
     end
 end
 
+// assignment for bbo_out data determined in seq logic above it
 assign bbo_bid_dout = bbo_bid_shares_r;
 assign bbo_ask_dout = bbo_ask_shares_r;
 
@@ -1190,6 +1232,8 @@ ob_bram_block #(
     .wr_addr_a(cw_row_ask),
     .wr_data_a(cw_dat_ask)
 );
+
+// shadow blocks currently required to prevent r/w erros with chunks - planned to be removed
 
 ob_bram_block #(
     .ADDRESS_W(BBO_W-6),

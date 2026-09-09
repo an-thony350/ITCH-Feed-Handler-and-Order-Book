@@ -17,6 +17,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations & Forwarding Logic
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -73,12 +74,13 @@ module ob_update_read_book(
     input logic [SHARES_W-1:0]  bid_dout_a,
     input logic [SHARES_W-1:0]  ask_dout_a,
 
-    // Inputs from Update Write block
+    // Forwarding Inputs from Update Write block
     input logic                   wr0_valid,
     input logic                   wr0_side,
     input logic [BBO_W-1:0]       wr0_addr,
     input logic [SHARES_W-1:0]    wr0_data,
 
+    // Forwarding Inputs used for specific r/w collisions
     input logic                wrc_valid,
     input logic                wrc_side,
     input logic [BBO_W-1:0]    wrc_addr,
@@ -111,7 +113,7 @@ logic [BBO_W-1:0]       capture_addr;
 logic [SHARES_W-1:0]    mem_addr;
 logic [SHARES_W-1:0]    chosen_addr;
 
-logic frwd_match_c;
+logic                   frwd_match_c;
 
 // combinational forward matching determination
 always_comb begin
@@ -124,9 +126,9 @@ always_comb begin
         capture_side    =   latched_lookup_entry_i.side;
         capture_addr    =   latched_lookup_price_idx_i;
     end
-    frwd_match_c    = wrc_valid && (wrc_side == capture_side) && (wrc_addr == capture_addr);
-    mem_addr        =   capture_side ? bid_dout_a : ask_dout_a;
-    frwd_match      =   5'b0;
+    frwd_match_c    =       wrc_valid && (wrc_side == capture_side) && (wrc_addr == capture_addr);
+    mem_addr        =       capture_side ? bid_dout_a : ask_dout_a;
+    frwd_match      =       5'b0;
 
 
     // Determining if we have a match for forwarding before capturing data
@@ -136,6 +138,7 @@ always_comb begin
     frwd_match[3]   =   wr3_valid && (wr3_side == capture_side) && (wr3_addr == capture_addr);
     frwd_match[4]   =   wr4_valid && (wr4_side == capture_side) && (wr4_addr == capture_addr);
 
+    // priority chain for the forwarding values
     if     (frwd_match_c)  chosen_addr = wrc_data;
     else if(frwd_match[0]) chosen_addr = wr0_data;
     else if(frwd_match[1]) chosen_addr = wr1_data;

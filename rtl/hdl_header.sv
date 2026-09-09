@@ -21,6 +21,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Added ingress AXIS/protocol constants and derived type widths
+// Revision 0.03 - Added functions used in order book and slightly altered structs
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +94,7 @@ package hdl_header;
 
     // local params for order book
 
-    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
+    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set Associative Hashing
     localparam int BBO_DEPTH  = 1 << BBO_W;
     localparam int CHUNK_LEN  = 1 << (BBO_W-6);
     localparam int ENTRY_W    = $bits(order_entry_t);
@@ -129,6 +130,8 @@ package hdl_header;
             return delta[BBO_W-1:0];
         end
     endfunction
+
+    // Optimised 16-bit priority (and reverse priority) encoders
 
     function automatic logic [3:0] find_msb_16(input logic [15:0] v);
         casez (v)
@@ -175,7 +178,7 @@ package hdl_header;
     endfunction
 
 
-    // Hierarchical Search: Level 1 (Find the 64-bit chunk)
+    // Hierarchical Search: Level 1 (Find the 64-bit chunk) - via parallelised priority encoders
     function automatic logic [(BBO_W-6)-1:0] find_msb_chunk(input logic [CHUNK_LEN-1:0] vec);
         logic [15:0] grp_nz;
         logic [3:0]  sub_idx [15:0];
@@ -204,14 +207,12 @@ package hdl_header;
         return {top_idx, sub_idx[top_idx]};
     endfunction
 
-    // Hierarchical Search: Level 2 (Find the exact bit in the chunk)
-    // Hierarchical Search: Level 2 (Find the exact bit in the 64-bit chunk)
+    // Hierarchical Search: Level 2 (Find the exact bit in the 64-bit chunk) - via parallelised priority encoders
     function automatic logic [5:0] find_msb_bit(input logic [63:0] vec);
         logic [3:0] grp_nz;
         logic [3:0] sub_idx [3:0];
         logic [1:0] top_idx;
 
-        // Parallel 16-bit searches
         for (int i = 0; i < 4; i++) begin
             grp_nz[i]  = |vec[i*16 +: 16];
             sub_idx[i] = find_msb_16(vec[i*16 +: 16]);
@@ -233,7 +234,6 @@ package hdl_header;
         logic [3:0] sub_idx [3:0];
         logic [1:0] top_idx;
 
-        // Parallel 16-bit searches
         for (int i = 0; i < 4; i++) begin
             grp_nz[i]  = |vec[i*16 +: 16];
             sub_idx[i] = find_lsb_16(vec[i*16 +: 16]);

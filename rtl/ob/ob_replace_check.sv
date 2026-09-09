@@ -1,3 +1,28 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:  N/A
+// Engineers: Anthony Bartlett & Denzil Erza-Essien
+//
+// Create Date: 08.09.2026 23:42:04
+// Design Name: Order Book Replace Check Block
+// Module Name: ob_replace_check
+// Project Name: Nasdaq-ITCH Feed Handler & Order Book
+// Target Devices: ZCU106
+// Tool Versions: Vivado 2023.2
+//
+// Description: This module is used to check if we have a replace instruction
+//              entering our system. If so, we will separate this instruction into
+//              a delete and then an add instruction
+//
+// Dependencies:
+//
+// Revision:
+// Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
+
 import hdl_header::*;
 
 module ob_replace_check(
@@ -74,6 +99,7 @@ always_ff @(posedge clk) begin
     end
 end
 
+// Default sequential logic
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o           <=  1'b0;

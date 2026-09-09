@@ -16,6 +16,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +43,7 @@ module ob_idle(
     output logic                latched_rep_delete_o,
     output logic                latched_rep_add_o,
     output logic [HASH_W-1:0]   latched_hash_idx_o,
+
     // External Memory I/O - BRAM addr pins
     output logic [HASH_W-1:0]   hash_idx_o
 );

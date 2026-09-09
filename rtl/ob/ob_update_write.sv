@@ -17,6 +17,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations & Forwarding Logic
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -100,10 +101,11 @@ module ob_update_write(
     output logic [BBO_W-1:0]      update_read_book_wr0_addr,
     output logic [SHARES_W-1:0]   update_read_book_wr0_data,
 
-    output logic                wrc_valid,
-    output logic                wrc_side,
-    output logic [BBO_W-1:0]    wrc_addr,
-    output logic [SHARES_W-1:0] wrc_data
+    // Outputs for forward ports - due to price book r/w collisions
+    output logic                  wrc_valid,
+    output logic                  wrc_side,
+    output logic [BBO_W-1:0]      wrc_addr,
+    output logic [SHARES_W-1:0]   wrc_data
 );
 
 // Internal Registers
@@ -111,15 +113,21 @@ logic                   level_depleted_w;
 logic                   chosen_side;
 logic                   side_option;
 
+// ports used to handle specific edge cases with forwarding issues (latches previous vals)
+logic                   prev_we;
+logic [HASH_W-1:0]      prev_addr;
+logic [1:0]             prev_slot;
+order_entry_t           prev_data;
+
+
+// combinational assigns for potential bbo changes (and replace instruction fixes)
+
 assign level_depleted_w = latched_is_reduce_i ?
                           (latched_book_shares_i == latched_rdata_i.shares) :
                           (latched_book_shares_i == latched_lookup_entry_i.shares);
 assign side_option      = latched_rep_add_i ? rep_side_i : latched_rdata_i.side;
 
-logic               prev_we;
-logic [HASH_W-1:0]  prev_addr;
-logic [1:0]         prev_slot;
-order_entry_t       prev_data;
+// sequential logic lathcing previous values (inputs) - allows us to know if forwarding required
 
 always_ff @(posedge clk) begin
     if(!rst_n) prev_we <= 1'b0;
@@ -240,6 +248,8 @@ always_comb begin
     end
 end
 
+// combinational forwarding assignments
+
 assign wrc_valid = stage_valid_i && !stall && (bid_we_a || ask_we_a);
 assign wrc_side  = chosen_side;
 assign wrc_addr  = latched_is_add_i ? latched_event_price_idx_i : latched_lookup_price_idx_i;
@@ -248,9 +258,9 @@ assign wrc_data  = chosen_side ? bid_din_a : ask_din_a;
 // SEQUENTIAL LOGIC
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        stage_valid_o               <=  1'b0;
+        stage_valid_o                <=  1'b0;
 
-        idx_search_wr0_we           <=  1'b0;
+        idx_search_wr0_we            <=  1'b0;
         update_read_book_wr0_valid   <=  1'b0;
     end
     else if(!stall) begin

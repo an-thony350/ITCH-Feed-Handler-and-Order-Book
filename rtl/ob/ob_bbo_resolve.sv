@@ -16,6 +16,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +72,6 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o           <=  1'b0;
-
     end
     else begin
         stage_valid_o           <=  stage_valid_i;

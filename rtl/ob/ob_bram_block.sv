@@ -16,6 +16,8 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Read latency included, acting as a delay stage to ensure reads
+//                 are synchronised at correct stage in pipeline
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +60,7 @@ always_ff @(posedge clk) begin
         bram[wr_addr_a]     <=  wr_data_a;
     end
     if(!stall) begin
-        rd_buffer[0]            <=  bram[rd_addr_a];
+        rd_buffer[0]                                       <=  bram[rd_addr_a];
         for(int i = 1; i < READ_LATENCY; i++) rd_buffer[i] <= rd_buffer[i-1];
     end
 end

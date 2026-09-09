@@ -18,6 +18,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations & Forwarding Logic
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -126,10 +127,11 @@ order_entry_t           wr9_data;
 logic [HASH_W-1:0]      capture_addr;
 order_entry_t [2:0]     frwd_bucket;
 
-logic [8:0] early_match;
-logic [8:0] match_q;
+// these registers are used in case we have a match which doesn't come from forwarding
+logic [8:0]             early_match;
+logic [8:0]             match_q;
 
-// combinational forward matching determination
+// combinational forward matching determination - priority encoder
 
 always_comb begin
     early_match[0] = wr0_we && (early_hash_idx_i == wr0_addr);
@@ -178,7 +180,7 @@ always_comb begin
 end
 
 
-// combinational logic determining if forwarding is required
+// combinational logic determining if data can be passed if valid - must fill if in here (with CAM overflow used in previous stage)
 
 always_comb begin
     comb_slot_idx       =   '0;
