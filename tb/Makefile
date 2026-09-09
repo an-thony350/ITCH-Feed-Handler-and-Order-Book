@@ -62,8 +62,6 @@ $(REPO_ROOT)/rtl/ingress_top.sv \
 $(REPO_ROOT)/rtl/data_handler.sv \
 $(REPO_ROOT)/rtl/symbol_router.sv \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
-$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
-$(REPO_ROOT)/rtl/ob/ob_hazard_unit.sv \
 $(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo.sv \
@@ -97,8 +95,6 @@ $(REPO_ROOT)/rtl/ingress_top.sv \
 $(REPO_ROOT)/rtl/data_handler.sv \
 $(REPO_ROOT)/rtl/symbol_router.sv \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
-$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
-$(REPO_ROOT)/rtl/ob/ob_hazard_unit.sv \
 $(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo.sv \
@@ -133,8 +129,6 @@ else ifeq ($(TOPLEVEL),order_book_top)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/symbol_router.sv \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
-$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
-$(REPO_ROOT)/rtl/ob/ob_hazard_unit.sv \
 $(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo.sv \
@@ -160,8 +154,6 @@ MODULE ?= test_order_book_top
 else ifeq ($(TOPLEVEL),order_book)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
-$(REPO_ROOT)/rtl/ob/multi_pumped_bram.sv \
-$(REPO_ROOT)/rtl/ob/ob_hazard_unit.sv \
 $(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_block.sv \
 $(REPO_ROOT)/rtl/ob/ob_uram_delay_bbo.sv \
