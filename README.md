@@ -12,40 +12,44 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
 - [ITCH 5.0 Feed Handler and FPGA Hardware Order Book](#itch-50-feed-handler-and-fpga-hardware-order-book)
   - [Contents](#contents)
   - [Project status](#project-status)
-- [System architecture](#system-architecture)
-  - [Host, Processing System, and Programmable Logic](#host-processing-system-and-programmable-logic)
-  - [PL hot path](#pl-hot-path)
-- [ZCU106 hardware model](#zcu106-hardware-model)
-- [Protocol and book model](#protocol-and-book-model)
-  - [Relevant ITCH message types](#relevant-itch-message-types)
-  - [Data representation](#data-representation)
-- [RTL datapath](#rtl-datapath)
-- [Golden model and verification](#golden-model-and-verification)
-- [Vivado and ZCU106 build](#vivado-and-zcu106-build)
-  - [Current block design](#current-block-design)
-  - [Address map](#address-map)
-- [Measured implementation results](#measured-implementation-results)
-  - [Utilisation](#utilisation)
-- [Latency and throughput design decisions](#latency-and-throughput-design-decisions)
-  - [Network ingress](#network-ingress)
-  - [Decoder and order book](#decoder-and-order-book)
-- [Further documentation](#further-documentation)
-- [Continuous integration](#continuous-integration)
+  - [System architecture](#system-architecture)
+    - [Host, Processing System, and Programmable Logic](#host-processing-system-and-programmable-logic)
+    - [PL hot path](#pl-hot-path)
+  - [ZCU106 hardware model](#zcu106-hardware-model)
+    - [Taxi 10GbE frontend](#taxi-10gbe-frontend)
+  - [Protocol and book model](#protocol-and-book-model)
+    - [Relevant ITCH message types](#relevant-itch-message-types)
+    - [Data representation](#data-representation)
+  - [RTL datapath](#rtl-datapath)
+  - [Golden model and verification](#golden-model-and-verification)
+  - [Vivado and ZCU106 build](#vivado-and-zcu106-build)
+    - [Current block design](#current-block-design)
+    - [Address map](#address-map)
+  - [Measured implementation results](#measured-implementation-results)
+    - [Utilisation](#utilisation)
+  - [Latency and throughput design decisions](#latency-and-throughput-design-decisions)
+    - [Network ingress](#network-ingress)
+    - [Decoder and order book](#decoder-and-order-book)
+  - [Further documentation](#further-documentation)
+  - [Continuous integration](#continuous-integration)
 
 ---
 
 ## Project status
 
-As of **1st September 2026**, this project has a complete simulated path from market data wrapped in ethernet frames to a hardware-maintained BBO:
+As of **9th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
 
 ```text
-Ethernet II -> IPv4 -> UDP -> MoldUDP64 -> ITCH realignment
+Ethernet II -> IPv4 -> UDP -> MoldUDP64
     -> ITCH decode -> symbol routing -> order book -> BBO
 ```
 
-The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path. The latest ZCU106 is implemented at **100 MHz** in the datapath domain, and **156.25 MHz** in the networking domain.
+The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path. The ingress has now been migrated from a 32-bit to a **native 64-bit AXI4-Stream architecture**, with the network path designed around the 10GbE datapath width.
 
-> Note that the current hardware demonstration uses PS-to-PL DMA replay, rather than direct Ethernet into the FPGA fabric.
+The current ZCU106 Vivado build also integrates a **Taxi-based 10GbE SFP+ frontend** while retaining the existing PS-to-PL DMA replay path. A static source mux immediately before `frame_crack` selects either DMA replay or Taxi Ethernet RX, allowing the deterministic board test path to remain available during physical 10GbE bring-up.
+
+The latest routed design completes bitstream generation and meets timing. The order-book/data domain remains at **100 MHz** with a **200 MHz** multi-pumped BRAM clock, while the network ingress is clocked from Taxi's RX/user clock domain.
+
 ---
 
 ## System architecture
@@ -70,7 +74,7 @@ flowchart TB
         BIN --> ENC
     end
 
-    subgraph PS[PYNQ-Z1 Processing System]
+    subgraph PS[ZCU106 Processing System]
         PY[PYNQ Python / notebook]
         DDR[PS DDR / DMA buffer]
         DMA[AXI DMA MM2S]
@@ -81,21 +85,24 @@ flowchart TB
     end
 
     subgraph PL[Programmable Logic]
+        TAXI[Taxi 10GbE SFP+ frontend]
+        SRC[DMA / Taxi source boundary]
         FC[frame_crack]
         MD[mold_deframe + mold_seq_guard]
-        RA[realign]
-        DH[data_handler]
+        DR[data_realign]
+        CDC[event_async_fifo]
         SR[symbol_router]
         OB[order_book]
         BBO[BBO output]
 
-        FC --> MD --> RA --> DH --> SR --> OB --> BBO
+        TAXI --> SRC
+        SRC --> FC --> MD --> DR --> CDC --> SR --> OB --> BBO
     end
 
     ENC -. simulation frames .-> FC
-    DMA --> FC
+    DMA --> SRC
     BBO --> GPIO
-    ORA -. cocotb scoreboards .-> DH
+    ORA -. cocotb scoreboards .-> DR
     ORA -. cocotb scoreboards .-> OB
 ```
 
@@ -103,11 +110,11 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    A[32-bit AXI-Stream Ethernet frame] --> B[frame_crack]
+    A[64-bit AXI-Stream Ethernet frame] --> B[frame_crack]
     B -->|UDP payload| C[mold_deframe]
-    C -->|message lengths + payload bytes| D[realign]
-    D -->|aligned ITCH message| E[data_handler]
-    E -->|normalised event| F[symbol_router]
+    C -->|message lengths + packed payload| D[data_realign]
+    D -->|normalised event| E[event async FIFO]
+    E --> F[symbol_router]
     F -->|selected event| G[order_book]
     G -->|BBO + valid pulse| H[BBO output]
 
@@ -115,15 +122,35 @@ flowchart LR
     I --> J[duplicate / gap / stale / heartbeat / EOS status]
 ```
 
-The stages are separated so they can be tested independently before being integrated into the complete path.
+The network ingress remains in the fast network clock domain until a complete **217-bit normalised event** has been produced. The event FIFO then performs the CDC into the 100 MHz order-book/data domain. This avoids crossing the full raw Ethernet stream after parsing and keeps the CDC at a narrow semantic boundary.
 
 ---
 
 ## ZCU106 hardware model
 
-The ZCU106 Ethernet connector is attached to the Zynq Processing System, not directly to the Programmable Logic. The current board path therefore replays generated frames from PS DDR through an MM2S AXI DMA into the same AXI-Stream ingress interface used in simulation.
+The ZCU106 provides SFP+ cages connected to UltraScale+ GTH transceivers in the Programmable Logic. The current design therefore supports a direct hardware Ethernet path into the PL rather than requiring packets to pass through the Processing System.
 
-A future direct-wire version requires a networking FPGA board whose Ethernet MAC, PHY, or SFP/QSFP transceiver path is accessible from the PL fabric. On that platform, the DMA source can be replaced by a MAC/CMAC stream while retaining the downstream protocol and book pipeline.
+The PS/DMA path is still retained for deterministic board replay:
+
+```text
+PS DDR -> AXI DMA -> AXIS clock conversion -> source mux -> network ingress
+```
+
+The direct Ethernet path is:
+
+```text
+SFP+ -> GTH -> Taxi PCS/MAC -> lane rewire -> source mux -> network ingress
+```
+
+Both sources therefore exercise the same `frame_crack`, MoldUDP64 and order-book datapath.
+
+### Taxi 10GbE frontend
+
+The Taxi integration uses the ZCU106's two SFP+ GTH lanes and a **64-bit Taxi MAC/PCS datapath**. The current ITCH path consumes lane 0 RX; the second physical lane remains present in the frontend but is not currently used for feed processing.
+
+Taxi places the earliest Ethernet byte in the low byte lane, while the existing project convention places it in the most-significant byte lane. `lane_rewire` performs this byte-lane reversal before the static DMA/Taxi source mux. Both operations are combinational and add **zero pipeline cycles** to the ingress path.
+
+The frontend also exposes link/debug status including GT power-good, RX status, block lock, BER/error count and bad-FCS indications for physical bring-up.
 
 ---
 
@@ -171,12 +198,14 @@ Detailed contracts, parsing assumptions, backpressure behaviour, and per-stage r
 | Stage | Responsibility |
 |---|---|
 | `frame_crack` | Validate the supported Ethernet/IPv4/UDP header shape and emit the UDP payload |
-| `mold_deframe` | Parse MoldUDP64 metadata and split length-prefixed ITCH message blocks |
+| `mold_deframe` | Parse MoldUDP64 metadata, remove two-byte message-length prefixes and emit packed ITCH payload bytes plus message-length tokens |
 | `mold_seq_guard` | Accept in-order/post-gap packets, suppress duplicates, and report stale/gap state |
-| `realign` | Convert unaligned payload bytes into one aligned AXI packet per ITCH message |
-| `data_handler` | Decode `A/F/E/C/X/D/U` messages into the internal event contract |
+| `data_realign` | Track message boundaries directly in the packed 64-bit payload stream and decode `A/F/E/C/X/D/U` into the normalised event contract |
+| `event_async_fifo` | Cross complete normalised events from the network clock domain into the 100 MHz data/order-book domain |
 | `symbol_router` | Select the configured instrument/book and insert a register boundary |
 | `order_book` | Resolve order references, update aggregate price levels, and emit BBO updates |
+
+The previous separate `realign -> data_handler` path remains useful as a behavioural/reference implementation, but the current packaged Vivado ingress uses the merged `data_realign` path to avoid recreating a padded AXI packet for every ITCH message.
 
 MoldUDP64 sequencing and recovery policy are documented separately in [`docs/moldudp64_sequence_handling.md`](docs/moldudp64_sequence_handling.md).
 
@@ -196,12 +225,18 @@ The golden-model architecture, verification layers, current coverage, and remain
 
 ```mermaid
 flowchart LR
-    PS7[Zynq-7000 Processing System] --> HP[AXI HP path to DDR]
-    PS7 --> GP[AXI GP control]
-    DDR[PS DDR / OCM] --> DMA[AXI DMA MM2S]
-    DMA --> NI[network_ingress custom IP]
-    NI --> DH[data_handler custom IP]
-    DH --> OBT[order_book_top custom IP]
+    PS[Zynq UltraScale+ Processing System] --> HP[AXI path to DDR]
+    PS --> GP[AXI HPM control]
+    DDR[PS DDR] --> DMA[AXI DMA MM2S]
+    DMA --> CC[AXIS clock converter]
+    CC --> SRC[DMA / Taxi source boundary]
+
+    SFP[SFP+ cages] --> TAXI[Taxi 10GbE GTH + PCS/MAC]
+    TAXI --> SRC
+
+    SRC --> NI[64-bit network_ingress custom IP]
+    NI --> EF[event async FIFO]
+    EF --> OBT[order_book_top custom IP]
     OBT --> BID[AXI GPIO bid price + shares]
     OBT --> ASK[AXI GPIO ask price + shares]
     OBT --> VAL[AXI GPIO BBO valid]
@@ -209,13 +244,15 @@ flowchart LR
     BASE --> OBT
 ```
 
-The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: frames move from PS memory into the PL, while BBO values and configuration are exposed through AXI GPIO.
+The hardware build remains modular. The DMA is **MM2S-only** and provides the deterministic replay source, while Taxi provides the real SFP+ Ethernet source. The DMA stream is clock-converted into the Taxi RX/user clock domain before the two sources meet at the static mux.
+
+The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete normalised event has been decoded, `event_async_fifo` crosses the event into the 100 MHz order-book domain. The order book also uses a **200 MHz** multi-pumped BRAM clock for its memory implementation.
 
 ### Address map
 
 | Peripheral | Base address | Direction / use |
 |---|---|---|
-| AXI DMA | `0x80400000` | PS control; MM2S frame input |
+| AXI DMA | `0x80040000` | PS control; MM2S frame input |
 | Bid BBO GPIO | `0x80030000` | PL to PS; bid price and shares |
 | Ask BBO GPIO | `0x80020000` | PL to PS; ask price and shares |
 | meta GPIO (valid bit) | `0x80010000` | PL to PS; update indication |
@@ -228,60 +265,80 @@ The hardware build uses modular Vivado IP blocks. The DMA is **MM2S-only**: fram
 
 ## Measured implementation results
 
-Reports on these values can be found in [`implementation_reports`](implementation_reports)
+Reports on these values can be found in [`implementation_reports`](implementation_reports).
 
-Latest routed build captured on **1st September 2026**:
+Latest routed build captured on **9th September 2026**:
 
 | Item | Result |
 |---|---:|
 | Vivado version | 2023.2 |
 | Project | `Feed_Handler_v3.0` |
 | Target board | ZCU106 |
-| Clock period (Networking) | **6.400 ns** |
-| Clock frequency (Netowrking) | **156.25 MHz** |
-| Clock period (Data Handling) | **10.000 ns** |
-| Clock frequency (Data Handling) | **100 MHz** |
-| WNS | **+0.089 ns** |
+| SFP+ MGT reference clock | **156.25 MHz / 6.400 ns** |
+| Routed Taxi RX/user clock | **~161.13 MHz / 6.206 ns** |
+| Data Handling clock | **100 MHz / 10.000 ns** |
+| BRAM multi-pump clock | **200 MHz / 5.000 ns** |
+| WNS | **+0.036 ns** |
 | TNS | **0.000 ns** |
+| WHS | **+0.010 ns** |
+| THS | **0.000 ns** |
+
+All user-specified timing constraints are met and the implementation run completes through bitstream generation.
 
 ### Utilisation
 
 | Resource | Used | Available | Utilisation |
 |---|---:|---:|---:|
-| LUTs | 30,312 | 230,400 | 13.16% |
-| LUTRAM | 1,575 | 101,760 | 1.55% |
-| Flip-Flops | 40,477 | 460,800 | 8.78% |
-| Block RAM | 250 | 312 | 80.13% |
+| LUTs | 37,679 | 230,400 | 16.35% |
+| LUTRAM / LUT memory | 1,992 | 101,760 | 1.96% |
+| Flip-Flops | 46,280 | 460,800 | 10.04% |
+| Block RAM | 255.5 | 312 | 81.89% |
 | Ultra RAM | 0 | 96 | 0.00% |
 | DSPs | 0 | 1728 | 0.00% |
+| GTH channels | 2 | 20 | 10.00% |
 
-Currently, the BRAM is the limiting resource (not allowing us to track more than 1 stock at a time). However, future varients are planning to use URAM to split the memory access.
+BRAM remains the main resource constraint. The Taxi integration increases LUT/register use and consumes two GTH channels, but does not materially change the fact that the order-book memories dominate BRAM utilisation.
 
 ---
 
 ## Latency and throughput design decisions
 
-The cycle counts below assume no downstream backpressure and use the routed **100 MHz** clock for the data domain, and **156.25 MHz** for the networking domain. Nanosecond figures are rounded from the 10/6.4 ns period.
+The ingress measurements below use the **156.25 MHz** simulation clock used for the native 64-bit line-rate regression. The latest routed Taxi RX/user clock is slightly different, as shown in the implementation table above. The data/order-book domain remains at **100 MHz**.
 
 ### Network ingress
 
 | Stage | First output / completion | Sustained behaviour | Current limiter |
 |---|---|---|---|
-| `frame_crack` | **11 cycles / 70.4 ns** to the first MoldUDP64 beat | Up to one 32-bit beat per cycle after the fixed header | The 42-byte Ethernet/IPv4/UDP prefix must arrive before payload forwarding |
-| `mold_deframe` + sequence guard | **24 cycles / 153.6 ns** to sequence status; about **33 cycles / 211.2 ns** to the first ITCH-payload beat | About four payload bytes per six cycles at **10 Gbit/s** | A stored 32-bit beat is consumed one byte per cycle, with output and length-token handshakes |
-| `realign` | About **4 cycles / 25.6 ns** to the first aligned ITCH beat | About four payload bytes per six cycles at **10 Gbit/s** | The stage repeats byte-serial unpacking and repacking and cannot accept a new beat while holding one |
-| Complete ingress | About **50 cycles / 320.0 ns** from the first Ethernet beat to the first aligned ITCH beat | Raw recovered-ITCH ceiling of **10 Gbit/s** | Duplicated byte-serial work in `mold_deframe` and `realign` |
+| `frame_crack` | UDP/MoldUDP64 forwarding begins after the fixed **42-byte** Ethernet/IPv4/UDP prefix; with 64-bit beats the first payload bytes occur in beat 5 | Up to one **64-bit beat per cycle** after payload streaming begins | Fixed header arrival and the 42-byte-to-8-byte alignment |
+| `mold_deframe` + sequence guard | The 20-byte MoldUDP64 header is decoded across three 64-bit beats before body processing | Parallel body parser handles up to **8 raw bytes/cycle** with registered descriptor/compaction stages | Message-boundary classification and compaction, rather than the old byte-serial parser |
+| `data_realign` | **9 cycles / 57.6 ns** from the final Ethernet beat to the normalised event in the cold-latency sweep | Accepts a complete packed 64-bit payload beat per cycle in the common case and decodes directly to `data_t` | Event-output capacity/backpressure rather than a separate per-message realignment stage |
+| Complete ingress + decode | **19 cycles / 121.6 ns** for `D/X`, **20 / 128.0 ns** for `E`, and **21 / 134.4 ns** for `U/A/C/F` from first Ethernet beat to event | Measured **9.830-9.911 Gbit/s** across the supported message campaigns; all campaigns pass the calculated physical 10GbE wire-rate gate | A small number of zero-gap AXI stress stalls remain around the `frame_crack -> mold_deframe` boundary, but they do not prevent physical 10GbE-rate operation |
+
+The final native-64-bit line-rate campaign measured:
+
+```text
+D:     9.911 Gbit/s
+X:     9.906 Gbit/s
+E:     9.866 Gbit/s
+U:     9.870 Gbit/s
+A:     9.902 Gbit/s
+C:     9.902 Gbit/s
+F:     9.911 Gbit/s
+Mixed: 9.830 Gbit/s
+```
+
+These figures are measured on the AXI frame path while the pass/fail gate accounts for Ethernet preamble/SFD, FCS and inter-frame gap. This is why the required MAC-side rate is slightly below a literal 10.000 Gbit/s for normal Ethernet traffic.
 
 ### Decoder and order book
 
 | Stage | Latency | Initiation behaviour | Reason for the decision |
 |---|---|---|---|
-| `data_handler` | About **4-8 cycles / 40-80 ns**, depending on ITCH message length | First-beat interval of roughly **6-11 cycles** | One message is accumulated and then held in `SEND` until the event is accepted |
+| `data_realign` | Included in the **19-21 cycle** ingress/decode figures above | Direct packed-stream decode avoids the old `realign -> data_handler` per-message bubble | Merging realignment and decode removes duplicated byte movement and improves sustained ingress throughput |
+| `event_async_fifo` | CDC/buffering latency only; no protocol processing | Decouples the fast network domain from the 100 MHz order-book domain | Crossing complete 217-bit events is simpler and lower bandwidth than crossing raw Ethernet data |
 | `symbol_router` | **1 cycle / 10 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` |  **10 cycles / 100 ns**, or **10 million events/s**. | Initiation of this block requires 16,384 clock cycles to reset order and price books |
+| `order_book` | **10-stage pipeline / ~100 ns** at 100 MHz | Pipeline latency is separate from initiation rate; successive events can occupy different stages concurrently | Pipelining removes the old state-machine throughput limit while retaining the BRAM-based order and price books |
 
-Although at 100 MHz the end-to-end latency of the decoder and order book is slightly higher. This table doesnt account for the pipelining impact caused by the system. However for multiple entries (assuming we have the optimal messages of v2), there is a clear latency winner in this system. This is proved in the [pipelined_order_book](/docs/pipelined_order_book.md) markdown file.
-
+The order book remains in a separate 100 MHz domain because its memory architecture uses a **200 MHz multi-pumped BRAM** implementation. Running the network ingress at the higher Ethernet-domain rate and crossing only complete events prevents the order-book clocking requirements from extending back through the packet parser.
 
 ---
 

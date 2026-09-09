@@ -1,15 +1,18 @@
 // Contract:
 // - Input is one complete Ethernet frame per AXI packet.
-// - 32-bit AXIS uses big-endian byte order: byte lane 0 is tdata[31:24].
+// - 64-bit AXIS uses big-endian byte order: byte lane 0 is tdata[63:56].
 // - This phase assumes untagged Ethernet, IPv4 IHL=5, UDP, no fragmentation.
 // - Output is the UDP payload, i.e. the MoldUDP64 datagram.
 // - m_dgram_len_o is valid on the first output beat when m_dgram_start_o=1.
 //
 // Timing note:
-// - This rewrite avoids the previous byte-lane loop and generic byte packer.
-// - For the current 32-bit ingress, the fixed Ethernet+IPv4+UDP header is
-//   42 bytes, so the UDP payload always starts at lane 2 of beat 10.
-// - The output path is therefore just a fixed 2-byte carry aligner.
+// - This implementation keeps the fixed-offset parser rather than introducing
+//   a generic per-byte shifter on the latency-critical ingress path.
+// - With 64-bit ingress, the fixed Ethernet+IPv4+UDP header is 42 bytes, so
+//   the UDP payload starts at lane 2 of beat 5.
+// - Six payload bytes are carried from that beat. Each following input beat
+//   emits one aligned 64-bit output beat, preserving one-beat-per-cycle
+//   throughput once payload streaming begins.
 
 `timescale 1ns/1ps
 `default_nettype none
@@ -46,11 +49,10 @@ module frame_crack #(
   output logic [FRAME_ERR_W-1:0] frame_err_o
 );
 
-  // This module is intentionally specialised to the current ingress width.
-  // If AXIS_DATA_W changes, rewrite the fixed-offset aligner for that width.
+  // This module is intentionally specialised to the native 64-bit ingress.
   initial begin
-    if (AXIS_DATA_W != 32) begin
-      $error("frame_crack rewrite currently supports AXIS_DATA_W == 32 only");
+    if (AXIS_DATA_W != 64) begin
+      $error("frame_crack requires AXIS_DATA_W == 64");
     end
   end
 
@@ -63,12 +65,11 @@ module frame_crack #(
 
   state_t state;
 
-  // Beat index within the Ethernet frame. With 32-bit beats:
-  //   beat 3  carries bytes 12..15  (EtherType and IPv4 version/IHL)
-  //   beat 4  carries bytes 16..19  (IPv4 total length)
-  //   beat 5  carries bytes 20..23  (flags/fragment and protocol)
-  //   beat 9  carries bytes 36..39  (UDP dst port and UDP length)
-  //   beat 10 carries bytes 40..43  (UDP checksum and first 2 payload bytes)
+  // Beat index within the Ethernet frame. With 64-bit beats:
+  //   beat 1 carries bytes 8..15  (EtherType and IPv4 version/IHL)
+  //   beat 2 carries bytes 16..23 (IPv4 total length, flags/fragment, protocol)
+  //   beat 4 carries bytes 32..39 (UDP dst port and UDP length)
+  //   beat 5 carries bytes 40..47 (UDP checksum and first 6 payload bytes)
   logic [15:0] beat_idx;
 
   logic [15:0] ethertype;
@@ -80,10 +81,10 @@ module frame_crack #(
   logic [DGRAM_LEN_W-1:0] dgram_len;
   logic [DGRAM_LEN_W-1:0] payload_left;
 
-  // Carry bytes waiting to be emitted at the head of the next output beat.
-  // carry_bytes[15:8] is the older byte, carry_bytes[7:0] is the newer byte.
-  logic [15:0] carry_bytes;
-  logic [1:0]  carry_count;
+  // Six payload bytes are carried because the 42-byte fixed header ends two
+  // bytes into a 64-bit beat. carry_bytes[47:40] is the oldest carried byte.
+  logic [47:0] carry_bytes;
+  logic [2:0]  carry_count;
 
   logic        start_pending;
   logic        flush_pending;
@@ -97,18 +98,22 @@ module frame_crack #(
   assign input_fire      = s_axis_tvalid_i && s_axis_tready_o;
   assign m_dgram_len_o   = dgram_len;
 
-  // utility functions
+  // Utility functions.
   function automatic logic [7:0] lane_byte(input axis_data_t data, input int lane);
     lane_byte = data[AXIS_DATA_W-1-(8*lane) -: 8];
   endfunction
 
   function automatic logic last_keep_is_contiguous(input axis_keep_t keep);
     case (keep)
-      4'b1000,
-      4'b1100,
-      4'b1110,
-      4'b1111: last_keep_is_contiguous = 1'b1;
-      default: last_keep_is_contiguous = 1'b0;
+      8'b1000_0000,
+      8'b1100_0000,
+      8'b1110_0000,
+      8'b1111_0000,
+      8'b1111_1000,
+      8'b1111_1100,
+      8'b1111_1110,
+      8'b1111_1111: last_keep_is_contiguous = 1'b1;
+      default:       last_keep_is_contiguous = 1'b0;
     endcase
   endfunction
 
@@ -123,23 +128,31 @@ module frame_crack #(
     end
   endfunction
 
-  function automatic logic [2:0] keep_count(input axis_keep_t keep);
+  function automatic logic [3:0] keep_count(input axis_keep_t keep);
     case (keep)
-      4'b1000: keep_count = 3'd1;
-      4'b1100: keep_count = 3'd2;
-      4'b1110: keep_count = 3'd3;
-      4'b1111: keep_count = 3'd4;
-      default: keep_count = 3'd0;
+      8'b1000_0000: keep_count = 4'd1;
+      8'b1100_0000: keep_count = 4'd2;
+      8'b1110_0000: keep_count = 4'd3;
+      8'b1111_0000: keep_count = 4'd4;
+      8'b1111_1000: keep_count = 4'd5;
+      8'b1111_1100: keep_count = 4'd6;
+      8'b1111_1110: keep_count = 4'd7;
+      8'b1111_1111: keep_count = 4'd8;
+      default:       keep_count = 4'd0;
     endcase
   endfunction
 
-  function automatic axis_keep_t keep_from_count(input logic [2:0] count);
+  function automatic axis_keep_t keep_from_count(input logic [3:0] count);
     case (count)
-      3'd1: keep_from_count = 4'b1000;
-      3'd2: keep_from_count = 4'b1100;
-      3'd3: keep_from_count = 4'b1110;
-      3'd4: keep_from_count = 4'b1111;
-      default: keep_from_count = 4'b0000;
+      4'd1: keep_from_count = 8'b1000_0000;
+      4'd2: keep_from_count = 8'b1100_0000;
+      4'd3: keep_from_count = 8'b1110_0000;
+      4'd4: keep_from_count = 8'b1111_0000;
+      4'd5: keep_from_count = 8'b1111_1000;
+      4'd6: keep_from_count = 8'b1111_1100;
+      4'd7: keep_from_count = 8'b1111_1110;
+      4'd8: keep_from_count = 8'b1111_1111;
+      default: keep_from_count = 8'b0000_0000;
     endcase
   endfunction
 
@@ -222,14 +235,8 @@ module frame_crack #(
         axis_data_t flush_data;
         axis_keep_t flush_keep;
 
-        flush_data = '0;
+        flush_data = {carry_bytes, 16'h0000};
         flush_keep = keep_from_count({1'b0, carry_count});
-
-        case (carry_count)
-          2'd1: flush_data = {carry_bytes[15:8], 24'h0};
-          2'd2: flush_data = {carry_bytes, 16'h0};
-          default: flush_data = '0;
-        endcase
 
         emit_word(flush_data, flush_keep, 1'b1);
 
@@ -259,27 +266,23 @@ module frame_crack #(
         end else begin
           case (state)
             ST_HEADER: begin
-              // Fixed-offset field capture. This avoids the previous per-byte
-              // loop through every lane of every beat.
+              // Fixed-offset field capture. Keeping these as constant slices
+              // avoids a generic byte-loop on the ingress timing path.
               case (beat_idx)
-                16'd3: begin
+                16'd1: begin
                   ethertype      <= s_axis_tdata_i[31:16];
                   ip_version_ihl <= s_axis_tdata_i[15:8];
                   beat_idx       <= beat_idx + 16'd1;
                 end
 
+                16'd2: begin
+                  ip_total_len   <= s_axis_tdata_i[63:48];
+                  ip_flags_frag  <= s_axis_tdata_i[31:16];
+                  ip_protocol    <= s_axis_tdata_i[7:0];
+                  beat_idx       <= beat_idx + 16'd1;
+                end
+
                 16'd4: begin
-                  ip_total_len <= s_axis_tdata_i[31:16];
-                  beat_idx     <= beat_idx + 16'd1;
-                end
-
-                16'd5: begin
-                  ip_flags_frag <= s_axis_tdata_i[31:16];
-                  ip_protocol   <= s_axis_tdata_i[7:0];
-                  beat_idx      <= beat_idx + 16'd1;
-                end
-
-                16'd9: begin
                   logic [15:0] ethertype_v;
                   logic [7:0]  ip_version_ihl_v;
                   logic [15:0] ip_total_len_v;
@@ -330,7 +333,7 @@ module frame_crack #(
                   end
 
                   if (s_axis_tlast_i) begin
-                    // Beat 9 ends at byte 39; a valid frame still needs the
+                    // Beat 4 ends at byte 39; a valid frame still needs the
                     // UDP checksum bytes at 40..41.
                     err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
                   end
@@ -356,7 +359,7 @@ module frame_crack #(
                 end
               endcase
 
-              if (s_axis_tlast_i && (beat_idx != 16'd9)) begin
+              if (s_axis_tlast_i && (beat_idx != 16'd4)) begin
                 err_bits = '0;
                 err_bits[FRAME_ERR_RUNT_FRAME] = 1'b1;
                 flag_drop(err_bits);
@@ -365,23 +368,23 @@ module frame_crack #(
             end
 
             ST_FIRST_PAYLOAD: begin
-              // Beat 10: bytes 40..41 are the UDP checksum. Payload starts at
-              // bytes 42..43, i.e. lane 2/lane 3 of this 32-bit beat.
-              logic [2:0] valid_bytes;
-              logic [2:0] first_payload_avail;
-              logic [2:0] take;
+              // Beat 5: bytes 40..41 are the UDP checksum. Payload starts at
+              // bytes 42..47, i.e. lanes 2..7 of this 64-bit beat.
+              logic [3:0] valid_bytes;
+              logic [3:0] first_payload_avail;
+              logic [3:0] take;
               logic [DGRAM_LEN_W-1:0] left_after;
 
               valid_bytes = keep_count(s_axis_tkeep_i);
 
-              if (valid_bytes < 3'd2) begin
-                first_payload_avail = 3'd0;
+              if (valid_bytes < 4'd2) begin
+                first_payload_avail = 4'd0;
               end else begin
-                first_payload_avail = valid_bytes - 3'd2;
+                first_payload_avail = valid_bytes - 4'd2;
               end
 
               if (payload_left < first_payload_avail) begin
-                take = payload_left[2:0];
+                take = payload_left[3:0];
               end else begin
                 take = first_payload_avail;
               end
@@ -394,26 +397,68 @@ module frame_crack #(
                 clear_frame_state();
               end else begin
                 case (take)
-                  3'd0: begin
+                  4'd0: begin
                     carry_bytes <= '0;
-                    carry_count <= 2'd0;
+                    carry_count <= 3'd0;
                   end
 
-                  3'd1: begin
-                    carry_bytes <= {lane_byte(s_axis_tdata_i, 2), 8'h00};
-                    carry_count <= 2'd1;
+                  4'd1: begin
+                    carry_bytes <= {lane_byte(s_axis_tdata_i, 2), 40'h0};
+                    carry_count <= 3'd1;
+                  end
+
+                  4'd2: begin
+                    carry_bytes <= {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      32'h0
+                    };
+                    carry_count <= 3'd2;
+                  end
+
+                  4'd3: begin
+                    carry_bytes <= {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      lane_byte(s_axis_tdata_i, 4),
+                      24'h0
+                    };
+                    carry_count <= 3'd3;
+                  end
+
+                  4'd4: begin
+                    carry_bytes <= {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      lane_byte(s_axis_tdata_i, 4),
+                      lane_byte(s_axis_tdata_i, 5),
+                      16'h0
+                    };
+                    carry_count <= 3'd4;
+                  end
+
+                  4'd5: begin
+                    carry_bytes <= {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      lane_byte(s_axis_tdata_i, 4),
+                      lane_byte(s_axis_tdata_i, 5),
+                      lane_byte(s_axis_tdata_i, 6),
+                      8'h0
+                    };
+                    carry_count <= 3'd5;
                   end
 
                   default: begin
-                    carry_bytes <= {lane_byte(s_axis_tdata_i, 2), lane_byte(s_axis_tdata_i, 3)};
-                    carry_count <= 2'd2;
+                    carry_bytes <= s_axis_tdata_i[47:0];
+                    carry_count <= 3'd6;
                   end
                 endcase
 
                 payload_left <= left_after;
 
                 if (left_after == '0) begin
-                  if (take != 3'd0) begin
+                  if (take != 4'd0) begin
                     flush_pending     <= 1'b1;
                     reset_after_flush <= s_axis_tlast_i;
                     state             <= ST_FIRST_PAYLOAD;
@@ -430,16 +475,15 @@ module frame_crack #(
             end
 
             ST_PAYLOAD: begin
-              // Each new input beat lets us emit one aligned output beat:
-              // old carry bytes followed by lane 0/lane 1 of the current beat.
-              // lane 2/lane 3 become the next carry if they belong to the UDP
-              // payload.
-              logic [2:0] valid_bytes;
-              logic [2:0] take;
+              // ST_PAYLOAD is entered only after carrying six bytes from the
+              // previous beat. The next two input bytes complete one aligned
+              // 64-bit output word; lanes 2..7 become the next six-byte carry.
+              logic [3:0] valid_bytes;
+              logic [3:0] take;
               logic [DGRAM_LEN_W-1:0] left_after;
-              logic [2:0] out_count;
-              logic [1:0] new_carry_count;
-              logic [15:0] new_carry_bytes;
+              logic [3:0] out_count;
+              logic [2:0] new_carry_count;
+              logic [47:0] new_carry_bytes;
               axis_data_t out_data;
               axis_keep_t out_keep;
               logic       out_last;
@@ -447,7 +491,7 @@ module frame_crack #(
               valid_bytes = keep_count(s_axis_tkeep_i);
 
               if (payload_left < valid_bytes) begin
-                take = payload_left[2:0];
+                take = payload_left[3:0];
               end else begin
                 take = valid_bytes;
               end
@@ -461,41 +505,94 @@ module frame_crack #(
               end else begin
                 out_data        = '0;
                 new_carry_bytes = '0;
-                new_carry_count = 2'd0;
+                new_carry_count = 3'd0;
 
-                // Output is always the existing carry plus up to the first two
-                // bytes of this beat.
                 case (take)
-                  3'd0: begin
-                    out_count = {1'b0, carry_count};
-                    out_data  = {carry_bytes, 16'h0};
+                  4'd0: begin
+                    out_count = 4'd6;
+                    out_data  = {carry_bytes, 16'h0000};
                   end
 
-                  3'd1: begin
-                    out_count = {1'b0, carry_count} + 3'd1;
-                    out_data  = {carry_bytes, lane_byte(s_axis_tdata_i, 0), 8'h0};
+                  4'd1: begin
+                    out_count = 4'd7;
+                    out_data  = {
+                      carry_bytes,
+                      lane_byte(s_axis_tdata_i, 0),
+                      8'h00
+                    };
                   end
 
                   default: begin
-                    out_count = {1'b0, carry_count} + 3'd2;
-                    out_data  = {carry_bytes, lane_byte(s_axis_tdata_i, 0), lane_byte(s_axis_tdata_i, 1)};
+                    out_count = 4'd8;
+                    out_data  = {
+                      carry_bytes,
+                      lane_byte(s_axis_tdata_i, 0),
+                      lane_byte(s_axis_tdata_i, 1)
+                    };
                   end
                 endcase
 
-                // Any current-beat payload bytes beyond lane 1 are held as the
-                // carry for the next output beat.
-                if (take >= 3'd3) begin
-                  new_carry_bytes[15:8] = lane_byte(s_axis_tdata_i, 2);
-                  new_carry_count       = 2'd1;
-                end
+                case (take)
+                  4'd3: begin
+                    new_carry_bytes = {lane_byte(s_axis_tdata_i, 2), 40'h0};
+                    new_carry_count = 3'd1;
+                  end
 
-                if (take >= 3'd4) begin
-                  new_carry_bytes[7:0] = lane_byte(s_axis_tdata_i, 3);
-                  new_carry_count      = 2'd2;
-                end
+                  4'd4: begin
+                    new_carry_bytes = {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      32'h0
+                    };
+                    new_carry_count = 3'd2;
+                  end
+
+                  4'd5: begin
+                    new_carry_bytes = {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      lane_byte(s_axis_tdata_i, 4),
+                      24'h0
+                    };
+                    new_carry_count = 3'd3;
+                  end
+
+                  4'd6: begin
+                    new_carry_bytes = {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      lane_byte(s_axis_tdata_i, 4),
+                      lane_byte(s_axis_tdata_i, 5),
+                      16'h0
+                    };
+                    new_carry_count = 3'd4;
+                  end
+
+                  4'd7: begin
+                    new_carry_bytes = {
+                      lane_byte(s_axis_tdata_i, 2),
+                      lane_byte(s_axis_tdata_i, 3),
+                      lane_byte(s_axis_tdata_i, 4),
+                      lane_byte(s_axis_tdata_i, 5),
+                      lane_byte(s_axis_tdata_i, 6),
+                      8'h0
+                    };
+                    new_carry_count = 3'd5;
+                  end
+
+                  4'd8: begin
+                    new_carry_bytes = s_axis_tdata_i[47:0];
+                    new_carry_count = 3'd6;
+                  end
+
+                  default: begin
+                    new_carry_bytes = '0;
+                    new_carry_count = 3'd0;
+                  end
+                endcase
 
                 out_keep = keep_from_count(out_count);
-                out_last = ((left_after == '0) && (new_carry_count == 2'd0));
+                out_last = ((left_after == '0) && (new_carry_count == 3'd0));
 
                 emit_word(out_data, out_keep, out_last);
 
@@ -505,7 +602,7 @@ module frame_crack #(
                 beat_idx     <= beat_idx + 16'd1;
 
                 if (left_after == '0) begin
-                  if (new_carry_count != 2'd0) begin
+                  if (new_carry_count != 3'd0) begin
                     flush_pending     <= 1'b1;
                     reset_after_flush <= s_axis_tlast_i;
                     state             <= ST_PAYLOAD;

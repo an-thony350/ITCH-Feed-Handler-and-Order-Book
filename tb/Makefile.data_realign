@@ -1,0 +1,22 @@
+SIM ?= verilator
+TOPLEVEL_LANG = verilog
+
+PWD := $(shell pwd)
+REPO_ROOT := $(PWD)/..
+
+TOPLEVEL := data_realign
+COCOTB_TEST_MODULES := test_data_realign
+
+VERILOG_SOURCES = \
+$(REPO_ROOT)/rtl/hdl_header.sv \
+$(REPO_ROOT)/rtl/data_realign.sv
+
+export PYTHONPATH := $(PWD)/tests:$(PWD):$(REPO_ROOT):$(PYTHONPATH)
+
+EXTRA_ARGS += --sv
+EXTRA_ARGS += --timing
+EXTRA_ARGS += --trace
+EXTRA_ARGS += --trace-structs
+EXTRA_ARGS += -Wno-fatal
+
+include $(shell cocotb-config --makefiles)/Makefile.sim
