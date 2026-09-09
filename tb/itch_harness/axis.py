@@ -13,6 +13,41 @@ from .layout import pack_data_t, pack_decoder_data_t
 from .scoreboard import signal_value_to_int
 
 
+def axis_word_bytes(
+    data_signal: Any,
+    keep_signal: Any | None = None,
+    *,
+    interface_name: str = "AXI4-Stream",
+) -> int:
+    """Return the number of byte lanes in an AXI4-Stream data signal.
+
+    When a tkeep signal is supplied, also prove that its width matches the
+    number of tdata byte lanes. Keeping this derivation in one helper prevents
+    the testbench from baking in either the current 32-bit or future 64-bit
+    ingress width.
+    """
+
+    data_width_bits = len(data_signal)
+    if data_width_bits % 8 != 0:
+        raise ValueError(
+            f"{interface_name} tdata width must be byte-aligned, "
+            f"got {data_width_bits} bits"
+        )
+
+    word_bytes = data_width_bits // 8
+
+    if keep_signal is not None:
+        keep_width_bits = len(keep_signal)
+        if keep_width_bits != word_bytes:
+            raise ValueError(
+                f"{interface_name} tkeep width must equal the number of "
+                f"tdata byte lanes: got keep={keep_width_bits}, "
+                f"byte_lanes={word_bytes}"
+            )
+
+    return word_bytes
+
+
 async def start_clock(dut: Any, *, period_ns: int = 10) -> None:
     """Start the DUT clock.
 
@@ -210,16 +245,11 @@ async def drive_data_handler_payload(
         packed RTL data_t word when ``wait_for_output`` is True, otherwise None.
     """
 
-    input_width_bits = len(dut.s_tdata_i)
-    if input_width_bits % 8 != 0:
-        raise ValueError(
-            f"s_tdata_i width must be byte-aligned, got {input_width_bits} bits"
-        )
-
-    words = itch_payload_to_words(
-        payload,
-        word_bytes=input_width_bits // 8,
+    word_bytes = axis_word_bytes(
+        dut.s_tdata_i,
+        interface_name="data_handler input",
     )
+    words = itch_payload_to_words(payload, word_bytes=word_bytes)
 
     for word, tlast in words:
         accepted = False
@@ -361,7 +391,6 @@ async def wait_order_book_top_bbo(
     raise TimeoutError("timed out waiting for order_book_top bbo_valid_o")
 
 
-
 def axis_bytes_to_words(
     payload: bytes | bytearray | memoryview,
     *,
@@ -369,13 +398,9 @@ def axis_bytes_to_words(
 ) -> list[tuple[int, int, bool]]:
     """Split bytes into big-endian AXI4-Stream data/keep/last beats.
 
-    Byte zero occupies the most-significant byte lane. The final ``tkeep`` is
-    MSB-contiguous, matching the Ethernet input convention used by ingress_top:
-
-        1 valid byte  -> 1000 for a 32-bit stream
-        2 valid bytes -> 1100
-        3 valid bytes -> 1110
-        4 valid bytes -> 1111
+    Byte zero occupies the most-significant byte lane. Valid bytes on the final
+    beat are MSB-contiguous in ``tkeep``. For an N-byte stream with K valid final
+    bytes, the keep mask is ``((1 << K) - 1) << (N - K)``.
     """
 
     if word_bytes <= 0:
@@ -415,21 +440,11 @@ async def drive_axis_frame(
     contiguous at one beat per clock whenever the DUT stays ready.
     """
 
-    data_width_bits = len(dut.s_frame_tdata_i)
-    keep_width_bits = len(dut.s_frame_tkeep_i)
-
-    if data_width_bits % 8 != 0:
-        raise ValueError(
-            f"s_frame_tdata_i width must be byte-aligned, got {data_width_bits} bits"
-        )
-
-    word_bytes = data_width_bits // 8
-    if keep_width_bits != word_bytes:
-        raise ValueError(
-            "s_frame_tkeep_i width must equal the number of tdata byte lanes: "
-            f"got keep={keep_width_bits}, byte_lanes={word_bytes}"
-        )
-
+    word_bytes = axis_word_bytes(
+        dut.s_frame_tdata_i,
+        dut.s_frame_tkeep_i,
+        interface_name="s_frame",
+    )
     words = axis_bytes_to_words(frame, word_bytes=word_bytes)
 
     await FallingEdge(dut.clk)

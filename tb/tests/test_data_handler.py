@@ -5,6 +5,7 @@ Scope:
   data_handler.sv.
 - Compare every emitted 217-bit data_t word against build/golden/events.jsonl.
 - Prove unsupported source messages do not produce decoder events.
+- Prove a consumed event can overlap acceptance of the next message first beat.
 - Prove output backpressure holds one stable event without accepting new input.
 
 This is the G1 decoder-isolation gate. It intentionally does not instantiate the
@@ -21,7 +22,9 @@ from cocotb.triggers import FallingEdge, RisingEdge
 
 from golden.itch_parser import iter_binaryfile_payloads
 from itch_harness.axis import (
+    axis_word_bytes,
     drive_data_handler_payload,
+    itch_payload_to_words,
     reset_data_handler,
     start_clock,
 )
@@ -131,6 +134,98 @@ async def test_data_handler_replays_binaryfile_against_events_jsonl(dut: Any) ->
         source_messages,
         expected_index,
         input_path,
+    )
+
+
+@cocotb.test()
+async def test_data_handler_accepts_next_message_while_sending(dut: Any) -> None:
+    """Consume one event while accepting the next ITCH packet first beat."""
+
+    oracle = load_oracle()
+    input_path = golden_input_path(oracle)
+    input_data = input_path.read_bytes()
+
+    assert oracle.count >= 2, "events.jsonl needs at least two decoder events"
+    expected_events = oracle.events[:2]
+    expected_indices = {int(event["msg_index"]) for event in expected_events}
+
+    payloads: dict[int, bytes] = {}
+    for msg_index, payload in iter_binaryfile_payloads(input_data):
+        if msg_index in expected_indices:
+            payloads[msg_index] = bytes(payload)
+        if len(payloads) == 2:
+            break
+
+    first_index = int(expected_events[0]["msg_index"])
+    second_index = int(expected_events[1]["msg_index"])
+    assert first_index in payloads
+    assert second_index in payloads
+
+    await initialise_data_handler(dut)
+
+    word_bytes = axis_word_bytes(
+        dut.s_tdata_i,
+        interface_name="data_handler input",
+    )
+    first_words = itch_payload_to_words(payloads[first_index], word_bytes=word_bytes)
+    second_words = itch_payload_to_words(payloads[second_index], word_bytes=word_bytes)
+
+    # Send the first message normally. ready_i remains asserted throughout.
+    for word, tlast in first_words:
+        await FallingEdge(dut.clk)
+        dut.s_tdata_i.value = word
+        dut.s_tlast_i.value = int(tlast)
+        dut.s_tvalid_i.value = 1
+
+        assert signal_value_to_int(dut.s_tready_o.value) == 1
+        await RisingEdge(dut.clk)
+
+    # The first event is now in SEND. The improvement under test keeps the
+    # input ready because that event will be consumed on the next active edge.
+    await FallingEdge(dut.clk)
+    assert signal_value_to_int(dut.valid_o.value) == 1
+    assert signal_value_to_int(dut.s_tready_o.value) == 1
+
+    first_word = signal_value_to_int(dut.rdata_o.value)
+    assert_data_t_matches_word(first_word, expected_events[0])
+
+    # Present the next message immediately, with no idle cycle between packets.
+    word, tlast = second_words[0]
+    dut.s_tdata_i.value = word
+    dut.s_tlast_i.value = int(tlast)
+    dut.s_tvalid_i.value = 1
+    await RisingEdge(dut.clk)
+
+    # On that same edge the first event was consumed and the second message's
+    # first beat was accepted. Complete the remainder of the second message.
+    for word, tlast in second_words[1:]:
+        await FallingEdge(dut.clk)
+        dut.s_tdata_i.value = word
+        dut.s_tlast_i.value = int(tlast)
+        dut.s_tvalid_i.value = 1
+
+        assert signal_value_to_int(dut.s_tready_o.value) == 1
+        await RisingEdge(dut.clk)
+
+    await FallingEdge(dut.clk)
+    dut.s_tvalid_i.value = 0
+    dut.s_tlast_i.value = 0
+    dut.s_tdata_i.value = 0
+
+    assert signal_value_to_int(dut.valid_o.value) == 1
+    second_word = signal_value_to_int(dut.rdata_o.value)
+    assert_data_t_matches_word(second_word, expected_events[1])
+
+    # Let the second event drain and prove the decoder returns to idle/ready.
+    await RisingEdge(dut.clk)
+    await FallingEdge(dut.clk)
+    assert signal_value_to_int(dut.valid_o.value) == 0
+    assert signal_value_to_int(dut.s_tready_o.value) == 1
+
+    dut._log.info(
+        "zero-bubble SEND handoff passed for msg_index=%d -> %d",
+        first_index,
+        second_index,
     )
 
 

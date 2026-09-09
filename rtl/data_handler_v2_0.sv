@@ -5,9 +5,9 @@ import hdl_header::*;
 
 module data_handler_v2_0 #
 (
-    // AXI4-Stream input width. The current ITCH parser is specialised to 32-bit
-    // words, matching network_ingress M00_AXIS.
-    parameter integer C_S00_AXIS_TDATA_WIDTH = 32
+    // AXI4-Stream input width. The native ITCH parser is specialised to 64-bit
+    // words, matching network_ingress M00_AXIS after the ingress migration.
+    parameter integer C_S00_AXIS_TDATA_WIDTH = 64
 )
 (
     // Ports of AXI4-Stream Slave Bus Interface S00_AXIS
@@ -31,8 +31,10 @@ module data_handler_v2_0 #
     // uses the shared packed struct contract internally.
     data_t rdata_internal;
 
-    // This wrapper is only intended for the current 32-bit parser contract.
     initial begin
+        if (C_S00_AXIS_TDATA_WIDTH != 64) begin
+            $error("data_handler_v2_0 requires C_S00_AXIS_TDATA_WIDTH == 64");
+        end
         if (C_S00_AXIS_TDATA_WIDTH != AXIS_DATA_W) begin
             $error("data_handler_v2_0 requires C_S00_AXIS_TDATA_WIDTH == AXIS_DATA_W (%0d)",
                    AXIS_DATA_W);
@@ -42,10 +44,12 @@ module data_handler_v2_0 #
         end
     end
 
-    // S00_AXIS_TSTRB is intentionally not consumed by data_handler. The
-    // upstream network_ingress emits only complete 32-bit ITCH words and drives
-    // TSTRB to 4'b1111, so retaining TSTRB at this wrapper boundary keeps the
-    // AXI4-Stream interfaces structurally compatible without adding logic.
+    // S00_AXIS_TSTRB is intentionally not consumed inside data_handler. realign
+    // already left-aligns every ITCH message beat and zero-pads invalid lanes;
+    // TLAST therefore provides the message boundary while the fixed ITCH field
+    // offsets select only bytes that belong to the message. TSTRB is retained at
+    // the packaged boundary so the 64-bit AXIS clock converter preserves the
+    // upstream byte qualifier without adding decoder logic or latency.
     data_handler #(
         .PACKET_W (C_S00_AXIS_TDATA_WIDTH)
     ) data_handler_inst (
