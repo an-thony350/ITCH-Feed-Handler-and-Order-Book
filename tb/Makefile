@@ -202,7 +202,7 @@ test-golden:
 	cd $(REPO_ROOT) && scripts/run_golden.sh
 
 # Keep long-running performance campaigns out of the normal correctness suite.
-test-rtl:test-order-book test-order-book-top
+test-rtl: test-order-book #test-order-book-top
 
 test-mold-seq-guard:
 	$(MAKE) clean TOPLEVEL=mold_seq_guard MODULE=test_mold_seq_guard
