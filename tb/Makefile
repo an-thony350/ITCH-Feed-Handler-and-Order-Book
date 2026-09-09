@@ -25,7 +25,27 @@ export PERF_RESULTS_DIR
 VERILOG_SOURCES = \
 $(REPO_ROOT)/rtl/hdl_header.sv
 
-ifeq ($(TOPLEVEL),mold_seq_guard)
+ifeq ($(TOPLEVEL),source_boundary_equiv_top)
+VERILOG_SOURCES += \
+$(REPO_ROOT)/rtl/lane_rewire.sv \
+$(REPO_ROOT)/rtl/axis_source_mux.sv \
+$(REPO_ROOT)/tb/rtl/source_boundary_equiv_top.sv
+
+MODULE ?= test_source_boundary_equiv
+
+else ifeq ($(TOPLEVEL),axis_source_mux)
+VERILOG_SOURCES += \
+$(REPO_ROOT)/rtl/axis_source_mux.sv
+
+MODULE ?= test_axis_source_mux
+
+else ifeq ($(TOPLEVEL),lane_rewire)
+VERILOG_SOURCES += \
+$(REPO_ROOT)/rtl/lane_rewire.sv
+
+MODULE ?= test_lane_rewire
+
+else ifeq ($(TOPLEVEL),mold_seq_guard)
 VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/mold_seq_guard.sv
 
