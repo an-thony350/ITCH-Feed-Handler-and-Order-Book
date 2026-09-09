@@ -6,11 +6,9 @@ module ob_replace_check(
     input logic                 stall,
     input logic                 stage_valid_i,
     input o_data_raw_t          input_rdata,
-    input logic [PRICE_W-1:0]   base_price_i,
 
     output logic                stage_valid_o,
     output o_data_t             rdata_o,
-    output logic [PRICE_W-1:0]  base_price_o,
     output logic                latched_rep_delete_o,
     output logic                latched_rep_add_o,
     output logic                ready_o
@@ -80,15 +78,10 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o           <=  1'b0;
-        rdata_o                 <=  '0;
-        base_price_o            <=  '0;
-        latched_rep_delete_o    <=  1'b0;
-        latched_rep_add_o       <=  1'b0;
     end
     else if(!stall) begin
         stage_valid_o           <=  rep_add_valid;
         rdata_o                 <=  passed_data;
-        base_price_o            <=  base_price_i;
         latched_rep_delete_o    <=  rep_delete;
         latched_rep_add_o       <=  rep_add;
     end

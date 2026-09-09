@@ -91,12 +91,23 @@ assign empty_2  =   (wr_ptr_2 == rd_ptr_2);
 
 assign ob_sr_ready_bus[0]   =   1'b1;
 
+// replicate reset signals used to reduce fanout
+
+(* max_fanout = 16 *) logic rst_n_r1 = 1'b0;
+(* max_fanout = 16 *) logic rst_n_ob0, rst_n_ob1, rst_n_ob2;
+
+always_ff @(posedge clk) begin
+    rst_n_r1   <= rst_n;
+    rst_n_ob0  <= rst_n_r1;
+    rst_n_ob1  <= rst_n_r1;
+    rst_n_ob2  <= rst_n_r1;
+end
 
 // Data Handler -> Symbol Router
 
 symbol_router router(
     .clk                    (clk),
-    .rst_n                  (rst_n),
+    .rst_n                  (rst_n_r1),
 
     .base_price_stock0_i    (base_price_stock0_i),
     .base_price_stock1_i    (base_price_stock1_i),
@@ -118,7 +129,7 @@ symbol_router router(
 
 order_book ob_stock0(
     .clk          (clk),
-    .rst_n        (rst_n),
+    .rst_n        (rst_n_ob0),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock0),
     .base_price_i (sr_ob_base_price),
@@ -129,7 +140,7 @@ order_book ob_stock0(
 
 order_book ob_stock1(
     .clk          (clk),
-    .rst_n        (rst_n),
+    .rst_n        (rst_n_ob1),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock1),
     .base_price_i (sr_ob_base_price),
@@ -140,7 +151,7 @@ order_book ob_stock1(
 
 order_book ob_stock2(
     .clk          (clk),
-    .rst_n        (rst_n),
+    .rst_n        (rst_n_ob2),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock2),
     .base_price_i (sr_ob_base_price),
@@ -152,7 +163,7 @@ order_book ob_stock2(
 // FIFO write logic
 
 always_ff @(posedge clk) begin
-    if(!rst_n) begin
+    if(!rst_n_r1) begin
         wr_ptr_0    <=  '0;
         wr_ptr_1    <=  '0;
         wr_ptr_2    <=  '0;
@@ -177,7 +188,7 @@ end
 // FIFO read logic & RR scheduler
 
 always_ff @(posedge clk) begin
-    if(!rst_n) begin
+    if(!rst_n_r1) begin
         rd_ptr_0    <=  '0;
         rd_ptr_1    <=  '0;
         rd_ptr_2    <=  '0;

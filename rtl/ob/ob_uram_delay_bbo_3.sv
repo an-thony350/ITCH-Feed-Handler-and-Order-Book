@@ -27,11 +27,9 @@ module ob_uram_delay_bbo_3(
 
     // Instruction Data I/O
     input logic                 stage_valid_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
     input logic                 latched_rep_delete_i,
 
     output logic                stage_valid_o,
-    output logic [PRICE_W-1:0]  latched_base_price_o,
     output logic                latched_rep_delete_o,
 
     // BBO Search I/O
@@ -45,14 +43,9 @@ module ob_uram_delay_bbo_3(
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o           <=  1'b0;
-        latched_base_price_o    <=  '0;
-        bid_is_zero_o           <=  '0;
-        ask_is_zero_o           <=  '0;
-        latched_rep_delete_o    <=  1'b0;
     end
     else begin
         stage_valid_o           <=  stage_valid_i;
-        latched_base_price_o    <=  latched_base_price_i;
         bid_is_zero_o           <=  bid_is_zero_i;
         ask_is_zero_o           <=  ask_is_zero_i;
         latched_rep_delete_o    <=  latched_rep_delete_i;

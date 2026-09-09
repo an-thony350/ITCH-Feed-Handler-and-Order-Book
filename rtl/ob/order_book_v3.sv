@@ -171,7 +171,7 @@ logic [BBO_W-1:0]       ask_wr_addr_a_m;
 logic [SHARES_W-1:0]    ask_din_a_m;
 
 // registers controlling the CLEAR state
-logic               clearing;
+(* max_fanout = 32 *) logic               clearing;
 logic [BBO_W-1:0]   clear_idx;
 
 // CAM control pins
@@ -188,13 +188,11 @@ logic                   chunk_val;
 // REPLACE_CHECK State registers - outputs
 logic                   REPCHECK_IDLE_stage_valid;
 o_data_t                REPCHECK_IDLE_rdata;
-logic [PRICE_W-1:0]     REPCHECK_IDLE_base_price;
 logic                   REPCHECK_ready;
 
 // IDLE State registers - outputs
 logic                   IDLE_IDXREQ_stage_valid;
 o_data_t                IDLE_IDXREQ_latched_rdata;
-logic [PRICE_W-1:0]     IDLE_IDXREQ_base_price;
 logic                   IDLE_IDXREQ_is_add;
 logic                   IDLE_IDXREQ_is_reduce;
 logic                   IDLE_IDXREQ_is_delete;
@@ -203,7 +201,6 @@ logic [HASH_W-1:0]      IDLE_IDXREQ_latched_hash_idx;
 // IDX_REQ State registers - outputs
 logic                   IDXREQ_IDXSEARCH_stage_valid;
 o_data_t                IDXREQ_IDXSEARCH_latched_rdata;
-logic [PRICE_W-1:0]     IDXREQ_IDXSEARCH_base_price;
 logic                   IDXREQ_IDXSEARCH_is_add;
 logic                   IDXREQ_IDXSEARCH_is_reduce;
 logic                   IDXREQ_IDXSEARCH_is_delete;
@@ -217,7 +214,6 @@ logic [HASH_W-1:0]      IDXREQ_IDXSEARCH_hash_idx;
 // IDX_SEARCH State registers - outputs
 logic                   IDXSEARCH_UPDATERDTBL_stage_valid;
 o_data_t                IDXSEARCH_UPDATERDTBL_latched_rdata;
-logic [PRICE_W-1:0]     IDXSEARCH_UPDATERDTBL_base_price;
 logic                   IDXSEARCH_UPDATERDTBL_is_add;
 logic                   IDXSEARCH_UPDATERDTBL_is_reduce;
 logic                   IDXSEARCH_UPDATERDTBL_is_delete;
@@ -234,7 +230,6 @@ order_entry_t [2:0]     IDXSEARCH_UPDATERDTBL_read_bucket;
 // UPDATE_READ_TABLE State registers - outputs
 logic                   UPDATERDTBL_ISSUEBKRD_stage_valid;
 o_data_t                UPDATERDTBL_ISSUEBKRD_latched_rdata;
-logic [PRICE_W-1:0]     UPDATERDTBL_ISSUEBKRD_base_price;
 logic                   UPDATERDTBL_ISSUEBKRD_is_add;
 logic                   UPDATERDTBL_ISSUEBKRD_is_reduce;
 logic                   UPDATERDTBL_ISSUEBKRD_is_delete;
@@ -249,7 +244,6 @@ order_entry_t [2:0]     UPDATERDTBL_ISSUEBKRD_read_bucket;
 // ISSUE_BOOK_READ State registers - outputs
 logic                   ISSUEBKRD_URAM1_stage_valid;
 o_data_t                ISSUEBKRD_URAM1_latched_rdata;
-logic [PRICE_W-1:0]     ISSUEBKRD_URAM1_base_price;
 logic                   ISSUEBKRD_URAM1_is_add;
 logic                   ISSUEBKRD_URAM1_is_reduce;
 logic                   ISSUEBKRD_URAM1_is_delete;
@@ -267,7 +261,6 @@ logic [BBO_W-1:0]       issue_ask_addr;
 // URAM DELAY 1 State registers - outputs
 logic                   URAM1_URAM2_stage_valid;
 o_data_t                URAM1_URAM2_latched_rdata;
-logic [PRICE_W-1:0]     URAM1_URAM2_base_price;
 logic                   URAM1_URAM2_is_add;
 logic                   URAM1_URAM2_is_reduce;
 logic                   URAM1_URAM2_is_delete;
@@ -283,7 +276,6 @@ order_entry_t [2:0]     URAM1_URAM2_read_bucket;
 // URAM DELAY 2 State registers - outputs
 logic                   URAM2_UPDATERDBK_stage_valid;
 o_data_t                URAM2_UPDATERDBK_latched_rdata;
-logic [PRICE_W-1:0]     URAM2_UPDATERDBK_base_price;
 logic                   URAM2_UPDATERDBK_is_add;
 logic                   URAM2_UPDATERDBK_is_reduce;
 logic                   URAM2_UPDATERDBK_is_delete;
@@ -299,7 +291,6 @@ order_entry_t [2:0]     URAM2_UPDATERDBK_read_bucket;
 // UPDATE_READ_BOOK State registers - outputs
 logic                   UPDATERDBK_UPDATEWR_stage_valid;
 o_data_t                UPDATERDBK_UPDATEWR_latched_rdata;
-logic [PRICE_W-1:0]     UPDATERDBK_UPDATEWR_base_price;
 logic                   UPDATERDBK_UPDATEWR_is_add;
 logic                   UPDATERDBK_UPDATEWR_is_reduce;
 logic                   UPDATERDBK_UPDATEWR_is_delete;
@@ -318,7 +309,6 @@ order_entry_t [2:0]     UPDATERDBK_UPDATEWR_read_bucket;
 // UPDATE_WRITE State registers - outputs
 logic                   UPDATEWR_BBOEVAL_stage_valid;
 o_data_t                UPDATEWR_BBOEVAL_latched_rdata;
-logic [PRICE_W-1:0]     UPDATEWR_BBOEVAL_base_price;
 logic                   UPDATEWR_BBOEVAL_is_add;
 logic                   UPDATEWR_BBOEVAL_is_reduce;
 logic                   UPDATEWR_BBOEVAL_is_delete;
@@ -339,7 +329,6 @@ logic [SHARES_W-1:0]    update_read_book_wr0_data;
 
 // BBO Evaluation (EVALUATE_BBO & BBO_SEARCH_REQ) State registers - outputs
 logic                   BBOEVAL_BBORESOLVE_stage_valid;
-logic [PRICE_W-1:0]     BBOEVAL_BBORESOLVE_base_price;
 logic [BBO_W-1:0]       BBOEVAL_BBORESOLVE_latched_event_price_idx;
 order_entry_t           BBOEVAL_BBORESOLVE_latched_lookup_entry;
 logic [BBO_W-1:0]       BBOEVAL_BBORESOLVE_latched_lookup_price_idx;
@@ -354,23 +343,19 @@ logic                   BBOEVAL_BBORESOLVE_ask_is_zero;
 
 // BBO Resolution (BBO_SEARCH_EVAL & FETCH_BBO) State registers - outputs
 logic                   BBORESOLVE_BBOURAM_stage_valid;
-logic [PRICE_W-1:0]     BBORESOLVE_BBOURAM_base_price;
 logic                   BBORESOLVE_BBOURAM_bid_is_zero;
 logic                   BBORESOLVE_BBOURAM_ask_is_zero;
 
 // URAM BBO delay State registers - outputs
 logic                   BBOURAM_BBOOUT_stage_valid;
-logic [PRICE_W-1:0]     BBOURAM_BBOOUT_base_price;
 logic                   BBOURAM_BBOOUT_bid_is_zero;
 logic                   BBOURAM_BBOOUT_ask_is_zero;
 
 logic                   BBOURAM_BBOOUT_2_stage_valid;
-logic [PRICE_W-1:0]     BBOURAM_BBOOUT_2_base_price;
 logic                   BBOURAM_BBOOUT_2_bid_is_zero;
 logic                   BBOURAM_BBOOUT_2_ask_is_zero;
 
 logic                   BBOURAM_BBOOUT_3_stage_valid;
-logic [PRICE_W-1:0]     BBOURAM_BBOOUT_3_base_price;
 logic                   BBOURAM_BBOOUT_3_bid_is_zero;
 logic                   BBOURAM_BBOOUT_3_ask_is_zero;
 
@@ -420,6 +405,24 @@ assign eff_bid_chunk = (prev_cw_we_bid && (prev_cw_row_bid == chunk_row[BBO_W-1:
                        ? prev_cw_dat_bid : q_bid_chunk_a;
 assign eff_ask_chunk = (prev_cw_we_ask && (prev_cw_row_ask == chunk_row[BBO_W-1:6]))
                        ? prev_cw_dat_ask : q_ask_chunk_a;
+
+
+logic         cam_wr_en;
+logic [5:0]   cam_wr_idx;
+order_entry_t cam_wr_data;
+
+always_comb begin
+    if(clearing) begin
+        cam_wr_en   = (clear_idx < BBO_W'(64));
+        cam_wr_idx  = clear_idx[5:0];
+        cam_wr_data = '0;
+    end
+    else begin
+        cam_wr_en   = cam_we;
+        cam_wr_idx  = cam_idx;
+        cam_wr_data = cam_data;
+    end
+end
 
 // Sequential Logic handling the CLEAR state
 always_ff @(posedge clk) begin
@@ -538,20 +541,31 @@ always_ff @(posedge clk) begin
 end
 
 // Sequential Logic dealing with clear state and clock synchronisation
+// CAM write - clearing only picks the address, not the enable on all 64
+logic         cam_wr_en_q;
+logic [5:0]   cam_wr_idx_q;
+order_entry_t cam_wr_data_q;
+
+always_ff @(posedge clk) begin
+    if(!rst_n) cam_wr_en_q <= 1'b0;
+    else begin
+        cam_wr_en_q   <= cam_wr_en;
+        cam_wr_idx_q  <= cam_wr_idx;
+        cam_wr_data_q <= cam_wr_data;
+    end
+end
+
+always_ff @(posedge clk) begin
+    if(cam_wr_en_q) cam[cam_wr_idx_q] <= cam_wr_data_q;
+end
+
+// enc_valid - unchanged behaviour, but no longer gated by clearing
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         bid_enc_valid <= '0;
         ask_enc_valid <= '0;
     end
-    else if(clearing) begin
-        if (clear_idx < BBO_W'(64)) begin
-            cam[clear_idx[5:0]] <= '0;
-        end
-    end
-    else begin
-      if(cam_we) cam[cam_idx] <= cam_data;
-
-      if(chunk_we) begin
+    else if(!clearing && chunk_we) begin
         if(chunk_side) begin
             if(chunk_val) bid_enc_valid[chunk_row[BBO_W-1:6]] <= 1'b1;
             else if(eff_bid_chunk == (64'h1 << chunk_row[5:0]))
@@ -562,7 +576,6 @@ always_ff @(posedge clk) begin
             else if(eff_ask_chunk == (64'h1 << chunk_row[5:0]))
                 ask_enc_valid[chunk_row[BBO_W-1:6]] <= 1'b0;
         end
-      end
     end
 end
 
@@ -633,10 +646,8 @@ ob_replace_check replace_check_block(
     .stall(stall),
     .stage_valid_i(valid_i && !clearing),
     .input_rdata(rdata_i),
-    .base_price_i(base_price_i),
     .stage_valid_o(REPCHECK_IDLE_stage_valid),
     .rdata_o(REPCHECK_IDLE_rdata),
-    .base_price_o(REPCHECK_IDLE_base_price),
     .latched_rep_delete_o(latched_rep_delete_o_0),
     .latched_rep_add_o(latched_rep_add_o_0),
     .ready_o(REPCHECK_ready)
@@ -648,12 +659,10 @@ ob_idle idle_block(
     .stall(stall),
     .stage_valid_i(REPCHECK_IDLE_stage_valid),
     .rdata_i(REPCHECK_IDLE_rdata),
-    .base_price_i(REPCHECK_IDLE_base_price),
     .latched_rep_delete_i(latched_rep_delete_o_0),
     .latched_rep_add_i(latched_rep_add_o_0),
     .stage_valid_o(IDLE_IDXREQ_stage_valid),
     .latched_rdata_o(IDLE_IDXREQ_latched_rdata),
-    .latched_base_price_o(IDLE_IDXREQ_base_price),
     .latched_is_add_o(IDLE_IDXREQ_is_add),
     .latched_is_reduce_o(IDLE_IDXREQ_is_reduce),
     .latched_is_delete_o(IDLE_IDXREQ_is_delete),
@@ -669,7 +678,7 @@ ob_idx_req idx_req_block(
     .stall(stall),
     .stage_valid_i(IDLE_IDXREQ_stage_valid),
     .latched_rdata_i(IDLE_IDXREQ_latched_rdata),
-    .latched_base_price_i(IDLE_IDXREQ_base_price),
+    .latched_base_price_i(base_price_i),
     .latched_is_add_i(IDLE_IDXREQ_is_add),
     .latched_is_reduce_i(IDLE_IDXREQ_is_reduce),
     .latched_is_delete_i(IDLE_IDXREQ_is_delete),
@@ -677,7 +686,6 @@ ob_idx_req idx_req_block(
     .latched_rep_add_i(latched_rep_add_o_1),
     .stage_valid_o(IDXREQ_IDXSEARCH_stage_valid),
     .latched_rdata_o(IDXREQ_IDXSEARCH_latched_rdata),
-    .latched_base_price_o(IDXREQ_IDXSEARCH_base_price),
     .latched_is_add_o(IDXREQ_IDXSEARCH_is_add),
     .latched_is_reduce_o(IDXREQ_IDXSEARCH_is_reduce),
     .latched_is_delete_o(IDXREQ_IDXSEARCH_is_delete),
@@ -699,7 +707,6 @@ ob_idx_search idx_search_block(
     .stall(stall),
     .stage_valid_i(IDXREQ_IDXSEARCH_stage_valid),
     .latched_rdata_i(IDXREQ_IDXSEARCH_latched_rdata),
-    .latched_base_price_i(IDXREQ_IDXSEARCH_base_price),
     .latched_is_add_i(IDXREQ_IDXSEARCH_is_add),
     .latched_is_reduce_i(IDXREQ_IDXSEARCH_is_reduce),
     .latched_is_delete_i(IDXREQ_IDXSEARCH_is_delete),
@@ -707,7 +714,6 @@ ob_idx_search idx_search_block(
     .latched_rep_add_i(latched_rep_add_o_2),
     .stage_valid_o(IDXSEARCH_UPDATERDTBL_stage_valid),
     .latched_rdata_o(IDXSEARCH_UPDATERDTBL_latched_rdata),
-    .latched_base_price_o(IDXSEARCH_UPDATERDTBL_base_price),
     .latched_is_add_o(IDXSEARCH_UPDATERDTBL_is_add),
     .latched_is_reduce_o(IDXSEARCH_UPDATERDTBL_is_reduce),
     .latched_is_delete_o(IDXSEARCH_UPDATERDTBL_is_delete),
@@ -740,7 +746,6 @@ ob_update_read_tbl update_read_tbl_block(
     .stall(stall),
     .stage_valid_i(IDXSEARCH_UPDATERDTBL_stage_valid),
     .latched_rdata_i(IDXSEARCH_UPDATERDTBL_latched_rdata),
-    .latched_base_price_i(IDXSEARCH_UPDATERDTBL_base_price),
     .latched_is_add_i(IDXSEARCH_UPDATERDTBL_is_add),
     .latched_is_reduce_i(IDXSEARCH_UPDATERDTBL_is_reduce),
     .latched_is_delete_i(IDXSEARCH_UPDATERDTBL_is_delete),
@@ -748,7 +753,6 @@ ob_update_read_tbl update_read_tbl_block(
     .latched_rep_add_i(latched_rep_add_o_3),
     .stage_valid_o(UPDATERDTBL_ISSUEBKRD_stage_valid),
     .latched_rdata_o(UPDATERDTBL_ISSUEBKRD_latched_rdata),
-    .latched_base_price_o(UPDATERDTBL_ISSUEBKRD_base_price),
     .latched_is_add_o(UPDATERDTBL_ISSUEBKRD_is_add),
     .latched_is_reduce_o(UPDATERDTBL_ISSUEBKRD_is_reduce),
     .latched_is_delete_o(UPDATERDTBL_ISSUEBKRD_is_delete),
@@ -778,8 +782,8 @@ ob_issue_book_read issue_book_read_block(
     .rst_n(rst_n),
     .stall(stall),
     .stage_valid_i(UPDATERDTBL_ISSUEBKRD_stage_valid),
+    .latched_base_price_i(base_price_i),
     .latched_rdata_i(UPDATERDTBL_ISSUEBKRD_latched_rdata),
-    .latched_base_price_i(UPDATERDTBL_ISSUEBKRD_base_price),
     .latched_is_add_i(UPDATERDTBL_ISSUEBKRD_is_add),
     .latched_is_reduce_i(UPDATERDTBL_ISSUEBKRD_is_reduce),
     .latched_is_delete_i(UPDATERDTBL_ISSUEBKRD_is_delete),
@@ -787,7 +791,6 @@ ob_issue_book_read issue_book_read_block(
     .latched_rep_add_i(latched_rep_add_o_4),
     .stage_valid_o(ISSUEBKRD_URAM1_stage_valid),
     .latched_rdata_o(ISSUEBKRD_URAM1_latched_rdata),
-    .latched_base_price_o(ISSUEBKRD_URAM1_base_price),
     .latched_is_add_o(ISSUEBKRD_URAM1_is_add),
     .latched_is_reduce_o(ISSUEBKRD_URAM1_is_reduce),
     .latched_is_delete_o(ISSUEBKRD_URAM1_is_delete),
@@ -818,7 +821,6 @@ ob_uram_delay_1 uram_delay_block_1(
     .stall(stall),
     .stage_valid_i(ISSUEBKRD_URAM1_stage_valid),
     .latched_rdata_i(ISSUEBKRD_URAM1_latched_rdata),
-    .latched_base_price_i(ISSUEBKRD_URAM1_base_price),
     .latched_is_add_i(ISSUEBKRD_URAM1_is_add),
     .latched_is_reduce_i(ISSUEBKRD_URAM1_is_reduce),
     .latched_is_delete_i(ISSUEBKRD_URAM1_is_delete),
@@ -826,7 +828,6 @@ ob_uram_delay_1 uram_delay_block_1(
     .latched_rep_add_i(latched_rep_add_o_5),
     .stage_valid_o(URAM1_URAM2_stage_valid),
     .latched_rdata_o(URAM1_URAM2_latched_rdata),
-    .latched_base_price_o(URAM1_URAM2_base_price),
     .latched_is_add_o(URAM1_URAM2_is_add),
     .latched_is_reduce_o(URAM1_URAM2_is_reduce),
     .latched_is_delete_o(URAM1_URAM2_is_delete),
@@ -856,7 +857,6 @@ ob_uram_delay_2 uram_delay_block_2(
     .stall(stall),
     .stage_valid_i(URAM1_URAM2_stage_valid),
     .latched_rdata_i(URAM1_URAM2_latched_rdata),
-    .latched_base_price_i(URAM1_URAM2_base_price),
     .latched_is_add_i(URAM1_URAM2_is_add),
     .latched_is_reduce_i(URAM1_URAM2_is_reduce),
     .latched_is_delete_i(URAM1_URAM2_is_delete),
@@ -864,7 +864,6 @@ ob_uram_delay_2 uram_delay_block_2(
     .latched_rep_add_i(latched_rep_add_o_6),
     .stage_valid_o(URAM2_UPDATERDBK_stage_valid),
     .latched_rdata_o(URAM2_UPDATERDBK_latched_rdata),
-    .latched_base_price_o(URAM2_UPDATERDBK_base_price),
     .latched_is_add_o(URAM2_UPDATERDBK_is_add),
     .latched_is_reduce_o(URAM2_UPDATERDBK_is_reduce),
     .latched_is_delete_o(URAM2_UPDATERDBK_is_delete),
@@ -894,7 +893,6 @@ ob_update_read_book update_read_book_block(
     .stall(stall),
     .stage_valid_i(URAM2_UPDATERDBK_stage_valid),
     .latched_rdata_i(URAM2_UPDATERDBK_latched_rdata),
-    .latched_base_price_i(URAM2_UPDATERDBK_base_price),
     .latched_is_add_i(URAM2_UPDATERDBK_is_add),
     .latched_is_reduce_i(URAM2_UPDATERDBK_is_reduce),
     .latched_is_delete_i(URAM2_UPDATERDBK_is_delete),
@@ -903,7 +901,6 @@ ob_update_read_book update_read_book_block(
     .rep_side_i(rep_side),
     .stage_valid_o(UPDATERDBK_UPDATEWR_stage_valid),
     .latched_rdata_o(UPDATERDBK_UPDATEWR_latched_rdata),
-    .latched_base_price_o(UPDATERDBK_UPDATEWR_base_price),
     .latched_is_add_o(UPDATERDBK_UPDATEWR_is_add),
     .latched_is_reduce_o(UPDATERDBK_UPDATEWR_is_reduce),
     .latched_is_delete_o(UPDATERDBK_UPDATEWR_is_delete),
@@ -946,7 +943,6 @@ ob_update_write update_write_block(
     .stall(stall),
     .stage_valid_i(UPDATERDBK_UPDATEWR_stage_valid),
     .latched_rdata_i(UPDATERDBK_UPDATEWR_latched_rdata),
-    .latched_base_price_i(UPDATERDBK_UPDATEWR_base_price),
     .latched_is_add_i(UPDATERDBK_UPDATEWR_is_add),
     .latched_is_reduce_i(UPDATERDBK_UPDATEWR_is_reduce),
     .latched_is_delete_i(UPDATERDBK_UPDATEWR_is_delete),
@@ -955,7 +951,6 @@ ob_update_write update_write_block(
     .rep_side_i(rep_side),
     .stage_valid_o(UPDATEWR_BBOEVAL_stage_valid),
     .latched_rdata_o(UPDATEWR_BBOEVAL_latched_rdata),
-    .latched_base_price_o(UPDATEWR_BBOEVAL_base_price),
     .latched_is_add_o(UPDATEWR_BBOEVAL_is_add),
     .latched_is_reduce_o(UPDATEWR_BBOEVAL_is_reduce),
     .latched_is_delete_o(UPDATEWR_BBOEVAL_is_delete),
@@ -1012,14 +1007,12 @@ ob_evaluate_bbo evaluate_bbo_block(
     .stall(bbo_stall),
     .stage_valid_i(UPDATEWR_BBOEVAL_stage_valid),
     .latched_rdata_i(UPDATEWR_BBOEVAL_latched_rdata),
-    .latched_base_price_i(UPDATEWR_BBOEVAL_base_price),
     .latched_is_add_i(UPDATEWR_BBOEVAL_is_add),
     .latched_is_reduce_i(UPDATEWR_BBOEVAL_is_reduce),
     .latched_is_delete_i(UPDATEWR_BBOEVAL_is_delete),
     .latched_rep_delete_i(latched_rep_delete_o_9),
     .latched_rep_add_i(latched_rep_add_o_9),
     .stage_valid_o(BBOEVAL_BBORESOLVE_stage_valid),
-    .latched_base_price_o(BBOEVAL_BBORESOLVE_base_price),
     .latched_rep_delete_o(latched_rep_delete_o_10),
     .latched_event_price_idx_i(UPDATEWR_BBOEVAL_latched_event_price_idx),
     .latched_lookup_entry_i(UPDATEWR_BBOEVAL_latched_lookup_entry),
@@ -1043,10 +1036,8 @@ ob_bbo_resolve bbo_resolve_block(
     .clk(clk),
     .rst_n(rst_n),
     .stage_valid_i(BBOEVAL_BBORESOLVE_stage_valid),
-    .latched_base_price_i(BBOEVAL_BBORESOLVE_base_price),
     .latched_rep_delete_i(latched_rep_delete_o_10),
     .stage_valid_o(BBORESOLVE_BBOURAM_stage_valid),
-    .latched_base_price_o(BBORESOLVE_BBOURAM_base_price),
     .latched_rep_delete_o(latched_rep_delete_o_11),
     .target_bid_chunk_i(current_bid_chunk),
     .target_ask_chunk_i(current_ask_chunk),
@@ -1067,10 +1058,8 @@ ob_uram_delay_bbo uram_delay_bbo_block(
     .clk(clk),
     .rst_n(rst_n),
     .stage_valid_i(BBORESOLVE_BBOURAM_stage_valid),
-    .latched_base_price_i(BBORESOLVE_BBOURAM_base_price),
     .latched_rep_delete_i(latched_rep_delete_o_11),
     .stage_valid_o(BBOURAM_BBOOUT_2_stage_valid),
-    .latched_base_price_o(BBOURAM_BBOOUT_2_base_price),
     .latched_rep_delete_o(latched_rep_delete_o_12),
     .bid_is_zero_i(BBORESOLVE_BBOURAM_bid_is_zero),
     .ask_is_zero_i(BBORESOLVE_BBOURAM_ask_is_zero),
@@ -1082,10 +1071,8 @@ ob_uram_delay_bbo_2 uram_delay_bbo_block_2(
     .clk(clk),
     .rst_n(rst_n),
     .stage_valid_i(BBOURAM_BBOOUT_2_stage_valid),
-    .latched_base_price_i(BBOURAM_BBOOUT_2_base_price),
     .latched_rep_delete_i(latched_rep_delete_o_12),
     .stage_valid_o(BBOURAM_BBOOUT_3_stage_valid),
-    .latched_base_price_o(BBOURAM_BBOOUT_3_base_price),
     .latched_rep_delete_o(latched_rep_delete_o_13),
     .bid_is_zero_i(BBOURAM_BBOOUT_2_bid_is_zero),
     .ask_is_zero_i(BBOURAM_BBOOUT_2_ask_is_zero),
@@ -1097,10 +1084,8 @@ ob_uram_delay_bbo_3 uram_delay_bbo_block_3(
     .clk(clk),
     .rst_n(rst_n),
     .stage_valid_i(BBOURAM_BBOOUT_3_stage_valid),
-    .latched_base_price_i(BBOURAM_BBOOUT_3_base_price),
     .latched_rep_delete_i(latched_rep_delete_o_13),
     .stage_valid_o(BBOURAM_BBOOUT_stage_valid),
-    .latched_base_price_o(BBOURAM_BBOOUT_base_price),
     .latched_rep_delete_o(latched_rep_delete_o_14),
     .bid_is_zero_i(BBOURAM_BBOOUT_3_bid_is_zero),
     .ask_is_zero_i(BBOURAM_BBOOUT_3_ask_is_zero),
@@ -1112,7 +1097,7 @@ ob_bbo_out bbo_out_block(
     .clk(clk),
     .rst_n(rst_n),
     .stage_valid_i(BBOURAM_BBOOUT_stage_valid),
-    .latched_base_price_i(BBOURAM_BBOOUT_base_price),
+    .latched_base_price_i(base_price_i),
     .latched_rep_delete_i(latched_rep_delete_o_14),
     .bid_dout_a(bbo_bid_dout),
     .ask_dout_a(bbo_ask_dout),

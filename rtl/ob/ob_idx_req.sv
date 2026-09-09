@@ -41,7 +41,6 @@ module ob_idx_req(
 
     output logic                stage_valid_o,
     output o_data_t             latched_rdata_o,
-    output logic [PRICE_W-1:0]  latched_base_price_o,
     output logic                latched_is_add_o,
     output logic                latched_is_reduce_o,
     output logic                latched_is_delete_o,
@@ -105,25 +104,10 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o               <=  1'b0;
-        latched_rdata_o             <=  '0;
-        latched_base_price_o        <=  '0;
-        latched_is_add_o            <=  1'b0;
-        latched_is_reduce_o         <=  1'b0;
-        latched_is_delete_o         <=  1'b0;
-        latched_rep_delete_o        <=  1'b0;
-        latched_rep_add_o           <=  1'b0;
-
-        latched_event_price_idx_o   <=  '0;
-        latched_cam_hit_o           <=  '0;
-        latched_cam_match_idx_o     <=  '0;
-        latched_cam_is_full_o       <=  '0;
-        latched_cam_free_idx_o      <=  '0;
-        latched_hash_idx_o          <=  '0;
     end
     else if(!stall) begin
         stage_valid_o               <=  stage_valid_i;
         latched_rdata_o             <=  latched_rdata_i;
-        latched_base_price_o        <=  latched_base_price_i;
         latched_is_add_o            <=  latched_is_add_i;
         latched_is_reduce_o         <=  latched_is_reduce_i;
         latched_is_delete_o         <=  latched_is_delete_i;

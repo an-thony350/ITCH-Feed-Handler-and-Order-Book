@@ -32,7 +32,6 @@ module ob_evaluate_bbo(
     // Instruction Data I/O
     input logic                 stage_valid_i,
     input o_data_t              latched_rdata_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
     input logic                 latched_is_add_i,
     input logic                 latched_is_reduce_i,
     input logic                 latched_is_delete_i,
@@ -40,7 +39,6 @@ module ob_evaluate_bbo(
     input logic                 latched_rep_add_i,
 
     output logic                stage_valid_o,
-    output logic [PRICE_W-1:0]  latched_base_price_o,
     output logic                latched_rep_delete_o,
 
     // Computed DataPath I/O
@@ -120,8 +118,6 @@ always_ff @(posedge clk) begin
         stall                       <=  1'b0;
         stall_edge_detector         <=  1'b0;
         stage_valid_o               <=  1'b0;
-        latched_base_price_o        <=  '0;
-        latched_rep_delete_o        <=  1'b0;
 
         current_best_bid_o          <=  '0;
         current_best_ask_o          <=  BBO_W'(BBO_DEPTH-1);
@@ -135,7 +131,6 @@ always_ff @(posedge clk) begin
         stall_edge_detector         <=  stall;
         stall                       <=  stage_valid_i && (rep_add_needs_read || bid_depleted || ask_depleted) && !stall_edge_detector && !latched_rep_delete_i;
         stage_valid_o               <=  stage_valid_i;
-        latched_base_price_o        <=  latched_base_price_i;
         latched_rep_delete_o        <=  latched_rep_delete_i;
         new_bbo_o                   <=  new_bbo;
         bid_is_zero_o               <=  bid_is_zero;

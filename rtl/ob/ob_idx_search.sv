@@ -33,7 +33,6 @@ module ob_idx_search(
     // Instruction Data I/O
     input logic                 stage_valid_i,
     input o_data_t              latched_rdata_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
     input logic                 latched_is_add_i,
     input logic                 latched_is_reduce_i,
     input logic                 latched_is_delete_i,
@@ -42,7 +41,6 @@ module ob_idx_search(
 
     output logic                stage_valid_o,
     output o_data_t             latched_rdata_o,
-    output logic [PRICE_W-1:0]  latched_base_price_o,
     output logic                latched_is_add_o,
     output logic                latched_is_reduce_o,
     output logic                latched_is_delete_o,
@@ -184,22 +182,6 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o               <=  '0;
-        latched_rdata_o             <=  '0;
-        latched_base_price_o        <=  '0;
-        latched_is_add_o            <=  1'b0;
-        latched_is_reduce_o         <=  1'b0;
-        latched_is_delete_o         <=  1'b0;
-        latched_rep_delete_o        <=  1'b0;
-        latched_rep_add_o           <=  1'b0;
-
-        latched_event_price_idx_o   <=  '0;
-        latched_cam_hit_o           <=  1'b0;
-        latched_cam_match_idx_o     <=  '0;
-        latched_cam_free_idx_o      <=  '0;
-        latched_slot_idx_o          <=  '0;
-        latched_hash_match_o        <=  '0;
-        latched_free_slot_o         <=  '0;
-        latched_hash_idx_o          <=  '0;
         read_bucket_o               <=  '0;
 
         wr1_we <= 1'b0;
@@ -221,7 +203,6 @@ always_ff @(posedge clk) begin
         end
 
         latched_rdata_o             <=  latched_rdata_i;
-        latched_base_price_o        <=  latched_base_price_i;
         latched_is_add_o            <=  latched_is_add_i;
         latched_is_reduce_o         <=  latched_is_reduce_i;
         latched_is_delete_o         <=  latched_is_delete_i;
