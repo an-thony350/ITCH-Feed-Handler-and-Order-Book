@@ -16,6 +16,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -27,17 +28,19 @@ module ob_evaluate_bbo(
     input logic                 clk,
     input logic                 rst_n,
 
+    output logic                stall,
+
     // Instruction Data I/O
     input logic                 stage_valid_i,
     input o_data_t              latched_rdata_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
     input logic                 latched_is_add_i,
     input logic                 latched_is_reduce_i,
-    input logic                 latched_is_replace_i,
     input logic                 latched_is_delete_i,
+    input logic                 latched_rep_delete_i,
+    input logic                 latched_rep_add_i,
 
     output logic                stage_valid_o,
-    output logic [PRICE_W-1:0]  latched_base_price_o,
+    output logic                latched_rep_delete_o,
 
     // Computed DataPath I/O
     input logic [BBO_W-1:0]     latched_event_price_idx_i,
@@ -71,6 +74,9 @@ logic       level_depleted;
 logic       new_bbo;
 logic       bid_is_zero;
 logic       ask_is_zero;
+logic       stall_edge_detector;
+logic       rep_add_needs_read;
+
 
 // combinational logic for bbo_evaluation
 always_comb begin
@@ -80,31 +86,23 @@ always_comb begin
     bid_depleted    =   1'b0;
     ask_depleted    =   1'b0;
 
-    level_depleted = latched_is_reduce_i ?
-                     (latched_book_shares_i == latched_rdata_i.shares) :
-                     (latched_book_shares_i == latched_lookup_entry_i.shares);
+    level_depleted      =   latched_is_reduce_i ?
+                            (latched_book_shares_i == latched_rdata_i.shares) :
+                            (latched_book_shares_i == latched_lookup_entry_i.shares);
+
+    rep_add_needs_read  =   latched_is_add_i && latched_rep_add_i &&
+                            (latched_event_price_idx_i != current_best_ask_i) &&
+                            (latched_event_price_idx_i != current_best_bid_i);
 
     if(latched_is_add_i) begin
         if( latched_rdata_i.side && latched_event_price_idx_i > current_best_bid_i) is_better_bid  = 1'b1;
         if(!latched_rdata_i.side && latched_event_price_idx_i < current_best_ask_i) is_better_ask  = 1'b1;
-    end
-    else if(latched_is_replace_i) begin
-        if( latched_lookup_entry_i.side && latched_event_price_idx_i > current_best_bid_i) is_better_bid = 1'b1;
-        if(!latched_lookup_entry_i.side && latched_event_price_idx_i < current_best_ask_i) is_better_ask = 1'b1;
     end
 
     if(latched_is_reduce_i || latched_is_delete_i) begin
         if(level_depleted) begin
             if( latched_lookup_entry_i.side && latched_lookup_price_idx_i == current_best_bid_i) bid_depleted = 1'b1;
             if(!latched_lookup_entry_i.side && latched_lookup_price_idx_i == current_best_ask_i) ask_depleted = 1'b1;
-        end
-    end
-    else if(latched_is_replace_i) begin
-        if(level_depleted) begin
-            if( latched_lookup_entry_i.side && latched_lookup_price_idx_i == current_best_bid_i && latched_lookup_price_idx_i != latched_event_price_idx_i)
-            bid_depleted    =   1'b1;
-            if(!latched_lookup_entry_i.side && latched_lookup_price_idx_i == current_best_ask_i && latched_lookup_price_idx_i != latched_event_price_idx_i)
-            ask_depleted    =   1'b1;
         end
     end
 
@@ -119,31 +117,26 @@ end
 // Sequential Logic
 always_ff @(posedge clk) begin
     if(!rst_n) begin
+        stall                       <=  1'b0;
+        stall_edge_detector         <=  1'b0;
         stage_valid_o               <=  1'b0;
-        latched_base_price_o        <=  '0;
-
-        current_best_bid_o          <=  '0;
-        current_best_ask_o          <=  BBO_W'(BBO_DEPTH-1);
-        search_side_o               <=  1'b0;
-        new_bbo_o                   <=  1'b0;
-        target_chunk_idx_o          <=  '0;
-        bid_is_zero_o               <=  1'b0;
-        ask_is_zero_o               <=  1'b0;
     end
     else begin
+        stall_edge_detector         <=  stall;
+        stall                       <=  stage_valid_i && (rep_add_needs_read || bid_depleted || ask_depleted) && !stall_edge_detector && !latched_rep_delete_i;
         stage_valid_o               <=  stage_valid_i;
-        latched_base_price_o        <=  latched_base_price_i;
+        latched_rep_delete_o        <=  latched_rep_delete_i;
         new_bbo_o                   <=  new_bbo;
         bid_is_zero_o               <=  bid_is_zero;
         ask_is_zero_o               <=  ask_is_zero;
         target_chunk_idx_o          <=  next_target_chunk_idx_o;
 
         if(ask_depleted) begin
-            target_chunk_idx_o      <=  find_lsb_chunk(ask_enc_valid_i);
+            target_chunk_idx_o      <=  next_target_chunk_idx_o;
             search_side_o           <=  1'b0;
         end
         else begin
-            target_chunk_idx_o      <=  find_msb_chunk(bid_enc_valid_i);
+            target_chunk_idx_o      <=  next_target_chunk_idx_o;
             search_side_o           <=  1'b1;
         end
 

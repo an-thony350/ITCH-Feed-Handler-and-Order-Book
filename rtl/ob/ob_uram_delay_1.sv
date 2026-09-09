@@ -3,15 +3,14 @@
 // Company:  N/A
 // Engineers: Anthony Bartlett & Denzil Erza-Essien
 //
-// Create Date: 11.08.2026 15:45:04
-// Design Name: Order Book Index Request Block
-// Module Name: ob_idx_req
+// Create Date: 02.09.2026 22:46:51
+// Design Name: Order Book 1st URAM delay block Block
+// Module Name: ob_uram_delay_1
 // Project Name: Nasdaq-ITCH Feed Handler & Order Book
 // Target Devices: ZCU106
 // Tool Versions: Vivado 2023.2
 //
-// Description: This module represents the IDX_REQ state in the old order book
-//              design. This is mostly handling cam conditions
+// Description: This module is a pipeline delay for reads of price books using URAM
 //
 // Dependencies:
 //
@@ -21,10 +20,9 @@
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
-
 import hdl_header::*;
 
-module ob_idx_req(
+module ob_uram_delay_1(
     // Control Signals
     input logic                 clk,
     input logic                 rst_n,
@@ -33,7 +31,6 @@ module ob_idx_req(
     // Instruction Data I/O
     input logic                 stage_valid_i,
     input o_data_t              latched_rdata_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
     input logic                 latched_is_add_i,
     input logic                 latched_is_reduce_i,
     input logic                 latched_is_delete_i,
@@ -48,59 +45,25 @@ module ob_idx_req(
     output logic                latched_rep_delete_o,
     output logic                latched_rep_add_o,
 
-    // Computed Datapath I/O
-    input logic [HASH_W-1:0]    hash_idx_i,
+    // Computed DataPath I/O
+    input logic [BBO_W-1:0]     latched_event_price_idx_i,
+    input logic                 latched_is_cam_entry_i,
+    input logic [5:0]           latched_cam_idx_i,
+    input logic [1:0]           latched_slot_idx_i,
+    input order_entry_t         latched_lookup_entry_i,
+    input logic [BBO_W-1:0]     latched_lookup_price_idx_i,
+    input logic [HASH_W-1:0]    latched_hash_idx_i,
+    input order_entry_t [2:0]   latched_read_bucket_i,
 
     output logic [BBO_W-1:0]    latched_event_price_idx_o,
-    output logic                latched_cam_hit_o,
-    output logic [5:0]          latched_cam_match_idx_o,
-    output logic                latched_cam_is_full_o,
-    output logic [5:0]          latched_cam_free_idx_o,
+    output logic                latched_is_cam_entry_o,
+    output logic [5:0]          latched_cam_idx_o,
+    output logic [1:0]          latched_slot_idx_o,
+    output order_entry_t        latched_lookup_entry_o,
+    output logic [BBO_W-1:0]    latched_lookup_price_idx_o,
     output logic [HASH_W-1:0]   latched_hash_idx_o,
-
-    // External Memory I/O
-    input order_entry_t [63:0]  cam
+    output order_entry_t [2:0]  latched_read_bucket_o
 );
-
-// internal registers
-
-// CAM signals
-
-logic           cam_hit;
-logic [5:0]     cam_match_idx;
-logic           cam_is_full;
-logic [5:0]     cam_free_idx;
-logic [63:0]    cam_match_vec;
-
-// Comb. Logic for CAM
-always_comb begin
-    // Default Assignments
-    cam_match_idx   =   '0;
-    cam_is_full     =   1'b1;
-    cam_free_idx    =   '0;
-
-    // CAM hit logic
-    for(int i = 0; i < 64; i++) begin
-        cam_match_vec[i]    =   (cam[i].valid && ~cam[i].tombstone && (cam[i].orn == latched_rdata_i.orn));
-    end
-
-    cam_hit = |cam_match_vec;
-
-    // CAM matching logic
-    for(int i = 0; i < 64; i++) begin
-        if(cam_match_vec[i]) cam_match_idx = cam_match_idx | 6'(i);
-    end
-
-    // Free slot finder (priority encoder)
-    for(int i = 63; i >= 0; i--) begin
-        if(~cam[i].valid || cam[i].tombstone) begin
-            cam_is_full     =   1'b0;
-            cam_free_idx    =   6'(i);
-        end
-    end
-end
-
-// Sequential logic
 
 always_ff @(posedge clk) begin
     if(!rst_n) begin
@@ -115,14 +78,14 @@ always_ff @(posedge clk) begin
         latched_rep_delete_o        <=  latched_rep_delete_i;
         latched_rep_add_o           <=  latched_rep_add_i;
 
-        latched_event_price_idx_o   <=  price_to_idx(latched_rdata_i.price, latched_base_price_i);
-        latched_cam_hit_o           <=  cam_hit;
-        latched_cam_match_idx_o     <=  cam_match_idx;
-        latched_cam_is_full_o       <=  cam_is_full;
-        latched_cam_free_idx_o      <=  cam_free_idx;
-        latched_hash_idx_o          <=  hash_idx_i;
-
-
+        latched_event_price_idx_o   <=  latched_event_price_idx_i;
+        latched_is_cam_entry_o      <=  latched_is_cam_entry_i;
+        latched_cam_idx_o           <=  latched_cam_idx_i;
+        latched_slot_idx_o          <=  latched_slot_idx_i;
+        latched_lookup_entry_o      <=  latched_lookup_entry_i;
+        latched_lookup_price_idx_o  <=  latched_lookup_price_idx_i;
+        latched_hash_idx_o          <=  latched_hash_idx_i;
+        latched_read_bucket_o       <=  latched_read_bucket_i;
     end
 end
 

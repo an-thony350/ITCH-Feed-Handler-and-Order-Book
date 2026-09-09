@@ -789,8 +789,6 @@ async def initialise_perf_feed_handler(
         data_clock_period_ps += 1
 
     data_clock_high_ps = data_clock_period_ps // 2
-    bram_clock_period_ps = data_clock_period_ps // 2
-    bram_clock_high_ps = bram_clock_period_ps // 2
 
     cocotb.start_soon(
         Clock(
@@ -798,14 +796,6 @@ async def initialise_perf_feed_handler(
             data_clock_period_ps,
             unit="ps",
             period_high=data_clock_high_ps,
-        ).start()
-    )
-    cocotb.start_soon(
-        Clock(
-            dut.bram_clk,
-            bram_clock_period_ps,
-            unit="ps",
-            period_high=bram_clock_high_ps,
         ).start()
     )
 

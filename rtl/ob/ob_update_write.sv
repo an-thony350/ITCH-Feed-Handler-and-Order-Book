@@ -17,6 +17,7 @@
 //
 // Revision:
 // Revision 0.01 - File Created
+// Revision 0.02 - Timing Optimisations & Forwarding Logic
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -27,38 +28,36 @@ module ob_update_write(
     // Control Signals
     input logic                 clk,
     input logic                 rst_n,
+    input logic                 stall,
 
     // Instruction Data I/O
     input logic                 stage_valid_i,
     input o_data_t              latched_rdata_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
     input logic                 latched_is_add_i,
     input logic                 latched_is_reduce_i,
-    input logic                 latched_is_replace_i,
     input logic                 latched_is_delete_i,
+    input logic                 latched_rep_delete_i,
+    input logic                 latched_rep_add_i,
+    input logic                 rep_side_i,
 
     output logic                stage_valid_o,
     output o_data_t             latched_rdata_o,
-    output logic [PRICE_W-1:0]  latched_base_price_o,
     output logic                latched_is_add_o,
     output logic                latched_is_reduce_o,
-    output logic                latched_is_replace_o,
     output logic                latched_is_delete_o,
+    output logic                latched_rep_delete_o,
+    output logic                latched_rep_add_o,
 
     // Computed DataPath I/O
     input logic [BBO_W-1:0]     latched_event_price_idx_i,
     input logic                 latched_is_cam_entry_i,
     input logic [5:0]           latched_cam_idx_i,
     input logic [1:0]           latched_slot_idx_i,
-    input logic [1:0]           latched_rep_slot_idx_i,
     input order_entry_t         latched_lookup_entry_i,
     input logic [BBO_W-1:0]     latched_lookup_price_idx_i,
     input logic [SHARES_W-1:0]  latched_book_shares_i,
-    input logic [SHARES_W-1:0]  latched_event_shares_i,
     input logic [HASH_W-1:0]    latched_hash_idx_i,
-    input logic [HASH_W-1:0]    latched_rep_hash_idx_i,
     input order_entry_t [2:0]   latched_read_bucket_i,
-    input order_entry_t [2:0]   latched_rep_read_bucket_i,
     input logic [SHARES_W-1:0]  latched_reduced_shares_i,
     input logic                 latched_full_exec_i,
 
@@ -80,11 +79,6 @@ module ob_update_write(
     output logic [BBO_W-1:0]    chunk_row_o,
     output logic                chunk_val_o,
 
-    output logic                chunk2_we_o, // these chunk ports are used for replace instructions
-    output logic                chunk2_side_o,
-    output logic [BBO_W-1:0]    chunk2_row_o,
-    output logic                chunk2_val_o,
-
     output logic                we_a,
     output logic [HASH_W-1:0]   addr_a,
     output order_entry_t [2:0]  din_a,
@@ -95,34 +89,55 @@ module ob_update_write(
     output logic [BBO_W-1:0]    ask_addr_a,
     output logic [SHARES_W-1:0] ask_din_a,
 
-    output logic                we_b,
-    output logic [HASH_W-1:0]   addr_b,
-    output order_entry_t [2:0]  din_b,
-    output logic                bid_we_b,
-    output logic [BBO_W-1:0]    bid_addr_b,
-    output logic [SHARES_W-1:0] bid_din_b,
-    output logic                ask_we_b,
-    output logic [BBO_W-1:0]    ask_addr_b,
-    output logic [SHARES_W-1:0] ask_din_b
+    // Outputs to idx_search block
+    output logic                  idx_search_wr0_we,
+    output logic [HASH_W-1:0]     idx_search_wr0_addr,
+    output logic [1:0]            idx_search_wr0_slot,
+    output order_entry_t          idx_search_wr0_data,
+
+    // Outputs to update_read_book block
+    output logic                  update_read_book_wr0_valid,
+    output logic                  update_read_book_wr0_side,
+    output logic [BBO_W-1:0]      update_read_book_wr0_addr,
+    output logic [SHARES_W-1:0]   update_read_book_wr0_data,
+
+    // Outputs for forward ports - due to price book r/w collisions
+    output logic                  wrc_valid,
+    output logic                  wrc_side,
+    output logic [BBO_W-1:0]      wrc_addr,
+    output logic [SHARES_W-1:0]   wrc_data
 );
 
 // Internal Registers
-logic [SHARES_W-1:0] tmp_base_shares;
-logic                rep_same_level;
-logic                rep_same_bucket;
-logic level_depleted_w;
+logic                   level_depleted_w;
+logic                   chosen_side;
+logic                   side_option;
+
+// ports used to handle specific edge cases with forwarding issues (latches previous vals)
+logic                   prev_we;
+logic [HASH_W-1:0]      prev_addr;
+logic [1:0]             prev_slot;
+order_entry_t           prev_data;
+
+
+// combinational assigns for potential bbo changes (and replace instruction fixes)
 
 assign level_depleted_w = latched_is_reduce_i ?
                           (latched_book_shares_i == latched_rdata_i.shares) :
                           (latched_book_shares_i == latched_lookup_entry_i.shares);
+assign side_option      = latched_rep_add_i ? rep_side_i : latched_rdata_i.side;
 
-assign tmp_base_shares = (latched_event_price_idx_i == latched_lookup_price_idx_i) ?
-                         (latched_book_shares_i - latched_lookup_entry_i.shares) :
-                         latched_event_shares_i;
-assign rep_same_level  = latched_is_replace_i &&
-                         (latched_event_price_idx_i == latched_lookup_price_idx_i);
-assign rep_same_bucket = latched_is_replace_i &&
-                         (latched_hash_idx_i == latched_rep_hash_idx_i);
+// sequential logic lathcing previous values (inputs) - allows us to know if forwarding required
+
+always_ff @(posedge clk) begin
+    if(!rst_n) prev_we <= 1'b0;
+    else if(!stall) begin
+        prev_we   <= we_a && stage_valid_i;
+        prev_addr <= addr_a;
+        prev_slot <= latched_slot_idx_i;
+        prev_data <= din_a[latched_slot_idx_i];
+    end
+end
 
 // Combinational UPDATE_WRITE logic
 always_comb begin
@@ -136,38 +151,37 @@ always_comb begin
 
     addr_a      =   latched_hash_idx_i;
     din_a       =   latched_read_bucket_i;
+    if(prev_we && (prev_addr == latched_hash_idx_i))
+    din_a[prev_slot] = prev_data;
 
     bid_addr_a  =   '0;
     bid_din_a   =   '0;
     ask_addr_a  =   '0;
     ask_din_a   =   '0;
-    chunk2_we_o =   '0;
 
     cam_idx_o       =   latched_cam_idx_i;
-    cam_data_o      =   '0;
-    chunk_side_o    =   latched_is_add_i ? latched_rdata_i.side       : latched_lookup_entry_i.side;
-    chunk2_side_o   =   latched_lookup_entry_i.side;
+    cam_data_o      =   latched_lookup_entry_i;
+    chunk_side_o    =   latched_is_add_i ? side_option                : latched_lookup_entry_i.side;
     chunk_row_o     =   latched_is_add_i ? latched_event_price_idx_i  : latched_lookup_price_idx_i;
-    chunk2_row_o    =   latched_event_price_idx_i;
     chunk_val_o     =   latched_is_add_i;
-    chunk2_val_o    =   1'b1;
+
+    chosen_side     =   1'b0;
 
     if(stage_valid_i) begin
 
         chunk_we_o  =   stage_valid_i && (latched_is_add_i ? 1'b1 : level_depleted_w);
-        chunk2_we_o =   latched_is_replace_i;
 
         if(latched_is_cam_entry_i) begin
             cam_we_o    =   1'b1;
             if(latched_is_add_i) begin
                 cam_data_o.valid        =   1'b1;
                 cam_data_o.orn          =   latched_rdata_i.orn;
-                cam_data_o.side         =   latched_rdata_i.side;
+                cam_data_o.side         =   side_option;
                 cam_data_o.shares       =   latched_rdata_i.shares;
                 cam_data_o.price        =   latched_rdata_i.price;
                 cam_data_o.tombstone    =   1'b0;
             end
-            else if(latched_is_delete_i || latched_is_replace_i) cam_data_o.tombstone   =   1'b1;
+            else if(latched_is_delete_i) cam_data_o.tombstone   =   1'b1;
             else begin
                 if(latched_full_exec_i) begin
                     cam_data_o.tombstone = 1'b1;
@@ -178,45 +192,44 @@ always_comb begin
             end
         end
 
-        we_a    =   !latched_is_cam_entry_i && !rep_same_bucket;
+        we_a    =   !latched_is_cam_entry_i;
 
         if(latched_is_add_i) begin
             din_a[latched_slot_idx_i].valid         =   1'b1;
             din_a[latched_slot_idx_i].orn           =   latched_rdata_i.orn;
-            din_a[latched_slot_idx_i].side          =   latched_rdata_i.side;
+            din_a[latched_slot_idx_i].side          =   side_option;
             din_a[latched_slot_idx_i].shares        =   latched_rdata_i.shares;
             din_a[latched_slot_idx_i].price         =   latched_rdata_i.price;
             din_a[latched_slot_idx_i].tombstone     =   1'b0;
 
-            if(latched_rdata_i.side) begin
+            if(side_option) begin
                 bid_we_a    =   1'b1;
                 bid_addr_a  =   latched_event_price_idx_i;
-                bid_din_a   =   latched_event_shares_i + latched_rdata_i.shares;
+                bid_din_a   =   latched_book_shares_i + latched_rdata_i.shares;
+                chosen_side =   1'b1;
             end
             else begin
                 ask_we_a    =   1'b1;
                 ask_addr_a  =   latched_event_price_idx_i;
-                ask_din_a   =   latched_event_shares_i + latched_rdata_i.shares;
+                ask_din_a   =   latched_book_shares_i + latched_rdata_i.shares;
             end
         end
-        else if(latched_is_delete_i || latched_is_replace_i) begin
-            din_a                               =   latched_read_bucket_i;
+        else if(latched_is_delete_i) begin
             din_a[latched_slot_idx_i].tombstone =   1'b1;
 
             if(latched_lookup_entry_i.side) begin
-                bid_we_a    =   !rep_same_level;
+                bid_we_a    =   1'b1;
                 bid_addr_a  =   latched_lookup_price_idx_i;
                 bid_din_a   =   latched_book_shares_i - latched_lookup_entry_i.shares;
+                chosen_side =   1'b1;
             end
             else begin
-                ask_we_a    =   !rep_same_level;
+                ask_we_a    =   1'b1;
                 ask_addr_a  =   latched_lookup_price_idx_i;
                 ask_din_a   =   latched_book_shares_i - latched_lookup_entry_i.shares;
             end
         end
         else begin
-            din_a   =   latched_read_bucket_i;
-
             if(latched_full_exec_i) din_a[latched_slot_idx_i].tombstone = 1'b1;
             else                    din_a[latched_slot_idx_i].shares    = latched_reduced_shares_i;
 
@@ -224,6 +237,7 @@ always_comb begin
                 bid_we_a    =   1'b1;
                 bid_addr_a  =   latched_lookup_price_idx_i;
                 bid_din_a   =   latched_book_shares_i - latched_rdata_i.shares;
+                chosen_side =   1'b1;
             end
             else begin
                 ask_we_a    =   1'b1;
@@ -234,78 +248,45 @@ always_comb begin
     end
 end
 
-// Combinational REPLACE_ADD Logic
-always_comb begin
-    // default assignments
-    we_b        =   '0;
-    bid_we_b    =   '0;
-    ask_we_b    =   '0;
+// combinational forwarding assignments
 
-    addr_b      =   latched_rep_hash_idx_i;
-    din_b       =   latched_rep_read_bucket_i;
-
-    bid_addr_b  =   '0;
-    bid_din_b   =   '0;
-    ask_addr_b  =   '0;
-    ask_din_b   =   '0;
-
-
-    if(stage_valid_i && latched_is_replace_i) begin
-
-        we_b    =   !latched_is_cam_entry_i;
-
-        if(latched_hash_idx_i == latched_rep_hash_idx_i) begin
-            din_b[latched_slot_idx_i].tombstone =   1'b1;
-        end
-
-        din_b[latched_rep_slot_idx_i].valid         =   1'b1;
-        din_b[latched_rep_slot_idx_i].orn           =   latched_rdata_i.updated_orn;
-        din_b[latched_rep_slot_idx_i].side          =   latched_lookup_entry_i.side;
-        din_b[latched_rep_slot_idx_i].shares        =   latched_rdata_i.shares;
-        din_b[latched_rep_slot_idx_i].price         =   latched_rdata_i.price;
-        din_b[latched_rep_slot_idx_i].tombstone     =   1'b0;
-
-        if(latched_lookup_entry_i.side) begin
-            bid_we_b    =   1'b1;
-            bid_addr_b  =   latched_event_price_idx_i;
-            bid_din_b   =   tmp_base_shares + latched_rdata_i.shares;
-        end
-        else begin
-            ask_we_b    =   1'b1;
-            ask_addr_b  =   latched_event_price_idx_i;
-            ask_din_b   =   tmp_base_shares + latched_rdata_i.shares;
-        end
-    end
-end
+assign wrc_valid = stage_valid_i && !stall && (bid_we_a || ask_we_a);
+assign wrc_side  = chosen_side;
+assign wrc_addr  = latched_is_add_i ? latched_event_price_idx_i : latched_lookup_price_idx_i;
+assign wrc_data  = chosen_side ? bid_din_a : ask_din_a;
 
 // SEQUENTIAL LOGIC
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        stage_valid_o               <=  1'b0;
-        latched_rdata_o             <=  '0;
-        latched_base_price_o        <=  '0;
-        latched_is_add_o            <=  1'b0;
-        latched_is_reduce_o         <=  1'b0;
-        latched_is_replace_o        <=  1'b0;
-        latched_is_delete_o         <=  1'b0;
+        stage_valid_o                <=  1'b0;
 
-        latched_event_price_idx_o   <=  '0;
-        latched_lookup_entry_o      <=  '0;
-        latched_lookup_price_idx_o  <=  '0;
+        idx_search_wr0_we            <=  1'b0;
+        update_read_book_wr0_valid   <=  1'b0;
     end
-    else begin
+    else if(!stall) begin
         stage_valid_o               <=  stage_valid_i;
         latched_rdata_o             <=  latched_rdata_i;
-        latched_base_price_o        <=  latched_base_price_i;
+        latched_rdata_o.side        <=  side_option;
         latched_is_add_o            <=  latched_is_add_i;
         latched_is_reduce_o         <=  latched_is_reduce_i;
-        latched_is_replace_o        <=  latched_is_replace_i;
         latched_is_delete_o         <=  latched_is_delete_i;
+        latched_rep_delete_o        <=  latched_rep_delete_i;
+        latched_rep_add_o           <=  latched_rep_add_i;
 
         latched_event_price_idx_o   <=  latched_event_price_idx_i;
         latched_lookup_entry_o      <=  latched_lookup_entry_i;
         latched_lookup_price_idx_o  <=  latched_lookup_price_idx_i;
         latched_book_shares_o       <=  latched_book_shares_i;
+
+        idx_search_wr0_we           <=  !latched_is_cam_entry_i && stage_valid_i;
+        idx_search_wr0_addr         <=  latched_hash_idx_i;
+        idx_search_wr0_slot         <=  latched_slot_idx_i;
+        idx_search_wr0_data         <=  din_a[latched_slot_idx_i];
+
+        update_read_book_wr0_valid  <=  stage_valid_i && (bid_we_a || ask_we_a);
+        update_read_book_wr0_side   <=  chosen_side;
+        update_read_book_wr0_addr   <=  latched_is_add_i ? latched_event_price_idx_i : latched_lookup_price_idx_i;
+        update_read_book_wr0_data   <=  (chosen_side) ? bid_din_a : ask_din_a;
     end
 end
 

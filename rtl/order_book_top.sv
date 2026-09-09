@@ -26,7 +26,7 @@
 // Revision 0.03 - Restore fixed locate-1 routing and retain only base-price control
 // Revision 1.00 - Intorduction of multiple base prices & thus order books - also fixed
 //                 naming conventions (i.e. internal regs named source_dest_signal)
-// Revision 1.10 - Addition of bram clock for new order book
+// Revision 1.10 - Timing optimisations (adding reset signals to reduce fanout)
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,6 @@ import hdl_header::*;
 
 module order_book_top(
     input   logic                   clk,
-    input   logic                   bram_clk,
     input   logic                   rst_n,
 
     // base-price configuration from PS, normally driven by AXI GPIO
@@ -58,7 +57,7 @@ module order_book_top(
 // Internal registers sr + ob regs
 
 logic [3:0]         ob_sr_ready_bus;
-o_data_t            sr_ob_rdata;
+o_data_raw_t            sr_ob_rdata;
 logic [PRICE_W-1:0] sr_ob_base_price;
 logic               sr_ob_valid_stock0;
 logic               sr_ob_valid_stock1;
@@ -93,12 +92,27 @@ assign empty_2  =   (wr_ptr_2 == rd_ptr_2);
 
 assign ob_sr_ready_bus[0]   =   1'b1;
 
+// replicate reset signals used to reduce fanout
+
+(* dont_touch = "true" *) logic rst_n_r1 = 1'b0;
+(* dont_touch = "true" *) logic rst_n_ob0;
+(* dont_touch = "true" *) logic rst_n_ob1;
+(* dont_touch = "true" *) logic rst_n_ob2;
+
+// Sequential logic passing reset signals - 2 flop synchronsied
+
+always_ff @(posedge clk) begin
+    rst_n_r1   <= rst_n;
+    rst_n_ob0  <= rst_n_r1;
+    rst_n_ob1  <= rst_n_r1;
+    rst_n_ob2  <= rst_n_r1;
+end
 
 // Data Handler -> Symbol Router
 
 symbol_router router(
     .clk                    (clk),
-    .rst_n                  (rst_n),
+    .rst_n                  (rst_n_r1),
 
     .base_price_stock0_i    (base_price_stock0_i),
     .base_price_stock1_i    (base_price_stock1_i),
@@ -120,8 +134,7 @@ symbol_router router(
 
 order_book ob_stock0(
     .clk          (clk),
-    .bram_clk     (bram_clk),
-    .rst_n        (rst_n),
+    .rst_n        (rst_n_ob0),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock0),
     .base_price_i (sr_ob_base_price),
@@ -132,8 +145,7 @@ order_book ob_stock0(
 
 order_book ob_stock1(
     .clk          (clk),
-    .bram_clk     (bram_clk),
-    .rst_n        (rst_n),
+    .rst_n        (rst_n_ob1),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock1),
     .base_price_i (sr_ob_base_price),
@@ -144,8 +156,7 @@ order_book ob_stock1(
 
 order_book ob_stock2(
     .clk          (clk),
-    .bram_clk     (bram_clk),
-    .rst_n        (rst_n),
+    .rst_n        (rst_n_ob2),
     .rdata_i      (sr_ob_rdata),
     .valid_i      (sr_ob_valid_stock2),
     .base_price_i (sr_ob_base_price),
@@ -157,7 +168,7 @@ order_book ob_stock2(
 // FIFO write logic
 
 always_ff @(posedge clk) begin
-    if(!rst_n) begin
+    if(!rst_n_r1) begin
         wr_ptr_0    <=  '0;
         wr_ptr_1    <=  '0;
         wr_ptr_2    <=  '0;
@@ -182,7 +193,7 @@ end
 // FIFO read logic & RR scheduler
 
 always_ff @(posedge clk) begin
-    if(!rst_n) begin
+    if(!rst_n_r1) begin
         rd_ptr_0    <=  '0;
         rd_ptr_1    <=  '0;
         rd_ptr_2    <=  '0;

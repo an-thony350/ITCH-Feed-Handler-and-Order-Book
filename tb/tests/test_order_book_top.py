@@ -129,7 +129,6 @@ async def initialise_order_book_top(
     """Start and reset order_book_top with stable configuration inputs."""
 
     cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD, unit="ns").start())
-    cocotb.start_soon(Clock(dut.bram_clk, CLOCK_PERIOD / 2, unit="ns").start())
 
     dut.rdata_i.value = 0
     dut.valid_i.value = 0
@@ -220,7 +219,7 @@ async def test_order_book_top_replays_events_against_states(dut: Any) -> None:
     )
 
 
-@cocotb.test()
+@cocotb.test(skip=False)
 async def test_order_book_top_drops_non_target_locate(dut: Any) -> None:
     """A non-target locate must be accepted without mutating the target book."""
 
@@ -269,7 +268,7 @@ async def test_order_book_top_drops_non_target_locate(dut: Any) -> None:
     )
 
 
-@cocotb.test()
+@cocotb.test(skip=False)
 async def test_order_book_top_forwards_configurable_base_price(dut: Any) -> None:
     """Changing base_price_i must not change the externally reported BBO price."""
 

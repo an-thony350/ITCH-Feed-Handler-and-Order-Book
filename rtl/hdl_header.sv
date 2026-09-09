@@ -21,6 +21,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Added ingress AXIS/protocol constants and derived type widths
+// Revision 0.03 - Added functions used in order book and slightly altered structs
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +65,14 @@ package hdl_header;
         logic                   side;
         logic [SHARES_W-1:0]    shares;
         logic [PRICE_W-1:0]     price;
+    } o_data_raw_t;
+
+    typedef struct packed {
+        logic [MSG_W-1:0]       message_type;
+        logic [ORN_W-1:0]       orn;
+        logic                   side;
+        logic [SHARES_W-1:0]    shares;
+        logic [PRICE_W-1:0]     price;
     } o_data_t;
 
     typedef struct packed {
@@ -85,7 +94,7 @@ package hdl_header;
 
     // local params for order book
 
-    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set_Associative Hashing
+    localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set Associative Hashing
     localparam int BBO_DEPTH  = 1 << BBO_W;
     localparam int CHUNK_LEN  = 1 << (BBO_W-6);
     localparam int ENTRY_W    = $bits(order_entry_t);
@@ -122,34 +131,123 @@ package hdl_header;
         end
     endfunction
 
-    // Hierarchical Search: Level 1 (Find the 64-bit chunk)
+    // Optimised 16-bit priority (and reverse priority) encoders
+
+    function automatic logic [3:0] find_msb_16(input logic [15:0] v);
+        casez (v)
+            16'b1???????????????: return 4'd15;
+            16'b01??????????????: return 4'd14;
+            16'b001?????????????: return 4'd13;
+            16'b0001????????????: return 4'd12;
+            16'b00001???????????: return 4'd11;
+            16'b000001??????????: return 4'd10;
+            16'b0000001?????????: return 4'd9;
+            16'b00000001????????: return 4'd8;
+            16'b000000001???????: return 4'd7;
+            16'b0000000001??????: return 4'd6;
+            16'b00000000001?????: return 4'd5;
+            16'b000000000001????: return 4'd4;
+            16'b0000000000001???: return 4'd3;
+            16'b00000000000001??: return 4'd2;
+            16'b000000000000001?: return 4'd1;
+            16'b0000000000000001: return 4'd0;
+            default:              return 4'd0;
+        endcase
+    endfunction
+
+    function automatic logic [3:0] find_lsb_16(input logic [15:0] v);
+        casez(v)
+            16'b???????????????1: return 4'd0;
+            16'b??????????????10: return 4'd1;
+            16'b?????????????100: return 4'd2;
+            16'b????????????1000: return 4'd3;
+            16'b???????????10000: return 4'd4;
+            16'b??????????100000: return 4'd5;
+            16'b?????????1000000: return 4'd6;
+            16'b????????10000000: return 4'd7;
+            16'b???????100000000: return 4'd8;
+            16'b??????1000000000: return 4'd9;
+            16'b?????10000000000: return 4'd10;
+            16'b????100000000000: return 4'd11;
+            16'b???1000000000000: return 4'd12;
+            16'b??10000000000000: return 4'd13;
+            16'b?100000000000000: return 4'd14;
+            16'b1000000000000000: return 4'd15;
+            default:              return 4'd0;
+        endcase
+    endfunction
+
+
+    // Hierarchical Search: Level 1 (Find the 64-bit chunk) - via parallelised priority encoders
     function automatic logic [(BBO_W-6)-1:0] find_msb_chunk(input logic [CHUNK_LEN-1:0] vec);
-        for (int i = CHUNK_LEN-1; i >= 0; i--) begin
-            if (vec[i]) return (BBO_W-6)'(i);
+        logic [15:0] grp_nz;
+        logic [3:0]  sub_idx [15:0];
+        logic [3:0]  top_idx;
+        for(int i = 0; i < 16; i++) begin
+            grp_nz[i]   =   |vec[i*16 +: 16];
+            sub_idx[i]  =   find_msb_16(vec[i*16 +: 16]);
         end
-        return '0;
+
+        top_idx = find_msb_16(grp_nz);
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
     function automatic logic [(BBO_W-6)-1:0] find_lsb_chunk(input logic [CHUNK_LEN-1:0] vec);
-        for (int i = 0; i < CHUNK_LEN; i++) begin
-            if (vec[i]) return (BBO_W-6)'(i);
+        logic [15:0] grp_nz;
+        logic [3:0]  sub_idx [15:0];
+        logic [3:0]  top_idx;
+        for(int i = 0; i < 16; i++) begin
+            grp_nz[i]   =   |vec[i*16 +: 16];
+            sub_idx[i]  =   find_lsb_16(vec[i*16 +: 16]);
         end
-        return '0;
+
+        top_idx = find_lsb_16(grp_nz);
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
-    // Hierarchical Search: Level 2 (Find the exact bit in the chunk)
+    // Hierarchical Search: Level 2 (Find the exact bit in the 64-bit chunk) - via parallelised priority encoders
     function automatic logic [5:0] find_msb_bit(input logic [63:0] vec);
-        for (int i = 63; i >= 0; i--) begin
-            if (vec[i]) return 6'(i);
+        logic [3:0] grp_nz;
+        logic [3:0] sub_idx [3:0];
+        logic [1:0] top_idx;
+
+        for (int i = 0; i < 4; i++) begin
+            grp_nz[i]  = |vec[i*16 +: 16];
+            sub_idx[i] = find_msb_16(vec[i*16 +: 16]);
         end
-        return '0;
+
+        casez (grp_nz)
+            4'b1???: top_idx = 2'd3;
+            4'b01??: top_idx = 2'd2;
+            4'b001?: top_idx = 2'd1;
+            4'b0001: top_idx = 2'd0;
+            default: top_idx = 2'd0;
+        endcase
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
     function automatic logic [5:0] find_lsb_bit(input logic [63:0] vec);
-        for (int i = 0; i < 64; i++) begin
-            if (vec[i]) return 6'(i);
+        logic [3:0] grp_nz;
+        logic [3:0] sub_idx [3:0];
+        logic [1:0] top_idx;
+
+        for (int i = 0; i < 4; i++) begin
+            grp_nz[i]  = |vec[i*16 +: 16];
+            sub_idx[i] = find_lsb_16(vec[i*16 +: 16]);
         end
-        return '0;
+
+        casez (grp_nz)
+            4'b???1: top_idx = 2'd0;
+            4'b??10: top_idx = 2'd1;
+            4'b?100: top_idx = 2'd2;
+            4'b1000: top_idx = 2'd3;
+            default: top_idx = 2'd0;
+        endcase
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
     // Derived packed widths. These avoid overloading existing BBO_W, which is
