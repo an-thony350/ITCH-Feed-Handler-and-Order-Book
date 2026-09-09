@@ -37,7 +37,7 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
 
 ## Project status
 
-As of **9th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
+As of **10th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
 
 ```text
 Ethernet II -> IPv4 -> UDP -> MoldUDP64
@@ -48,7 +48,7 @@ The host-side PS in Python generates network frames and expected book states. Co
 
 The current ZCU106 Vivado build also integrates a **Taxi-based 10GbE SFP+ frontend** while retaining the existing PS-to-PL DMA replay path. A static source mux immediately before `frame_crack` selects either DMA replay or Taxi Ethernet RX, allowing the deterministic board test path to remain available during physical 10GbE bring-up.
 
-The latest routed design completes bitstream generation and meets timing. The order-book/data domain remains at **100 MHz** with a **200 MHz** multi-pumped BRAM clock, while the network ingress is clocked from Taxi's RX/user clock domain.
+The latest routed design completes bitstream generation and meets timing. The order-book/data domain clocks at **250 MHz**, while the network ingress is clocked from Taxi's RX/user clock domain.
 
 ---
 
@@ -122,7 +122,7 @@ flowchart LR
     I --> J[duplicate / gap / stale / heartbeat / EOS status]
 ```
 
-The network ingress remains in the fast network clock domain until a complete **217-bit normalised event** has been produced. The event FIFO then performs the CDC into the 100 MHz order-book/data domain. This avoids crossing the full raw Ethernet stream after parsing and keeps the CDC at a narrow semantic boundary.
+The network ingress remains in the fast network clock domain until a complete **217-bit normalised event** has been produced. The event FIFO then performs the CDC into the 250 MHz order-book/data domain. This avoids crossing the full raw Ethernet stream after parsing and keeps the CDC at a narrow semantic boundary.
 
 ---
 
@@ -201,7 +201,7 @@ Detailed contracts, parsing assumptions, backpressure behaviour, and per-stage r
 | `mold_deframe` | Parse MoldUDP64 metadata, remove two-byte message-length prefixes and emit packed ITCH payload bytes plus message-length tokens |
 | `mold_seq_guard` | Accept in-order/post-gap packets, suppress duplicates, and report stale/gap state |
 | `data_realign` | Track message boundaries directly in the packed 64-bit payload stream and decode `A/F/E/C/X/D/U` into the normalised event contract |
-| `event_async_fifo` | Cross complete normalised events from the network clock domain into the 100 MHz data/order-book domain |
+| `event_async_fifo` | Cross complete normalised events from the network clock domain into the 250 MHz data/order-book domain |
 | `symbol_router` | Select the configured instrument/book and insert a register boundary |
 | `order_book` | Resolve order references, update aggregate price levels, and emit BBO updates |
 
@@ -246,8 +246,7 @@ flowchart LR
 
 The hardware build remains modular. The DMA is **MM2S-only** and provides the deterministic replay source, while Taxi provides the real SFP+ Ethernet source. The DMA stream is clock-converted into the Taxi RX/user clock domain before the two sources meet at the static mux.
 
-The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete normalised event has been decoded, `event_async_fifo` crosses the event into the 100 MHz order-book domain. The order book also uses a **200 MHz** multi-pumped BRAM clock for its memory implementation.
-
+The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete normalised event has been decoded, `event_async_fifo` crosses the event into the 250 MHz order-book domain.
 ### Address map
 
 | Peripheral | Base address | Direction / use |
@@ -267,7 +266,7 @@ The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete nor
 
 Reports on these values can be found in [`implementation_reports`](implementation_reports).
 
-Latest routed build captured on **9th September 2026**:
+Latest routed build captured on **10th September 2026**:
 
 | Item | Result |
 |---|---:|
@@ -276,11 +275,10 @@ Latest routed build captured on **9th September 2026**:
 | Target board | ZCU106 |
 | SFP+ MGT reference clock | **156.25 MHz / 6.400 ns** |
 | Routed Taxi RX/user clock | **~161.13 MHz / 6.206 ns** |
-| Data Handling clock | **100 MHz / 10.000 ns** |
-| BRAM multi-pump clock | **200 MHz / 5.000 ns** |
-| WNS | **+0.036 ns** |
+| Order Book clock | **250 MHz / 4.000 ns** |
+| WNS | **+0.006 ns** |
 | TNS | **0.000 ns** |
-| WHS | **+0.010 ns** |
+| WHS | **+0.009 ns** |
 | THS | **0.000 ns** |
 
 All user-specified timing constraints are met and the implementation run completes through bitstream generation.
@@ -303,7 +301,7 @@ BRAM remains the main resource constraint. The Taxi integration increases LUT/re
 
 ## Latency and throughput design decisions
 
-The ingress measurements below use the **156.25 MHz** simulation clock used for the native 64-bit line-rate regression. The latest routed Taxi RX/user clock is slightly different, as shown in the implementation table above. The data/order-book domain remains at **100 MHz**.
+The ingress measurements below use the **156.25 MHz** simulation clock used for the native 64-bit line-rate regression. The latest routed Taxi RX/user clock is slightly different, as shown in the implementation table above. The data/order-book domain remains at **250 MHz**.
 
 ### Network ingress
 
@@ -335,10 +333,9 @@ These figures are measured on the AXI frame path while the pass/fail gate accoun
 |---|---|---|---|
 | `data_realign` | Included in the **19-21 cycle** ingress/decode figures above | Direct packed-stream decode avoids the old `realign -> data_handler` per-message bubble | Merging realignment and decode removes duplicated byte movement and improves sustained ingress throughput |
 | `event_async_fifo` | CDC/buffering latency only; no protocol processing | Decouples the fast network domain from the 100 MHz order-book domain | Crossing complete 217-bit events is simpler and lower bandwidth than crossing raw Ethernet data |
-| `symbol_router` | **1 cycle / 10 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` | **10-stage pipeline / ~100 ns** at 100 MHz | Pipeline latency is separate from initiation rate; successive events can occupy different stages concurrently | Pipelining removes the old state-machine throughput limit while retaining the BRAM-based order and price books |
+| `symbol_router` | **1 cycle / 4 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
+| `order_book` | **16-stage pipeline / 64 ns** at 250 MHz | Pipeline latency is separate from initiation rate; successive events can occupy different stages concurrently | Pipelining removes the old state-machine throughput limit while retaining the BRAM-based order and price books |
 
-The order book remains in a separate 100 MHz domain because its memory architecture uses a **200 MHz multi-pumped BRAM** implementation. Running the network ingress at the higher Ethernet-domain rate and crossing only complete events prevents the order-book clocking requirements from extending back through the packet parser.
 
 ---
 
