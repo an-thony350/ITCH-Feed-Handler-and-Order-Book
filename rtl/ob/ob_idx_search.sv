@@ -53,6 +53,7 @@ module ob_idx_search(
     input logic [5:0]           latched_cam_match_idx_i,
     input logic [5:0]           latched_cam_free_idx_i,
     input logic [HASH_W-1:0]    latched_hash_idx_i,
+    input logic [HASH_W-1:0]    early_hash_idx_i,
 
     output logic [BBO_W-1:0]    latched_event_price_idx_o,
     output logic                latched_cam_hit_o,
@@ -117,26 +118,46 @@ logic                   wr8_we;
 logic [HASH_W-1:0]      wr8_addr;
 logic [1:0]             wr8_slot;
 order_entry_t           wr8_data;
+logic                   wr9_we;
+logic [HASH_W-1:0]      wr9_addr;
+logic [1:0]             wr9_slot;
+order_entry_t           wr9_data;
 
 logic [HASH_W-1:0]      capture_addr;
 order_entry_t [2:0]     frwd_bucket;
 
+logic [8:0] early_match;
+logic [8:0] match_q;
+
 // combinational forward matching determination
+
+always_comb begin
+    early_match[0] = wr0_we && (early_hash_idx_i == wr0_addr);
+    early_match[1] = wr1_we && (early_hash_idx_i == wr1_addr);
+    early_match[2] = wr2_we && (early_hash_idx_i == wr2_addr);
+    early_match[3] = wr3_we && (early_hash_idx_i == wr3_addr);
+    early_match[4] = wr4_we && (early_hash_idx_i == wr4_addr);
+    early_match[5] = wr5_we && (early_hash_idx_i == wr5_addr);
+    early_match[6] = wr6_we && (early_hash_idx_i == wr6_addr);
+    early_match[7] = wr7_we && (early_hash_idx_i == wr7_addr);
+    early_match[8] = wr8_we && (early_hash_idx_i == wr8_addr);
+end
+
 always_comb begin
     // Default Assignments
     frwd_bucket     =       read_bucket_i;
     capture_addr    =       latched_hash_idx_i;
 
     // Determining if we have a match for forwarding before capturing data
-    if(wr8_we && (capture_addr == wr8_addr))    frwd_bucket[wr8_slot]   =   wr8_data;
-    if(wr7_we && (capture_addr == wr7_addr))    frwd_bucket[wr7_slot]   =   wr7_data;
-    if(wr6_we && (capture_addr == wr6_addr))    frwd_bucket[wr6_slot]   =   wr6_data;
-    if(wr5_we && (capture_addr == wr5_addr))    frwd_bucket[wr5_slot]   =   wr5_data;
-    if(wr4_we && (capture_addr == wr4_addr))    frwd_bucket[wr4_slot]   =   wr4_data;
-    if(wr3_we && (capture_addr == wr3_addr))    frwd_bucket[wr3_slot]   =   wr3_data;
-    if(wr2_we && (capture_addr == wr2_addr))    frwd_bucket[wr2_slot]   =   wr2_data;
-    if(wr1_we && (capture_addr == wr1_addr))    frwd_bucket[wr1_slot]   =   wr1_data;
-    if(wr0_we && (capture_addr == wr0_addr))    frwd_bucket[wr0_slot]   =   wr0_data;
+    if(match_q[8])    frwd_bucket[wr9_slot]   =   wr9_data;
+    if(match_q[7])    frwd_bucket[wr8_slot]   =   wr8_data;
+    if(match_q[6])    frwd_bucket[wr7_slot]   =   wr7_data;
+    if(match_q[5])    frwd_bucket[wr6_slot]   =   wr6_data;
+    if(match_q[4])    frwd_bucket[wr5_slot]   =   wr5_data;
+    if(match_q[3])    frwd_bucket[wr4_slot]   =   wr4_data;
+    if(match_q[2])    frwd_bucket[wr3_slot]   =   wr3_data;
+    if(match_q[1])    frwd_bucket[wr2_slot]   =   wr2_data;
+    if(match_q[0])    frwd_bucket[wr1_slot]   =   wr1_data;
 
 end
 
@@ -192,6 +213,9 @@ always_ff @(posedge clk) begin
         wr6_we <= 1'b0;
         wr7_we <= 1'b0;
         wr8_we <= 1'b0;
+        wr9_we <= 1'b0;
+
+        match_q <= '0;
     end
     else if(!stall) begin
         // deals with immediate return to FETCH_BBO state in old design
@@ -258,6 +282,13 @@ always_ff @(posedge clk) begin
         wr8_addr                    <=  wr7_addr;
         wr8_slot                    <=  wr7_slot;
         wr8_data                    <=  wr7_data;
+
+        wr9_we                      <= wr8_we;
+        wr9_addr                    <= wr8_addr;
+        wr9_slot                    <= wr8_slot;
+        wr9_data                    <= wr8_data;
+
+        match_q                     <=  early_match;
     end
 end
 

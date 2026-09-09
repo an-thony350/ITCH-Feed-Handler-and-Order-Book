@@ -130,34 +130,111 @@ package hdl_header;
         end
     endfunction
 
-    // Hierarchical Search: Level 1 (Find the 64-bit chunk)
-    function automatic logic [(BBO_W-6)-1:0] find_msb_chunk(input logic [CHUNK_LEN-1:0] vec);
-        for (int i = CHUNK_LEN-1; i >= 0; i--) begin
-            if (vec[i]) return (BBO_W-6)'(i);
-        end
+    function automatic logic [2:0] find_msb_8(input logic [7:0] v);
+        for (int i = 7; i >= 0; i--) if (v[i]) return 3'(i);
         return '0;
     endfunction
 
-    function automatic logic [(BBO_W-6)-1:0] find_lsb_chunk(input logic [CHUNK_LEN-1:0] vec);
-        for (int i = 0; i < CHUNK_LEN; i++) begin
-            if (vec[i]) return (BBO_W-6)'(i);
-        end
+    function automatic logic [2:0] find_lsb_8(input logic [7:0] v);
+        for (int i = 0; i < 8; i++) if (v[i]) return 3'(i);
         return '0;
+    endfunction
+
+    function automatic logic [3:0] find_msb_16(input logic [15:0] v);
+        casez (v)
+            16'b1???????????????: return 4'd15;
+            16'b01??????????????: return 4'd14;
+            16'b001?????????????: return 4'd13;
+            16'b0001????????????: return 4'd12;
+            16'b00001???????????: return 4'd11;
+            16'b000001??????????: return 4'd10;
+            16'b0000001?????????: return 4'd9;
+            16'b00000001????????: return 4'd8;
+            16'b000000001???????: return 4'd7;
+            16'b0000000001??????: return 4'd6;
+            16'b00000000001?????: return 4'd5;
+            16'b000000000001????: return 4'd4;
+            16'b0000000000001???: return 4'd3;
+            16'b00000000000001??: return 4'd2;
+            16'b000000000000001?: return 4'd1;
+            16'b0000000000000001: return 4'd0;
+            default:              return 4'd0;
+        endcase
+    endfunction
+
+    function automatic logic [3:0] find_lsb_16(input logic [15:0] v);
+        casez(v)
+            16'b???????????????1: return 4'd0;
+            16'b??????????????10: return 4'd1;
+            16'b?????????????100: return 4'd2;
+            16'b????????????1000: return 4'd3;
+            16'b???????????10000: return 4'd4;
+            16'b??????????100000: return 4'd5;
+            16'b?????????1000000: return 4'd6;
+            16'b????????10000000: return 4'd7;
+            16'b???????100000000: return 4'd8;
+            16'b??????1000000000: return 4'd9;
+            16'b?????10000000000: return 4'd10;
+            16'b????100000000000: return 4'd11;
+            16'b???1000000000000: return 4'd12;
+            16'b??10000000000000: return 4'd13;
+            16'b?100000000000000: return 4'd14;
+            16'b1000000000000000: return 4'd15;
+            default:              return 4'd0;
+        endcase
+    endfunction
+
+
+    // Hierarchical Search: Level 1 (Find the 64-bit chunk)
+    function automatic logic [(BBO_W-6)-1:0] find_msb_chunk(input logic [CHUNK_LEN-1:0] vec);
+        logic [15:0] grp_nz;
+        logic [3:0]  sub_idx [15:0];
+        logic [3:0]  top_idx;
+        for(int i = 0; i < 16; i++) begin
+            grp_nz[i]   =   |vec[i*16 +: 16];
+            sub_idx[i]  =   find_msb_16(vec[i*16 +: 16]);
+        end
+
+        top_idx = find_msb_16(grp_nz);
+
+        return {top_idx, sub_idx[top_idx]};
+    endfunction
+
+    function automatic logic [(BBO_W-6)-1:0] find_lsb_chunk(input logic [CHUNK_LEN-1:0] vec);
+        logic [15:0] grp_nz;
+        logic [3:0]  sub_idx [15:0];
+        logic [3:0]  top_idx;
+        for(int i = 0; i < 16; i++) begin
+            grp_nz[i]   =   |vec[i*16 +: 16];
+            sub_idx[i]  =   find_lsb_16(vec[i*16 +: 16]);
+        end
+
+        top_idx = find_lsb_16(grp_nz);
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
     // Hierarchical Search: Level 2 (Find the exact bit in the chunk)
     function automatic logic [5:0] find_msb_bit(input logic [63:0] vec);
-        for (int i = 63; i >= 0; i--) begin
-            if (vec[i]) return 6'(i);
-        end
-        return '0;
+        logic [7:0] grp_nz;
+        logic [2:0] g, b;
+        logic [7:0] sel;
+        for (int i = 0; i < 8; i++) grp_nz[i] = |vec[i*8 +: 8];
+        g   = find_msb_8(grp_nz);
+        sel = vec[g*8 +: 8];
+        b   = find_msb_8(sel);
+        return {g, b};
     endfunction
 
     function automatic logic [5:0] find_lsb_bit(input logic [63:0] vec);
-        for (int i = 0; i < 64; i++) begin
-            if (vec[i]) return 6'(i);
-        end
-        return '0;
+        logic [7:0] grp_nz;
+        logic [2:0] g, b;
+        logic [7:0] sel;
+        for (int i = 0; i < 8; i++) grp_nz[i] = |vec[i*8 +: 8];
+        g   = find_lsb_8(grp_nz);
+        sel = vec[g*8 +: 8];
+        b   = find_lsb_8(sel);
+        return {g, b};
     endfunction
 
     // Derived packed widths. These avoid overloading existing BBO_W, which is

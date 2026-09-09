@@ -85,8 +85,8 @@ module order_book(
 
 // stall registers
 
-logic bbo_stall;
-logic stall;
+(* max_fanout = 32 *) logic bbo_stall;
+(* max_fanout = 32 *) logic stall;
 
 // Top-level Memory Blocks
 
@@ -469,7 +469,13 @@ always_comb begin
     ask_addr_a  =   stall ? next_best_ask : issue_ask_addr;
 end
 
-assign ready_o = rst_n && !clearing && REPCHECK_ready && !stall;
+
+always_ff @(posedge clk) begin
+    if(!rst_n) begin
+        ready_o <=  1'b0;
+    end
+    else if(!stall && REPCHECK_ready && !clearing) ready_o   <=  1'b1;
+end
 
 // Sequential BBO Logic - handles feedback within bbo blocks used in previous order book
 always_ff @(posedge clk) begin
@@ -542,8 +548,8 @@ end
 
 // Sequential Logic dealing with clear state and clock synchronisation
 // CAM write - clearing only picks the address, not the enable on all 64
-logic         cam_wr_en_q;
-logic [5:0]   cam_wr_idx_q;
+(* max_fanout = 16 *) logic         cam_wr_en_q;
+(* max_fanout = 16 *) logic [5:0]   cam_wr_idx_q;
 order_entry_t cam_wr_data_q;
 
 always_ff @(posedge clk) begin
@@ -724,6 +730,7 @@ ob_idx_search idx_search_block(
     .latched_cam_match_idx_i(IDXREQ_IDXSEARCH_cam_match_idx),
     .latched_cam_free_idx_i(IDXREQ_IDXSEARCH_cam_free_idx),
     .latched_hash_idx_i(IDXREQ_IDXSEARCH_hash_idx),
+    .early_hash_idx_i(IDLE_IDXREQ_latched_hash_idx),
     .latched_event_price_idx_o(IDXSEARCH_UPDATERDTBL_latched_event_price_idx),
     .latched_cam_hit_o(IDXSEARCH_UPDATERDTBL_cam_hit),
     .latched_cam_match_idx_o(IDXSEARCH_UPDATERDTBL_cam_match_idx),

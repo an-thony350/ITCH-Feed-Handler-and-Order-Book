@@ -138,11 +138,11 @@ always_ff @(posedge clk) begin
         target_chunk_idx_o          <=  next_target_chunk_idx_o;
 
         if(ask_depleted) begin
-            target_chunk_idx_o      <=  find_lsb_chunk(ask_enc_valid_i);
+            target_chunk_idx_o      <=  next_target_chunk_idx_o;
             search_side_o           <=  1'b0;
         end
         else begin
-            target_chunk_idx_o      <=  find_msb_chunk(bid_enc_valid_i);
+            target_chunk_idx_o      <=  next_target_chunk_idx_o;
             search_side_o           <=  1'b1;
         end
 
