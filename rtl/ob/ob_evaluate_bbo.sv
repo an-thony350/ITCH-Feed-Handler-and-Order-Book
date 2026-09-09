@@ -118,14 +118,6 @@ always_ff @(posedge clk) begin
         stall                       <=  1'b0;
         stall_edge_detector         <=  1'b0;
         stage_valid_o               <=  1'b0;
-
-        current_best_bid_o          <=  '0;
-        current_best_ask_o          <=  BBO_W'(BBO_DEPTH-1);
-        search_side_o               <=  1'b0;
-        new_bbo_o                   <=  1'b0;
-        target_chunk_idx_o          <=  '0;
-        bid_is_zero_o               <=  1'b0;
-        ask_is_zero_o               <=  1'b0;
     end
     else begin
         stall_edge_detector         <=  stall;

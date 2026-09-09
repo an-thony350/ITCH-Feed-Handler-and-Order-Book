@@ -93,8 +93,10 @@ assign ob_sr_ready_bus[0]   =   1'b1;
 
 // replicate reset signals used to reduce fanout
 
-(* max_fanout = 16 *) logic rst_n_r1 = 1'b0;
-(* max_fanout = 16 *) logic rst_n_ob0, rst_n_ob1, rst_n_ob2;
+(* dont_touch = "true" *) logic rst_n_r1 = 1'b0;
+(* dont_touch = "true" *) logic rst_n_ob0;
+(* dont_touch = "true" *) logic rst_n_ob1;
+(* dont_touch = "true" *) logic rst_n_ob2;
 
 always_ff @(posedge clk) begin
     rst_n_r1   <= rst_n;

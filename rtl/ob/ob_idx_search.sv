@@ -203,7 +203,6 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o               <=  '0;
-        read_bucket_o               <=  '0;
 
         wr1_we <= 1'b0;
         wr2_we <= 1'b0;

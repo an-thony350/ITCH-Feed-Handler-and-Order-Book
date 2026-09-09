@@ -64,7 +64,6 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n) begin
         call_replace  <= '0;
-        held_rdata    <= '0;
     end
     else if(!stall) begin
         call_replace    <=  1'b0;

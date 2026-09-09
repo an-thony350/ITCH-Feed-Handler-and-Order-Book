@@ -251,14 +251,7 @@ always_ff @(posedge clk) begin
         stage_valid_o               <=  1'b0;
 
         idx_search_wr0_we           <=  1'b0;
-        idx_search_wr0_addr         <=  '0;
-        idx_search_wr0_slot         <=  '0;
-        idx_search_wr0_data         <=  '0;
-
         update_read_book_wr0_valid   <=  1'b0;
-        update_read_book_wr0_side    <=  1'b0;
-        update_read_book_wr0_addr    <=  '0;
-        update_read_book_wr0_data    <=  '0;
     end
     else if(!stall) begin
         stage_valid_o               <=  stage_valid_i;

@@ -130,16 +130,6 @@ package hdl_header;
         end
     endfunction
 
-    function automatic logic [2:0] find_msb_8(input logic [7:0] v);
-        for (int i = 7; i >= 0; i--) if (v[i]) return 3'(i);
-        return '0;
-    endfunction
-
-    function automatic logic [2:0] find_lsb_8(input logic [7:0] v);
-        for (int i = 0; i < 8; i++) if (v[i]) return 3'(i);
-        return '0;
-    endfunction
-
     function automatic logic [3:0] find_msb_16(input logic [15:0] v);
         casez (v)
             16'b1???????????????: return 4'd15;
@@ -215,26 +205,49 @@ package hdl_header;
     endfunction
 
     // Hierarchical Search: Level 2 (Find the exact bit in the chunk)
+    // Hierarchical Search: Level 2 (Find the exact bit in the 64-bit chunk)
     function automatic logic [5:0] find_msb_bit(input logic [63:0] vec);
-        logic [7:0] grp_nz;
-        logic [2:0] g, b;
-        logic [7:0] sel;
-        for (int i = 0; i < 8; i++) grp_nz[i] = |vec[i*8 +: 8];
-        g   = find_msb_8(grp_nz);
-        sel = vec[g*8 +: 8];
-        b   = find_msb_8(sel);
-        return {g, b};
+        logic [3:0] grp_nz;
+        logic [3:0] sub_idx [3:0];
+        logic [1:0] top_idx;
+
+        // Parallel 16-bit searches
+        for (int i = 0; i < 4; i++) begin
+            grp_nz[i]  = |vec[i*16 +: 16];
+            sub_idx[i] = find_msb_16(vec[i*16 +: 16]);
+        end
+
+        casez (grp_nz)
+            4'b1???: top_idx = 2'd3;
+            4'b01??: top_idx = 2'd2;
+            4'b001?: top_idx = 2'd1;
+            4'b0001: top_idx = 2'd0;
+            default: top_idx = 2'd0;
+        endcase
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
     function automatic logic [5:0] find_lsb_bit(input logic [63:0] vec);
-        logic [7:0] grp_nz;
-        logic [2:0] g, b;
-        logic [7:0] sel;
-        for (int i = 0; i < 8; i++) grp_nz[i] = |vec[i*8 +: 8];
-        g   = find_lsb_8(grp_nz);
-        sel = vec[g*8 +: 8];
-        b   = find_lsb_8(sel);
-        return {g, b};
+        logic [3:0] grp_nz;
+        logic [3:0] sub_idx [3:0];
+        logic [1:0] top_idx;
+
+        // Parallel 16-bit searches
+        for (int i = 0; i < 4; i++) begin
+            grp_nz[i]  = |vec[i*16 +: 16];
+            sub_idx[i] = find_lsb_16(vec[i*16 +: 16]);
+        end
+
+        casez (grp_nz)
+            4'b???1: top_idx = 2'd0;
+            4'b??10: top_idx = 2'd1;
+            4'b?100: top_idx = 2'd2;
+            4'b1000: top_idx = 2'd3;
+            default: top_idx = 2'd0;
+        endcase
+
+        return {top_idx, sub_idx[top_idx]};
     endfunction
 
     // Derived packed widths. These avoid overloading existing BBO_W, which is

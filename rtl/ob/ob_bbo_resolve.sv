@@ -72,8 +72,6 @@ always_ff @(posedge clk) begin
     if(!rst_n) begin
         stage_valid_o           <=  1'b0;
 
-        bid_is_zero_o           <=  1'b0;
-        ask_is_zero_o           <=  1'b0;
     end
     else begin
         stage_valid_o           <=  stage_valid_i;
