@@ -56,6 +56,7 @@
 //                 version, handling all issues with the new 10GbE stream. This
 //                 revision has also allowed for extreme optimisation to ensure a
 //                 greater Fmax (250 MHz) can be used
+// Revision 6.01 - Fixing of edge cases - fixed pipeline delay of 62.5M messages/second
 // Additional Comments:
 // [1]: In the previous design, a Linked List was formed to determine hash entries
 //      and indexes. If a hash index was already in use, it would have a reference
@@ -87,6 +88,11 @@ module order_book(
     output bbo_t                bbo_data_o,
     output logic                bbo_valid_o
 );
+
+// local parameters
+
+localparam int MIN_ENTRY_GAP = 4; // minimum number of cycles difference between entries (avoids raw hazards)
+localparam int BUSY_DEPTH = 8; // no. cycles before hashed buckets are written into order table
 
 // Internal registers
 
@@ -161,6 +167,8 @@ logic [SHARES_W-1:0]    ask_dout_a;
 logic [2:0]             bbo_rd_buff;
 logic [SHARES_W-1:0]    bbo_bid_shares_r;
 logic [SHARES_W-1:0]    bbo_ask_shares_r;
+logic [SHARES_W-1:0]    bid_bbo_rd;
+logic [SHARES_W-1:0]    ask_bbo_rd;
 logic [SHARES_W-1:0]    bbo_bid_dout;
 logic [SHARES_W-1:0]    bbo_ask_dout;
 logic [BBO_W-1:0]       next_best_bid;
@@ -185,7 +193,20 @@ logic                   wrc_side;
 logic [BBO_W-1:0]       wrc_addr;
 logic [SHARES_W-1:0]    wrc_data;
 
+// array of hash signals used to handle raw hazard with buckets in order table
 
+logic [HASH_W-1:0]      busy_hash  [BUSY_DEPTH];
+logic                   busy_valid [BUSY_DEPTH];
+logic [HASH_W-1:0]      rep_add_hash;     // hash of updated_orn, pushed with the ADD child
+
+logic [HASH_W-1:0]      in_hash;
+logic [HASH_W-1:0]      in_new_hash;
+logic                   in_is_replace;
+logic                   bucket_busy;
+
+// signals to determine cycle gap between entries
+logic [2:0]             entry_gap;
+logic                   entering;
 
 // MUXed write register outputs for book write ports - used to differentiate between CLEAR state and other states
 logic                   ot_we_a_m;
@@ -429,13 +450,53 @@ logic                   latched_rep_add_o_9;
 // Stall assignment
 assign stall = bbo_stall;
 
-// Ready signal assertion - Sequential reduces fanout
-always_ff @(posedge clk) begin
-    if(!rst_n) begin
-        ready_o <=  1'b0;
+// Assjgnments used for the 4-cycle gap of entries
+assign entering      = !stall && ((valid_i && ready_o) || !REPCHECK_ready);
+assign in_hash       = hash_orn(rdata_i.orn);
+assign in_new_hash   = hash_orn(rdata_i.updated_orn);
+assign in_is_replace = (rdata_i.message_type == MSG_REPLACE);
+
+// Combinational logic determining whether the bucket used in later cycles is also called in earlier (IDLE state) cycles
+always_comb begin
+    bucket_busy = 1'b0;
+    for (int k = 0; k < BUSY_DEPTH; k++) begin
+        if (busy_valid[k] &&
+            ((busy_hash[k] == in_hash) ||
+             (in_is_replace && (busy_hash[k] == in_new_hash))))
+            bucket_busy = 1'b1;
     end
-    else if(!stall && REPCHECK_ready && !clearing) ready_o   <=  1'b1;
 end
+
+// Shift register of busy (used) hash buckets which havent been written into yet
+always_ff @(posedge clk) begin
+    if (!rst_n) begin
+        for (int k = 0; k < BUSY_DEPTH; k++) busy_valid[k] <= 1'b0;
+    end
+    else if (!stall) begin
+        for (int k = BUSY_DEPTH-1; k > 0; k--) begin
+            busy_valid[k] <= busy_valid[k-1];
+            busy_hash[k]  <= busy_hash[k-1];
+        end
+
+        if (valid_i && ready_o) begin
+            busy_valid[0] <= 1'b1;
+            busy_hash[0]  <= in_hash;
+            if (in_is_replace) rep_add_hash <= in_new_hash;
+        end
+        else if (!REPCHECK_ready) begin
+            busy_valid[0] <= 1'b1;
+            busy_hash[0]  <= rep_add_hash;
+        end
+        else begin
+            busy_valid[0] <= 1'b0;
+        end
+    end
+end
+
+// ready_o combinational assertion
+assign ready_o = !stall && REPCHECK_ready && !clearing
+                 && (entry_gap >= 3'(MIN_ENTRY_GAP))
+                 && !bucket_busy;
 
 // Sequential Logic handling the CLEAR state
 always_ff @(posedge clk) begin
@@ -450,6 +511,16 @@ always_ff @(posedge clk) begin
         end
         else clear_idx <= clear_idx + 1'b1;
     end
+end
+
+// Sequential logic ensuring there is a minimum of 4 cycles of a gap between entires (avoids raw hazard)
+always_ff @(posedge clk) begin
+    if(!rst_n)
+        entry_gap <= 3'(MIN_ENTRY_GAP);
+    else if(entering)
+        entry_gap <= 3'd1;
+    else if(!stall && entry_gap < 3'(MIN_ENTRY_GAP))
+        entry_gap <= entry_gap + 3'd1;
 end
 
 // Combinational Logic muxing the cam signals depending on the clearing state
@@ -663,7 +734,7 @@ always_ff @(posedge clk) begin
         bbo_rd_buff          <= {bbo_rd_buff[1:0], stall};
 
         if(bbo_rd_buff[2])
-            bbo_bid_shares_r <= bid_dout_a;
+            bbo_bid_shares_r <= bid_bbo_rd;
         else if(BBOEVAL_BBORESOLVE_stage_valid && w1_bid_we &&
                 (w1_bid_addr == BBOEVAL_BBORESOLVE_current_best_bid))
             bbo_bid_shares_r <= w1_bid_din;
@@ -672,7 +743,7 @@ always_ff @(posedge clk) begin
             bbo_bid_shares_r <= w2_bid_din;
 
         if(bbo_rd_buff[2])
-            bbo_ask_shares_r <= ask_dout_a;
+            bbo_ask_shares_r <= ask_bbo_rd;
         else if(BBOEVAL_BBORESOLVE_stage_valid && w1_ask_we &&
                 (w1_ask_addr == BBOEVAL_BBORESOLVE_current_best_ask))
             bbo_ask_shares_r <= w1_ask_din;
@@ -1181,9 +1252,10 @@ ob_uram_block #(
 ) bid_price_book(
     .clk(clk),
     .rst_n(rst_n),
-    .stall(1'b0),
+    .stall(stall),
     .rd_addr_a(bid_addr_a),
     .rd_data_a(bid_dout_a),
+    .bbo_rd_data_a(bid_bbo_rd),
     .wr_we_a(bid_we_a_m),
     .wr_addr_a(bid_wr_addr_a_m),
     .wr_data_a(bid_din_a_m)
@@ -1195,9 +1267,10 @@ ob_uram_block #(
 ) ask_price_book(
     .clk(clk),
     .rst_n(rst_n),
-    .stall(1'b0),
+    .stall(stall),
     .rd_addr_a(ask_addr_a),
     .rd_data_a(ask_dout_a),
+    .bbo_rd_data_a(ask_bbo_rd),
     .wr_we_a(ask_we_a_m),
     .wr_addr_a(ask_wr_addr_a_m),
     .wr_data_a(ask_din_a_m)
