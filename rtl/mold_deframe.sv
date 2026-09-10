@@ -11,6 +11,9 @@
 // Timing architecture:
 // - The fixed 20-byte MoldUDP64 header is still decoded across three 64-bit
 //   beats. Header beat 2 contributes its first four body bytes to the body FIFO.
+// - The raw body FIFO is a small fixed-head register/shift FIFO. The parser
+//   therefore reads entry 0 directly instead of selecting a distributed-RAM
+//   word with a read pointer on the parser timing path.
 // - The body parser consumes up to eight raw body bytes per cycle. It handles
 //   at most one new length prefix per cycle, which is sufficient for legal ITCH
 //   traffic because even the shortest ITCH message plus its two-byte MoldUDP64
@@ -108,8 +111,6 @@ module mold_deframe #(
     ST_DONE
   } state_t;
 
-  localparam int BODY_FIFO_AW = (BODY_FIFO_DEPTH <= 2)
-                             ? 1 : $clog2(BODY_FIFO_DEPTH);
   localparam int BODY_FIFO_CW = $clog2(BODY_FIFO_DEPTH + 1);
   localparam int PACK_COUNT_W = $clog2(AXIS_KEEP_W + 1);
   localparam int BODY_LANE_W  = $clog2(AXIS_KEEP_W);
@@ -145,14 +146,13 @@ module mold_deframe #(
   logic                      len_hi_valid;
   logic [7:0]                len_hi_byte;
 
-  // Raw body FIFO. The parser uses a byte cursor into the registered head and
-  // normally removes one complete entry per cycle.
-  axis_data_t body_fifo_data [0:BODY_FIFO_DEPTH-1];
-  axis_keep_t body_fifo_keep [0:BODY_FIFO_DEPTH-1];
-  logic       body_fifo_last [0:BODY_FIFO_DEPTH-1];
+  // Raw body FIFO. This is intentionally a fixed-head register/shift FIFO: the
+  // parser always reads entry 0, removing the pointer-addressed distributed-RAM
+  // read that previously sat at the start of the critical parser path.
+  (* ram_style = "registers" *) axis_data_t body_fifo_data [0:BODY_FIFO_DEPTH-1];
+  (* ram_style = "registers" *) axis_keep_t body_fifo_keep [0:BODY_FIFO_DEPTH-1];
+  (* ram_style = "registers" *) logic       body_fifo_last [0:BODY_FIFO_DEPTH-1];
 
-  logic [BODY_FIFO_AW-1:0] body_wr_ptr;
-  logic [BODY_FIFO_AW-1:0] body_rd_ptr;
   logic [BODY_FIFO_CW-1:0] body_fifo_count;
   logic [BODY_LANE_W-1:0]  body_head_lane;
 
@@ -366,16 +366,6 @@ module mold_deframe #(
     end
   endfunction
 
-  function automatic logic [BODY_FIFO_AW-1:0] body_ptr_increment(
-    input logic [BODY_FIFO_AW-1:0] ptr
-  );
-    if (ptr == BODY_FIFO_AW'(BODY_FIFO_DEPTH-1)) begin
-      body_ptr_increment = '0;
-    end else begin
-      body_ptr_increment = ptr + BODY_FIFO_AW'(1);
-    end
-  endfunction
-
   function automatic logic [LEN_FIFO_AW-1:0] len_ptr_increment(
     input logic [LEN_FIFO_AW-1:0] ptr
   );
@@ -386,9 +376,9 @@ module mold_deframe #(
     end
   endfunction
 
-  assign body_head_data       = body_fifo_data[body_rd_ptr];
-  assign body_head_keep       = body_fifo_keep[body_rd_ptr];
-  assign body_head_last       = body_fifo_last[body_rd_ptr];
+  assign body_head_data       = body_fifo_data[0];
+  assign body_head_keep       = body_fifo_keep[0];
+  assign body_head_last       = body_fifo_last[0];
   assign body_head_byte_count = keep_byte_count(body_head_keep);
   assign body_head_available  = body_head_byte_count
                               - {1'b0, body_head_lane};
@@ -497,6 +487,9 @@ module mold_deframe #(
   always_ff @(posedge clk) begin : parser_and_input
     logic push_body;
     logic pop_body;
+    axis_data_t push_body_data;
+    axis_keep_t push_body_keep;
+    logic       push_body_last;
     logic parser_fault;
     logic [MOLD_ERR_W-1:0] parser_fault_bits;
 
@@ -551,8 +544,6 @@ module mold_deframe #(
       len_hi_valid          <= 1'b0;
       len_hi_byte           <= '0;
 
-      body_wr_ptr           <= '0;
-      body_rd_ptr           <= '0;
       body_fifo_count       <= '0;
       body_head_lane        <= '0;
 
@@ -583,6 +574,9 @@ module mold_deframe #(
     end else begin
       push_body         = 1'b0;
       pop_body          = 1'b0;
+      push_body_data    = '0;
+      push_body_keep    = '0;
+      push_body_last    = 1'b0;
       parser_fault      = 1'b0;
       parser_fault_bits = '0;
 
@@ -664,8 +658,6 @@ module mold_deframe #(
             dgram_end_seen      <= s_axis_tlast_i;
             dropping            <= 1'b0;
 
-            body_wr_ptr         <= '0;
-            body_rd_ptr         <= '0;
             body_fifo_count     <= '0;
             body_head_lane      <= '0;
 
@@ -749,13 +741,10 @@ module mold_deframe #(
               header_body_bytes = input_bytes - PACK_COUNT_W'(4);
 
               if (!parser_fault && (header_body_bytes != '0)) begin
-                body_fifo_data[body_wr_ptr] <=
-                    {s_axis_tdata_i[31:0], 32'h0000_0000};
-                body_fifo_keep[body_wr_ptr] <=
-                    keep_from_count(header_body_bytes);
-                body_fifo_last[body_wr_ptr] <= s_axis_tlast_i;
-                body_wr_ptr                 <= body_ptr_increment(body_wr_ptr);
-                push_body                   = 1'b1;
+                push_body_data = {s_axis_tdata_i[31:0], 32'h0000_0000};
+                push_body_keep = keep_from_count(header_body_bytes);
+                push_body_last = s_axis_tlast_i;
+                push_body      = 1'b1;
               end
             end
 
@@ -776,11 +765,10 @@ module mold_deframe #(
           end
 
           if (!parser_fault) begin
-            body_fifo_data[body_wr_ptr] <= s_axis_tdata_i;
-            body_fifo_keep[body_wr_ptr] <= s_axis_tkeep_i;
-            body_fifo_last[body_wr_ptr] <= s_axis_tlast_i;
-            body_wr_ptr                 <= body_ptr_increment(body_wr_ptr);
-            push_body                   = 1'b1;
+            push_body_data = s_axis_tdata_i;
+            push_body_keep = s_axis_tkeep_i;
+            push_body_last = s_axis_tlast_i;
+            push_body      = 1'b1;
           end
         end else if (state == ST_DRAIN) begin
           dgram_bytes_seen <= seen_after_input;
@@ -1096,8 +1084,27 @@ module mold_deframe #(
         end
       end
 
+      // Fixed-head FIFO update. A pop shifts the remaining entries towards
+      // entry 0; a simultaneous push fills the vacated tail slot. The parser
+      // therefore never depends on a read pointer or asynchronous RAM lookup.
       if (pop_body) begin
-        body_rd_ptr <= body_ptr_increment(body_rd_ptr);
+        for (int fifo_idx = 0; fifo_idx < BODY_FIFO_DEPTH-1; fifo_idx++) begin
+          body_fifo_data[fifo_idx] <= body_fifo_data[fifo_idx+1];
+          body_fifo_keep[fifo_idx] <= body_fifo_keep[fifo_idx+1];
+          body_fifo_last[fifo_idx] <= body_fifo_last[fifo_idx+1];
+        end
+      end
+
+      if (push_body) begin
+        if (pop_body) begin
+          body_fifo_data[body_fifo_count-BODY_FIFO_CW'(1)] <= push_body_data;
+          body_fifo_keep[body_fifo_count-BODY_FIFO_CW'(1)] <= push_body_keep;
+          body_fifo_last[body_fifo_count-BODY_FIFO_CW'(1)] <= push_body_last;
+        end else begin
+          body_fifo_data[body_fifo_count] <= push_body_data;
+          body_fifo_keep[body_fifo_count] <= push_body_keep;
+          body_fifo_last[body_fifo_count] <= push_body_last;
+        end
       end
 
       unique case ({push_body, pop_body})
@@ -1153,8 +1160,6 @@ module mold_deframe #(
         len_hi_valid          <= 1'b0;
         len_hi_byte           <= '0;
 
-        body_wr_ptr           <= '0;
-        body_rd_ptr           <= '0;
         body_fifo_count       <= '0;
         body_head_lane        <= '0;
 

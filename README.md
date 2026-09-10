@@ -287,15 +287,13 @@ All user-specified timing constraints are met and the implementation run complet
 
 | Resource | Used | Available | Utilisation |
 |---|---:|---:|---:|
-| LUTs | 37,679 | 230,400 | 16.35% |
-| LUTRAM / LUT memory | 1,992 | 101,760 | 1.96% |
-| Flip-Flops | 46,280 | 460,800 | 10.04% |
-| Block RAM | 255.5 | 312 | 81.89% |
-| Ultra RAM | 0 | 96 | 0.00% |
+| LUTs | 41,429 | 230,400 | 17.98% |
+| LUTRAM / LUT memory | 1,983 | 101,760 | 1.96% |
+| Flip-Flops | 48,321 | 460,800 | 10.49% |
+| Block RAM | 51.5 | 312 | 16.51% |
+| Ultra RAM | 24 | 96 | 25.00% |
 | DSPs | 0 | 1728 | 0.00% |
 | GTH channels | 2 | 20 | 10.00% |
-
-BRAM remains the main resource constraint. The Taxi integration increases LUT/register use and consumes two GTH channels, but does not materially change the fact that the order-book memories dominate BRAM utilisation.
 
 ---
 
