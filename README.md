@@ -37,7 +37,7 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
 
 ## Project status
 
-As of **10th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
+As of **12th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
 
 ```text
 Ethernet II -> IPv4 -> UDP -> MoldUDP64
@@ -266,7 +266,7 @@ The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete nor
 
 Reports on these values can be found in [`implementation_reports`](implementation_reports).
 
-Latest routed build captured on **10th September 2026**:
+Latest routed build captured on **12th September 2026**:
 
 | Item | Result |
 |---|---:|
@@ -276,9 +276,9 @@ Latest routed build captured on **10th September 2026**:
 | SFP+ MGT reference clock | **156.25 MHz / 6.400 ns** |
 | Routed Taxi RX/user clock | **~161.13 MHz / 6.206 ns** |
 | Order Book clock | **250 MHz / 4.000 ns** |
-| WNS | **+0.006 ns** |
+| WNS | **+0.003   ns** |
 | TNS | **0.000 ns** |
-| WHS | **+0.009 ns** |
+| WHS | **+0.010 ns** |
 | THS | **0.000 ns** |
 
 All user-specified timing constraints are met and the implementation run completes through bitstream generation.
@@ -287,9 +287,9 @@ All user-specified timing constraints are met and the implementation run complet
 
 | Resource | Used | Available | Utilisation |
 |---|---:|---:|---:|
-| LUTs | 41,429 | 230,400 | 17.98% |
-| LUTRAM / LUT memory | 1,983 | 101,760 | 1.96% |
-| Flip-Flops | 48,321 | 460,800 | 10.49% |
+| LUTs | 43,336 | 230,400 | 18.81% |
+| LUTRAM / LUT memory | 1,911 | 101,760 | 1.88% |
+| Flip-Flops | 49,874 | 460,800 | 10.82% |
 | Block RAM | 51.5 | 312 | 16.51% |
 | Ultra RAM | 24 | 96 | 25.00% |
 | DSPs | 0 | 1728 | 0.00% |
