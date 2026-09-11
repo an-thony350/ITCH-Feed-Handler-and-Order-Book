@@ -55,7 +55,7 @@ Once completing the Hardware & implementation instructions, enter the following 
 
 ## Processing System Instructions
 
-The notebook used to run this can be found in [`v2.0/processing_system`](/processing_system). The following instructions should provide detail on how to use this system.
+The notebook used to run this can be found in [`v2.0/processing_system`](v2.0/processing_system). The following instructions should provide detail on how to use this system.
 
 
 1. Upload all the files given in this directory to a jupyter directory (keep note of this directory) - If you are using your own bit and hwh files, then these specific files can be ignored
