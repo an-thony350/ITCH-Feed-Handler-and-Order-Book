@@ -83,8 +83,8 @@ VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/frame_crack.sv \
 $(REPO_ROOT)/rtl/mold_seq_guard.sv \
 $(REPO_ROOT)/rtl/mold_deframe.sv \
-$(REPO_ROOT)/rtl/realign.sv \
-$(REPO_ROOT)/rtl/ingress_top.sv
+$(REPO_ROOT)/rtl/deprecated/realign.sv \
+$(REPO_ROOT)/rtl/deprecated/ingress_top.sv
 
 MODULE ?= test_ingress
 
@@ -93,8 +93,8 @@ VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/frame_crack.sv \
 $(REPO_ROOT)/rtl/mold_seq_guard.sv \
 $(REPO_ROOT)/rtl/mold_deframe.sv \
-$(REPO_ROOT)/rtl/realign.sv \
-$(REPO_ROOT)/rtl/ingress_top.sv \
+$(REPO_ROOT)/rtl/deprecated/realign.sv \
+$(REPO_ROOT)/rtl/deprecated/ingress_top.sv \
 $(REPO_ROOT)/tb/rtl/ingress_top_perf_probe.sv
 
 MODULE ?= test_ingress
@@ -104,9 +104,9 @@ VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/frame_crack.sv \
 $(REPO_ROOT)/rtl/mold_seq_guard.sv \
 $(REPO_ROOT)/rtl/mold_deframe.sv \
-$(REPO_ROOT)/rtl/realign.sv \
-$(REPO_ROOT)/rtl/ingress_top.sv \
-$(REPO_ROOT)/rtl/data_handler.sv \
+$(REPO_ROOT)/rtl/deprecated/realign.sv \
+$(REPO_ROOT)/rtl/deprecated/ingress_top.sv \
+$(REPO_ROOT)/rtl/deprecated/data_handler.sv \
 $(REPO_ROOT)/rtl/symbol_router.sv \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
 $(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
@@ -128,7 +128,7 @@ $(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
 $(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
 $(REPO_ROOT)/rtl/ob/ob_update_write.sv \
 $(REPO_ROOT)/rtl/order_book_top.sv \
-$(REPO_ROOT)/rtl/feed_handler_top.sv
+$(REPO_ROOT)/rtl/deprecated/feed_handler_top.sv
 
 MODULE ?= test_feed_handler_top
 
@@ -137,9 +137,9 @@ VERILOG_SOURCES += \
 $(REPO_ROOT)/rtl/frame_crack.sv \
 $(REPO_ROOT)/rtl/mold_seq_guard.sv \
 $(REPO_ROOT)/rtl/mold_deframe.sv \
-$(REPO_ROOT)/rtl/realign.sv \
-$(REPO_ROOT)/rtl/ingress_top.sv \
-$(REPO_ROOT)/rtl/data_handler.sv \
+$(REPO_ROOT)/rtl/deprecated/realign.sv \
+$(REPO_ROOT)/rtl/deprecated/ingress_top.sv \
+$(REPO_ROOT)/rtl/deprecated/data_handler.sv \
 $(REPO_ROOT)/rtl/symbol_router.sv \
 $(REPO_ROOT)/rtl/ob/order_book_v3.sv \
 $(REPO_ROOT)/rtl/ob/ob_bram_block.sv \
@@ -161,14 +161,14 @@ $(REPO_ROOT)/rtl/ob/ob_update_read_book.sv \
 $(REPO_ROOT)/rtl/ob/ob_update_read_tbl.sv \
 $(REPO_ROOT)/rtl/ob/ob_update_write.sv \
 $(REPO_ROOT)/rtl/order_book_top.sv \
-$(REPO_ROOT)/rtl/feed_handler_top.sv \
+$(REPO_ROOT)/rtl/deprecated/feed_handler_top.sv \
 $(REPO_ROOT)/tb/rtl/feed_handler_top_perf_probe.sv
 
 MODULE ?= test_feed_handler_top
 
 else ifeq ($(TOPLEVEL),data_handler)
 VERILOG_SOURCES += \
-$(REPO_ROOT)/rtl/data_handler.sv
+$(REPO_ROOT)/rtl/deprecated/data_handler.sv
 
 MODULE ?= test_data_handler
 
