@@ -322,4 +322,13 @@ help:
 		'Direct cocotb run:' \
 		'  make TOPLEVEL=data_realign COCOTB_TEST_MODULES=test_data_realign'
 
+# Only load cocotb's simulator Makefile when this invocation actually needs a
+# simulator. This keeps non-simulation targets such as `quality`,
+# `test-golden` and `help` usable without Verilator installed.
+COCOTB_MAKE_GOALS := results.xml clean debug
+
+ifneq ($(filter $(COCOTB_MAKE_GOALS),$(MAKECMDGOALS)),)
 include $(shell cocotb-config --makefiles)/Makefile.sim
+else ifneq ($(filter command line,$(origin TOPLEVEL) $(origin COCOTB_TEST_MODULES) $(origin MODULE)),)
+include $(shell cocotb-config --makefiles)/Makefile.sim
+endif
