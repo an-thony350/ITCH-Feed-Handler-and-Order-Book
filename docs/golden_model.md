@@ -18,17 +18,19 @@ flowchart TB
     EVENT --> EJ[events.jsonl]
     BOOK --> SJ[states.jsonl]
 
-    INPUT --> G1[data_handler cocotb driver]
-    EJ --> G1
-
-    EJ --> G2[order_book cocotb driver]
-    SJ --> G2
-
     INPUT --> ENCAP[golden.network_encapsulator]
-    ENCAP --> G3[feed_handler_top cocotb driver]
-    SJ --> G3
+    ENCAP --> NI[64-bit ingress + data_realign]
+    EJ --> NI
 
-    ENCAP --> G4[duplicate / gap / heartbeat / EOS campaigns]
+    EJ --> OB[order_book cocotb driver]
+    SJ --> OB
+
+    ENCAP --> SEQ[duplicate / gap / heartbeat / EOS campaigns]
+
+    INPUT --> BOARD[ZCU106 DMA replay]
+    BOARD --> HWBBO[hardware BBO changes]
+    SJ --> CMP[hardware / golden comparison]
+    HWBBO --> CMP
 ```
 
 The verification stack is layered so that failures can be localised:
@@ -38,11 +40,14 @@ Python unit tests
     -> decoder isolation
     -> order-book isolation
     -> router/book integration
-    -> network-ingress isolation
-    -> complete network-to-book replay
-    -> duplicate/gap/control-packet campaigns
+    -> native 64-bit network-ingress verification
+    -> line-rate ingress regression
+    -> sequence / duplicate / gap campaigns
+    -> ZCU106 hardware-versus-golden comparison
     -> implementation timing and resources
 ```
+
+The older `data_handler`, `ingress_top`, and `feed_handler_top` paths remain in the repository as useful regression/reference implementations, but the current Vivado ingress uses the merged native-64-bit `data_realign` path.
 
 ---
 
@@ -140,7 +145,7 @@ Real ITCH data is multi-symbol, while an individual hardware book covers one rou
 
 Symbol and locate filters are mutually exclusive. Unfiltered real input should only be used deliberately, because combining different instruments into one single-instrument oracle would produce an invalid comparison.
 
-The hardware replay flow may rewrite the chosen instrument's daily locate to the routed locate expected by the PL design. The golden and RTL paths must use the same instrument selection.
+The hardware replay flow discovers the real locate from Stock Directory messages and rewrites the selected hardware symbols to the routed locate IDs used by the PL. The golden and hardware comparison must therefore use the same selected instrument.
 
 ---
 
@@ -187,7 +192,7 @@ build/golden/states.jsonl
 |---|---|---|
 | `itch_synthetic.bin` | Length-prefixed BinaryFILE stimulus | Common input for parser and RTL replay |
 | `events.jsonl` | One normalised accepted book event per row | Decoder isolation and direct book input |
-| `states.jsonl` | Expected post-event book snapshot | Book and full-chain BBO/state comparison |
+| `states.jsonl` | Expected post-event book snapshot | Book and BBO/state comparison |
 
 Row `n` in `events.jsonl` and row `n` in `states.jsonl` refer to the same accepted event and source `msg_index`.
 
@@ -217,101 +222,32 @@ Bids are written in descending price order and asks in ascending price order so 
 | Target | Test module | Main checks |
 |---|---|---|
 | `mold_seq_guard` | `test_mold_seq_guard.py` | First packet, in-order, duplicate, gap, heartbeat, EOS, and sticky stale behaviour |
-| `data_handler` | `test_data_handler.py` | Complete BinaryFILE replay against `events.jsonl`, ignored messages, and output backpressure |
+| `data_realign` | `test_data_realign.py` | Direct packed-message decode, message boundaries, supported/ignored types, malformed input, and backpressure |
+| `ingress_data_realign_top` | `test_ingress_data_realign.py` | Current native-64-bit Ethernet/MoldUDP64-to-normalised-event path |
+| `ingress_data_realign_perf_probe` | `test_ingress_data_realign_perf.py` | Current ingress/decode latency instrumentation |
+| `ingress_data_realign_perf_probe` | `test_ingress_data_realign_line_rate.py` | Native-64-bit line-rate regression |
 | `order_book` | `test_order_book.py` | Lifecycle, aggregation, collisions, replace cases, boundaries, reset, deterministic random streams, and oracle BBO replay |
 | `order_book_top` | `test_order_book_top.py` | Symbol routing, base-price forwarding, wrapper behaviour, and replay |
-| `ingress_top` | `test_ingress.py` | Exact payload recovery, multiple-message datagrams, backpressure, control packets, and malformed-frame drop |
-| `ingress_top_perf_probe` | `test_ingress_perf.py` | Cycle-level ingress latency and throughput instrumentation |
-| `feed_handler_top` | `test_feed_handler_top.py` | Complete network-to-book replay, logical A/B duplicates, gaps, late packets, heartbeat, and EOS |
+| `lane_rewire` / source mux | `test_lane_rewire.py`, `test_axis_source_mux.py`, `test_source_boundary_equiv.py` | Taxi byte-lane conversion and equivalence of the DMA/Taxi source boundary |
 
-### Current full-chain campaigns
+The repository also retains cocotb tests for the older `data_handler`, `ingress_top`, and `feed_handler_top` path. These remain useful regression tests, but they are not the architecture instantiated by the current Vivado `network_ingress` IP.
 
-The current campaigns include:
+### Current network campaigns
+
+The current native-64-bit ingress campaigns include:
 
 - one and multiple ITCH messages per MoldUDP64 packet;
-- different ITCH message lengths and AXI beat alignments;
-- messages that straddle input beats;
+- different ITCH message lengths and 64-bit beat alignments;
+- messages that cross input beats;
 - downstream backpressure;
 - exact packet duplicates;
-- one logical B copy after each A copy;
-- a missing packet followed by post-gap data and then the late missing packet;
+- sequence gaps and late packets;
 - heartbeat and EOS packets without book mutation;
-- heartbeat-driven forward-gap reporting;
-- checks that valid streams produce no unexpected frame, MoldUDP64, or realignment errors.
+- malformed-frame and malformed-MoldUDP64 error handling;
+- line-rate message campaigns for all supported book-mutating ITCH types and mixed traffic.
 
-The A/B campaign is a logical duplicate stream presented to one RTL ingress. It proves first-copy acceptance and duplicate suppression, not arbitration between two physical network receivers.
-
----
-
-## 10. Comparison boundaries
-
-### Decoder isolation
-
-```text
-BinaryFILE payloads -> data_handler -> normalised RTL events
-                                  == events.jsonl
-```
-
-The comparison is operation-aware: fields that are meaningful for the operation must match exactly, while unused packed fields are not treated as semantic data.
-
-### Book isolation
-
-```text
-events.jsonl -> packed events -> order_book -> BBO/state
-                                           == states.jsonl
-```
-
-The primary automated RTL checks currently prove BBO behaviour after accepted events. The Python state stream contains more information than is presently observed from the RTL.
-
-### Complete path
-
-```text
-BinaryFILE -> network encapsulator -> Ethernet frames
-           -> ingress -> decoder -> router -> book -> BBO
-                                              == states.jsonl
-```
-
-Starting every layer from the same BinaryFILE source prevents the network and file-fed paths from using different event sequences.
+A/B duplicate testing is logical duplicate traffic presented to a common ingress. It proves duplicate suppression, not arbitration between two physical network receivers.
 
 ---
 
-## 11. What is proven and what remains
-
-### Proven by the current automated flow
-
-- golden parser and book unit behaviour;
-- `A/F/E/C/X/D/U` normalisation;
-- decoder replay against the event oracle;
-- directed and random valid order-book BBO behaviour;
-- Ethernet/IPv4/UDP payload recovery for the supported header shape;
-- MoldUDP64 message splitting and variable-length realignment;
-- packet-level duplicate suppression and post-gap stale reporting;
-- complete synthetic network-to-book BBO replay;
-- operation under directed downstream backpressure.
-
-### Not yet fully proven
-
-The primary RTL scoreboards do not yet compare after every event:
-
-- every live order-table entry;
-- every bid and ask aggregate level;
-- per-level order counts, which are not stored in the current RTL contract;
-- tombstone placement and table occupancy as an externally defined contract.
-
-Full internal-state checking should begin through simulator backdoor access so it adds no latency or area to the hardware. A debug readout interface is only justified if simulator access is insufficient or hardware inspection is required.
-
-The final board flow also still needs an automated capture of every BBO update and a board-versus-golden comparison.
-
----
-
-## 12. Assumptions and limitations
-
-- Prices remain integer ITCH `Price(4)` values throughout the golden and RTL paths.
-- The model tracks the displayed order book only.
-- Real multi-symbol inputs must be filtered or routed consistently.
-- BinaryFILE input does not contain the network layers; those are generated by the encapsulator.
-- Python uses `None`/`null` for an empty BBO side. The RTL must use a documented conversion convention while its packed interface has no explicit side-valid bits.
-- The oracle defines semantic book state, not internal hash-table slot placement.
-- Timing closure and resource utilisation are implementation checks, not substitutes for functional comparison.
-
-See [`running_the_project.md`](running_the_project.md) for all executable commands.
+See [`running_the_project.md`](running_the_project.md) for executable commands and [`processing_system.md`](processing_system.md) for the ZCU106 notebook flow.
