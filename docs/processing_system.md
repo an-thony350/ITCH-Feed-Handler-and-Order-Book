@@ -1,60 +1,151 @@
-# Processing system
+# Processing System
 
-The processing system, written in python allows users to actually test the hardwaare system and golden model with historical Nasdaq-ITCH 5.0 data.
+The Processing System is used to run deterministic hardware tests on the ZCU106 and compare the resulting BBO state against the Python golden model using historical Nasdaq ITCH 5.0 data.
 
-The system uses a jupyter notebook where connection to the board (via reverse SSH) is required to run the system.
+The current board regression is in `notebooks/v3_1_notebook.ipynb`. It uses the PS DDR -> AXI DMA -> PL path to exercise the native 64-bit ingress. This is a correctness regression rather than a throughput benchmark.
+
+The notebook can stream the historical data through a reverse SSH tunnel or open a local gzip file.
 
 ## User Functions
 
-The cells have been arranged so that the user can alter some parts of the system without heavily impacting the performance of the system this includes the following:
+The main user-configurable values are:
 
-- `PATH`: the path that the `.bit` and `.hwh` files generated in vivado are located in.
-- `DATA_URL`: the url where the historical data is found
-- `SW_MESSAGES_TO_READ`: the number of messages read by the golden model
-- `MSG_LIMIT`: allows the user to set a limit to the number of hardware messages read
-- `SW_TARGET_SYMBOL`: The stock tracked in the golden model
-- `HW_SYMBOL`: The stocks tracked by the hardware design
-- `BASE_PRICE`: The base price of the stocks being tracked in hardware
+- `PATH`: path to the matching `.bit` and `.hwh` overlay files.
+- `DATA_URL`: URL or local path for the historical Nasdaq ITCH gzip file.
+- `SW_MESSAGES_TO_READ`: number of source messages used by the software golden-model run.
+- `MSG_LIMIT`: when enabled, limits the hardware run to the same source-message range.
+- `SW_TARGET_SYMBOL`: single stock compared against the golden model.
+- `HW_SYMBOL_0`, `HW_SYMBOL_1`, `HW_SYMBOL_2`: the three stocks tracked in hardware.
+- `BASE_PRICE_STOCK_0`, `BASE_PRICE_STOCK_1`, `BASE_PRICE_STOCK_2`: base prices for the three hardware order books.
 
-> Note that the base price must be determined by the user, and incorrect input to this could cause errors to hardware outputs
+Hardware symbols use the 8-byte ITCH stock field, for example:
 
-## Netowrk Header Generation
+```python
+HW_SYMBOL_1 = b"MSFT    "
+```
 
-In the PS we use a function `generate_network_headers` to wrap our input data with netwrok headers. The sample data has stripped all of the headers, but for the purpose of our design, we re-add them in software.
-Therefore, we can also guarantee that every single message will have an IPv4, and UDP protocol type (with checksum = to 0x0000 in all cases)
+The base price must be chosen so that the relevant BBO prices remain inside the hardware price window. Prices below the configured base are not representable by the current order-book implementation.
+
+## Network Header Generation
+
+The historical BinaryFILE data does not contain Ethernet/IP/UDP/MoldUDP64 headers, so the notebook uses `generate_network_headers` to reconstruct the network framing required by the PL ingress.
+
+Each replay packet contains:
+
+```text
+Ethernet II
+IPv4
+UDP
+MoldUDP64
+2-byte MoldUDP64 message length
+ITCH message
+```
+
+The generated packets use the fixed IPv4/UDP format supported by the hardware ingress. The UDP checksum field is set to zero.
+
+This allows the DMA replay to exercise the same `frame_crack`, MoldUDP64 and ITCH decode path as the Ethernet input.
 
 ## Gzip Data Streaming
 
-The histroical data used in our system is in the form of a gzip file from this [website](https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/).
+The historical data is taken from the public Nasdaq ITCH archive.
 
-In order to stream this data, rather than downloading it, the user is required to open a remote connection via a reverse SSH tunnel in their terminal. We then will stream the data remotely using a buffer to ensure that streaming doesn't cause extreme delay in the system.
+The default notebook configuration accesses it through a reverse SSH tunnel using a localhost URL such as:
 
-If sreaming fails, the file will be downloaded locally.
+```text
+https://localhost:8443/ITCH/Nasdaq%20ITCH/12302019.NASDAQ_ITCH50.gz
+```
+
+The stream is wrapped in a buffered reader to avoid loading the complete gzip file into memory.
+
+A local gzip path can be supplied instead when remote streaming is not being used.
 
 ## Hardware Run
 
-With our hardware streaming cell, we first map the required symbols in a dictionary, assigning them hard-coded target locate values (i.e. the stock locate values used in the symbol router to choose a stock's order book). Once this is done, we can ensure that all the data which is of the stock we are looking for, will have its stock_locate value changed to pass through the entire system.
+The hardware run first watches Stock Directory (`R`) messages to discover the real Nasdaq stock-locate values for the configured hardware symbols.
 
-Before we send a message, we change the price given by the historical data. Because the data passes data with a `$0.00001` tick (i.e. going up 1 value in decimal translates to an increase in `$0.0001`), to save resources on the FPGA, we divide the price value by 100 (only if we get a price instruction)
+Those locate values are then remapped to the three IDs used by the hardware symbol router:
 
-Once we are ready to send a message, we package the modified message (due to price) with the network headers, pad the packet into 4-byte boundaries, and swap it into big endian form to send to the DMA.
-
-In reading the BBO output data, we read through GPIO (when the `bbo_valid` signal is asserted). We compare the previous value to the new one (to ensure that there has been a BBO change), and if successful, we write the new data into a JSONL file and text file.
-
-> Note that the test file is purely for readablility reasons for the user, the JSONL file is integral to our hw/sw comparison
-
-## Software run
-
-The software run works similarly to the hardware run by streaming data to the golden model. However, we set a hard limit (default 1,000,000) for the number of messages read given the golden model is much slower than the hardware alternative. We take the output of the model in two JSONL files, with `golden_states` being the one critical to our comparison.
-
-## Hardware/Softare Comparison
-
-In this cell, we compare the two aforementioned JSONL files, ensuring their data is precisely the same.
-Given the golden model outputs data even if there is not a change, we only compare data if the software output has changes. This ensures that the comparison is fair.
-The system will print any inconsistencies in an `error_log.txt` file which can be examined for further debugging
-In our own testing we recieved the following output, confirming the system produces 100% accurate data.
-
+```text
+1 -> stock 0
+2 -> stock 1
+3 -> stock 2
 ```
-Comparison Complete!
-Number of errors: 0
+
+Price-bearing messages are converted from the original ITCH `Price(4)` representation to whole cents before they are sent to the FPGA:
+
+```text
+hardware_price = itch_price // 100
 ```
+
+The configured hardware base prices use the same cent units.
+
+The modified ITCH message is then wrapped with the synthetic network headers and sent through the 64-bit MM2S DMA.
+
+Because the MM2S/ingress path is 64-bit:
+
+- the backing buffer uses `np.uint64`;
+- each packet is padded to an 8-byte storage boundary;
+- each 64-bit word is byte-swapped so the first network byte appears in the MSB lane expected by the ingress;
+- the final padded word is transmitted in full.
+
+The extra zero bytes are harmless Ethernet padding because `frame_crack` uses the UDP length to determine the true MoldUDP64 payload boundary.
+
+The notebook waits for each DMA transfer to complete before sending the next packet. This keeps the board test deterministic, but means this run must not be treated as an ingress-throughput benchmark.
+
+### BBO capture
+
+BBO data is read through the AXI GPIO interfaces.
+
+The notebook records a new hardware state whenever any of the following changes:
+
+```text
+bid price
+bid shares
+ask price
+ask shares
+```
+
+Readable text files are produced for inspection, while the JSONL output is used for the hardware/software comparison.
+
+Hardware prices are multiplied by 100 when written to the comparison JSONL so they return to the golden model's original `Price(4)` units.
+
+## Software Run
+
+The software run reads the same source-message range and passes it through the Python golden model.
+
+By default:
+
+```text
+SW_MESSAGES_TO_READ = 1,000,000
+```
+
+The main comparison file is:
+
+```text
+golden_states_<symbol>.jsonl
+```
+
+The 64-bit hardware migration does not change the golden-model semantics; it only changes the transport used to deliver the messages to the RTL.
+
+## Hardware/Software Comparison
+
+The comparison checks the hardware and software **BBO-change sequences** over the same source-message range.
+
+Two representation differences are handled explicitly:
+
+- an empty golden-model book side is represented as `None`, while the hardware GPIO value is `0`;
+- golden states with a non-empty BBO price below the configured hardware base price are not representable and are reported separately rather than treated as semantic mismatches.
+
+Any genuine semantic mismatches are written to:
+
+```text
+error_log.txt
+```
+
+Skipped out-of-range golden states are written to:
+
+```text
+comparison_skipped.jsonl
+```
+
+A successful regression reports zero semantic mismatches for the comparable states.
