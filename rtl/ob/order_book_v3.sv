@@ -246,6 +246,10 @@ logic                   chunk_side;
 logic [BBO_W-1:0]       chunk_row;
 logic                   chunk_val;
 
+// Shadow chunk replicate regs for timing fixes
+logic [BBO_W-7:0]       shadow_bid_rd_idx;
+logic [BBO_W-7:0]       shadow_ask_rd_idx;
+
 // REPLACE_CHECK State registers - outputs
 logic                   REPCHECK_IDLE_stage_valid;
 o_data_t                REPCHECK_IDLE_rdata;
@@ -448,16 +452,10 @@ logic                   latched_rep_add_o_7;
 logic                   latched_rep_add_o_8;
 logic                   latched_rep_add_o_9;
 
-logic [BBO_W-7:0] shadow_bid_rd_idx;
-logic [BBO_W-7:0] shadow_ask_rd_idx;
-
-assign shadow_bid_rd_idx = find_msb_chunk(bid_enc_valid);
-assign shadow_ask_rd_idx = find_lsb_chunk(ask_enc_valid);
-
 // Stall assignment
 assign stall = bbo_stall;
 
-// Assjgnments used for the 4-cycle gap of entries
+// Assignments used for the 4-cycle gap of entries
 assign entering      = !stall && ((valid_i && ready_o) || !REPCHECK_ready);
 assign in_hash       = hash_orn(rdata_i.orn);
 assign in_new_hash   = hash_orn(rdata_i.updated_orn);
@@ -701,6 +699,10 @@ always_ff @(posedge clk) begin
         end
     end
 end
+
+// Cominational bit search assignment of enc valid signals - using replicate regs for timing fix
+assign shadow_bid_rd_idx = find_msb_chunk(bid_enc_valid);
+assign shadow_ask_rd_idx = find_lsb_chunk(ask_enc_valid);
 
 // Sequential Logic with latched bbo URAM
 // delay the write record by 2 cycles so it lines up with ob_evaluate_bbo's output
