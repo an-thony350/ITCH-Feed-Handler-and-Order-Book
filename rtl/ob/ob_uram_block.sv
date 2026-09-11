@@ -19,6 +19,7 @@
 // Revision 0.02 - Read latency included, acting as a delay stage to ensure reads
 //                 are synchronised at correct stage in pipeline
 // Revision 0.03 - extra signal added allowing for stall reads - overall synchronsing
+// Revision 0.04 - WNS fixes
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +57,7 @@ logic              stall_q;
 logic [DATA_W-1:0] slot0;
 
 // BRAM block
-(* ram_style = "ultra" *) logic [DATA_W-1:0] uram [URAM_DEPTH-1:0];
+(* ram_style = "ultra", cascade_height = 1 *) logic [DATA_W-1:0] uram [URAM_DEPTH-1:0];
 
 // DELAY BUFFERS (for latency writes)
 logic [DATA_W-1:0] rd_buffer    [READ_LATENCY-1:1];

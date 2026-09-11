@@ -57,6 +57,7 @@
 //                 revision has also allowed for extreme optimisation to ensure a
 //                 greater Fmax (250 MHz) can be used
 // Revision 6.01 - Fixing of edge cases - fixed pipeline delay of 62.5M messages/second
+// Revision 6.02 - WNS fixes
 // Additional Comments:
 // [1]: In the previous design, a Linked List was formed to determine hash entries
 //      and indexes. If a hash index was already in use, it would have a reference
@@ -447,6 +448,12 @@ logic                   latched_rep_add_o_7;
 logic                   latched_rep_add_o_8;
 logic                   latched_rep_add_o_9;
 
+logic [BBO_W-7:0] shadow_bid_rd_idx;
+logic [BBO_W-7:0] shadow_ask_rd_idx;
+
+assign shadow_bid_rd_idx = find_msb_chunk(bid_enc_valid);
+assign shadow_ask_rd_idx = find_lsb_chunk(ask_enc_valid);
+
 // Stall assignment
 assign stall = bbo_stall;
 
@@ -763,7 +770,7 @@ ob_replace_check replace_check_block(
     .clk(clk),
     .rst_n(rst_n),
     .stall(stall),
-    .stage_valid_i(valid_i && !clearing),
+    .stage_valid_i(valid_i && ready_o),
     .input_rdata(rdata_i),
     .stage_valid_o(REPCHECK_IDLE_stage_valid),
     .rdata_o(REPCHECK_IDLE_rdata),
@@ -1316,7 +1323,7 @@ ob_bram_block #(
     .clk(clk),
     .rst_n(rst_n),
     .stall(1'b0),
-    .rd_addr_a(next_target_chunk_idx),
+    .rd_addr_a(shadow_bid_rd_idx),
     .rd_data_a(current_bid_chunk),
     .wr_we_a(cw_we_bid),
     .wr_addr_a(cw_row_bid),
@@ -1331,7 +1338,7 @@ ob_bram_block #(
     .clk(clk),
     .rst_n(rst_n),
     .stall(1'b0),
-    .rd_addr_a(next_target_chunk_idx),
+    .rd_addr_a(shadow_ask_rd_idx),
     .rd_data_a(current_ask_chunk),
     .wr_we_a(cw_we_ask),
     .wr_addr_a(cw_row_ask),
