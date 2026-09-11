@@ -1,6 +1,6 @@
 # Running the Project
 
-This document contains the repository's executable workflows. Complete toolchain installation is documented in [`environment.md`](environment.md); the golden-model and verification contracts are documented in [`golden_model.md`](golden_model.md).
+This document contains the repository's executable workflows. Complete toolchain installation is documented in [`environment.md`](environment.md); golden-model and verification contracts are documented in [`golden_model.md`](golden_model.md).
 
 Unless a section states otherwise, commands begin at the repository root with the Python environment active:
 
@@ -20,17 +20,19 @@ cd tb
 make
 ```
 
-The default target runs:
+The current default target runs:
 
-1. golden Python compilation and unit tests;
-2. deterministic synthetic BinaryFILE and JSONL oracle generation;
-3. MoldUDP64 sequence-guard tests;
-4. ITCH decoder tests;
+1. golden Python compilation, unit tests, and oracle generation;
+2. MoldUDP64 sequence-guard tests;
+3. merged `data_realign` decoder tests;
+4. legacy `data_handler` regression tests;
 5. direct order-book tests;
 6. router/book wrapper tests;
-7. ingress correctness tests;
-8. ingress performance-probe tests;
-9. complete feed-handler network-to-book tests.
+7. legacy `ingress_top` regression tests;
+8. current native-64-bit `ingress_data_realign_top` tests;
+9. legacy `feed_handler_top` network-to-book regression tests.
+
+The legacy paths are intentionally retained as regression/reference implementations. The active Vivado ingress uses the native-64-bit `ingress_data_realign_top` architecture.
 
 Return to the repository root with:
 
@@ -48,46 +50,86 @@ Run these from `tb/`:
 |---|---|
 | `make test-golden` | Compile/test the Python oracle and regenerate default oracle files |
 | `make test-mold-seq-guard` | Sequence, duplicate, gap, heartbeat, EOS, and stale policy |
-| `make test-data-handler` | Decoder replay against `events.jsonl` |
+| `make test-data-realign` | Current packed-message decoder |
+| `make test-ingress-data-realign` | Current 64-bit Ethernet/MoldUDP64-to-event ingress |
+| `make test-ingress-data-realign-probe` | Current ingress through the performance-probe wrapper |
+| `make test-ingress-data-realign-perf` | Current ingress/decode latency test |
 | `make test-order-book` | Direct order-book lifecycle and oracle BBO tests |
-| `make test-order-book-top` | Symbol-router and book-wrapper tests |
-| `make test-ingress` | Ethernet-to-aligned-ITCH correctness |
-| `make test-ingress-probe` | Run ingress correctness through the performance-probe wrapper |
-| `make test-ingress-perf` | Cycle-accurate ingress latency and throughput tests |
-| `make test-feed-handler-top` | Complete network-to-book G3/G4 regression |
-| `make test-rtl` | All RTL cocotb targets without regenerating the golden oracle |
-| `make test-all` | Golden generation followed by all RTL targets |
+| `make test-order-book-top` | Symbol-router and three-book wrapper tests |
+| `make test-data-handler` | Legacy standalone decoder regression |
+| `make test-ingress` | Legacy `ingress_top` regression |
+| `make test-feed-handler-top` | Legacy complete network-to-book regression |
+| `make test-rtl` | Current default RTL correctness set without regenerating the golden oracle |
+| `make test-all` | Golden generation followed by `test-rtl` |
 
-Example:
+For example, to run the current merged ingress:
 
 ```bash
 cd tb
-make test-feed-handler-top
+make test-ingress-data-realign
 ```
 
-The direct cocotb form remains available:
+Direct cocotb invocation is also available:
 
 ```bash
-make SIM=verilator TOPLEVEL=feed_handler_top MODULE=test_feed_handler_top
+make TOPLEVEL=ingress_data_realign_top MODULE=test_ingress_data_realign CLOCK_MHZ=156.25
 ```
 
-Supported `TOPLEVEL` values in the current Makefile are:
+The Makefile selects the required RTL sources, adds the repository and test harness to `PYTHONPATH`, and enables SystemVerilog, timing, and trace support.
 
-```text
-mold_seq_guard
-data_handler
-order_book
-order_book_top
-ingress_top
-ingress_top_perf_probe
-feed_handler_top
+### DMA/Taxi source-boundary tests
+
+The source-boundary blocks can be tested directly:
+
+```bash
+make TOPLEVEL=lane_rewire MODULE=test_lane_rewire
+make TOPLEVEL=axis_source_mux MODULE=test_axis_source_mux
+make TOPLEVEL=source_boundary_equiv_top MODULE=test_source_boundary_equiv
 ```
-
-The Makefile adds the repository root and `tb/` to `PYTHONPATH`, selects the required RTL sources, and enables SystemVerilog, timing, and trace support.
 
 ---
 
-## 3. Generate golden-model oracle files
+## 3. Native 64-bit line-rate regression
+
+The preferred current ingress performance target is in `Makefile.line_rate`.
+
+From `tb/`:
+
+```bash
+make -f Makefile.line_rate ingress-smoke
+```
+
+runs the short smoke campaign.
+
+```bash
+make -f Makefile.line_rate ingress-measure
+```
+
+runs the full measurement campaign without enforcing the pass/fail threshold.
+
+```bash
+make -f Makefile.line_rate ingress-gate
+```
+
+runs the native-64-bit ingress campaign with the calculated physical 10GbE wire-rate requirement enforced.
+
+The current test uses a modelled ingress clock of:
+
+```text
+156.25 MHz
+```
+
+and writes results beneath:
+
+```text
+build/perf/data_realign_ingress_line_rate/
+```
+
+The older aligned-ITCH ingress measurement is retained for A/B comparison through the `legacy-ingress-*` targets, but it is not the preferred measurement for the current architecture.
+
+---
+
+## 4. Generate golden-model oracle files
 
 ### Default deterministic synthetic oracle
 
@@ -187,7 +229,7 @@ python -m golden.runner build/golden/itch_synthetic.bin \
 
 ---
 
-## 4. Generate network test vectors
+## 5. Generate network test vectors
 
 The public ITCH BinaryFILE format contains length-prefixed ITCH messages, not Ethernet/IP/UDP/MoldUDP64 frames. `golden.network_encapsulator` creates the frame stream used by the network RTL tests.
 
@@ -250,21 +292,43 @@ Useful additional options include `--src-port`, `--dst-port`, `--start-index`, a
 
 ---
 
-## 5. Directed SystemVerilog / xsim tests
+## 6. ZCU106 deterministic hardware regression
 
-Directed SystemVerilog testbenches include:
+The current board regression is:
 
 ```text
-tb/data_handler_tb.sv
+notebooks/v3_1_notebook.ipynb
+```
+
+It loads the matching `.bit`/`.hwh` overlay and runs historical ITCH data through:
+
+```text
+PS DDR -> AXI DMA -> native 64-bit PL ingress -> order books -> BBO GPIO
+```
+
+The notebook then runs the same source range through the Python golden model and compares the resulting BBO-change sequences.
+
+This is a **correctness regression**, not a throughput benchmark: the notebook waits for each DMA transfer to complete before issuing the next one.
+
+Configuration, price conversion, symbol mapping, and comparison behaviour are documented in [`processing_system.md`](processing_system.md).
+
+---
+
+## 7. Directed SystemVerilog / xsim tests
+
+Directed SystemVerilog testbenches are under `tb/xsim/`, including:
+
+```text
+tb/xsim/data_handler_tb.sv
+tb/xsim/feed_handler_top_tb.sv
 tb/xsim/frame_crack_tb.sv
-tb/xsim/mold_seq_guard_tb.sv
-tb/xsim/mold_deframe_tb.sv
-tb/xsim/realign_tb.sv
 tb/xsim/ingress_top_tb.sv
-tb/xsim/symbol_router_tb.sv
+tb/xsim/mold_deframe_tb.sv
+tb/xsim/mold_seq_guard_tb.sv
 tb/xsim/order_book_tb.sv
 tb/xsim/order_book_top_tb.sv
-tb/xsim/feed_handler_top_tb.sv
+tb/xsim/realign_tb.sv
+tb/xsim/symbol_router_tb.sv
 ```
 
 These testbenches are intended for Vivado 2023.2 / xsim. The repository does not currently provide one automated xsim Make target, so run them through the Vivado project:
@@ -275,11 +339,11 @@ These testbenches are intended for Vivado 2023.2 / xsim. The repository does not
 4. select **Run Simulation -> Run Behavioral Simulation**;
 5. rerun after changing the top or source set.
 
-The cocotb/Verilator tests are the primary automated golden-model scoreboards. The directed xsim tests provide focused Vivado-native checks and waveform debugging; they are not the FPGA synthesis flow.
+The cocotb/Verilator tests are the primary automated golden-model scoreboards. The directed xsim tests provide focused Vivado-native checks and waveform debugging.
 
 ---
 
-## 6. Formatting
+## 8. Formatting
 
 Install the hook once:
 
@@ -304,7 +368,7 @@ Review formatting changes before staging them.
 
 ---
 
-## 7. Generated files and cleanup
+## 9. Generated files and cleanup
 
 Generated files should remain outside source control:
 
@@ -350,8 +414,7 @@ uv venv --python 3.13 --seed .venv
 source .venv/bin/activate
 
 uv pip install pip setuptools wheel
-uv pip install -r requirements.txt
-uv pip install pre-commit
+uv pip install -r requirements-dev.txt
 
 python -VV
 python -c "import cocotb; print(cocotb.__version__)"
@@ -363,7 +426,7 @@ make
 
 ---
 
-## 8. Common startup failures
+## 10. Common startup failures
 
 Check the active tools:
 
