@@ -250,7 +250,7 @@ The order-book side runs at **250 MHz**, or **4 ns per cycle**.
 |---|---:|
 | `event_async_fifo` | **30.4 ns** for an empty FIFO using the configured XPM FWFT CDC path |
 | `symbol_router` | **1 cycle / 4 ns** |
-| `order_book` | add in |
+| `order_book` | **16 cyles (17 for a replace instruction) / 64 (68) ns** |
 | BBO FIFO + round-robin output | **2-4 cycles / 8-16 ns** |
 
 The FIFO uses `CDC_SYNC_STAGES=2`, `READ_MODE="fwft"` and `FIFO_READ_LATENCY=0`. For an asynchronous XPM FIFO in FWFT mode, read-side visibility after a write is `1 wr_clk + (N+4) rd_clk`. With the 156.25 MHz write clock, 250 MHz read clock and `N=2`:
