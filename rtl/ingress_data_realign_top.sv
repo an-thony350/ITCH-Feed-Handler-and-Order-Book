@@ -1,9 +1,3 @@
-// Candidate top-level for the merged native-64-bit ingress/decode path.
-//
-// This wrapper is intentionally separate from ingress_top while the merged
-// data_realign architecture is being verified. It lets the existing
-// realign -> data_handler baseline remain available for A/B comparison.
-//
 // Ethernet frame input
 //   -> frame_crack
 //   -> mold_deframe
@@ -57,8 +51,7 @@ module ingress_data_realign_top #(
   output logic [MOLD_SEQ_W-1:0]     gap_start_o,
   output logic [MOLD_SEQ_W-1:0]     gap_end_o,
 
-  // Status/error outputs. Keep the existing realign error bus name for now so
-  // the candidate can be compared with the current ingress status contract.
+  // Status/error outputs
   output logic                     frame_drop_o,
   output logic [FRAME_ERR_W-1:0]   frame_err_o,
   output logic                     mold_drop_o,

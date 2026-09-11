@@ -49,7 +49,7 @@ module frame_crack #(
   output logic [FRAME_ERR_W-1:0] frame_err_o
 );
 
-  // This module is intentionally specialised to the native 64-bit ingress.
+  // verify 64-bit ingress
   initial begin
     if (AXIS_DATA_W != 64) begin
       $error("frame_crack requires AXIS_DATA_W == 64");

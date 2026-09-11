@@ -5,7 +5,7 @@
 // the network clock domain into the order-book/data clock domain.
 //
 // Write side:
-//   data_handler @ network_clk
+//   data_realign @ ingress clock
 //
 // Read side:
 //   order_book_top @ data_clk

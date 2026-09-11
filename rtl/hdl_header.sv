@@ -250,25 +250,17 @@ package hdl_header;
         return {top_idx, sub_idx[top_idx]};
     endfunction
 
-    // Derived packed widths. These avoid overloading existing BBO_W, which is
-    // currently 12 in the project package rather than the packed bbo_t width.
+    // Derived packed widths. These avoid overloading existing BBO_W
     localparam int DATA_T_W   = $bits(data_t);    // 217
     localparam int O_DATA_T_W = $bits(o_data_t);  // 201
     localparam int BBO_T_W    = $bits(bbo_t);     // 128
 
-    // Phase-3 ingress AXI4-Stream conventions
+    // AXI4-Stream conventions
     parameter int AXIS_DATA_W = 64;
     parameter int AXIS_KEEP_W = AXIS_DATA_W / 8;
 
     typedef logic [AXIS_DATA_W-1:0] axis_data_t;
     typedef logic [AXIS_KEEP_W-1:0] axis_keep_t;
-
-    // Byte-lane convention used by the ingress chain:
-    //   lane 0 = tdata[63:56]
-    //   lane 1 = tdata[55:48]
-    //   ...
-    //   lane 7 = tdata[7:0]
-    // tkeep[7] corresponds to lane 0 / tdata[63:56].
 
     // Ethernet / IPv4 / UDP constants for the fixed-prefix frame cracker
     parameter int ETH_HDR_BYTES      = 14;
