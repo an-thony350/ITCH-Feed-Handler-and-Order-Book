@@ -2,303 +2,579 @@
 
 ## Scope
 
-The ingress path accepts a 32-bit AXI4-Stream Ethernet frame and emits one aligned AXI packet per recovered ITCH message for `data_handler.sv`.
+The current ingress accepts a native **64-bit AXI4-Stream Ethernet frame** and emits a decoded **217-bit normalised ITCH event**.
 
-Public Nasdaq ITCH sample files are BinaryFILE streams, not Ethernet captures. The host-side encapsulator wraps the same length-prefixed ITCH payloads used by the golden model into synthetic Ethernet II / IPv4 / UDP / MoldUDP64 frames. This makes the network path deterministic and allows controlled duplicate, gap, heartbeat, and EOS campaigns.
+The active Vivado path is:
 
 ```text
-BinaryFILE ITCH
-    -> software encapsulator
-    -> Ethernet / IPv4 / UDP / MoldUDP64 frames
-    -> ingress RTL
-    -> aligned ITCH messages
-    -> decoder and book
-    -> comparison with the Python oracle
+DMA replay or Taxi Ethernet RX
+        |
+        v
+64-bit common AXI stream
+        |
+        v
+frame_crack
+        |
+        v
+UDP / MoldUDP64 datagram
+        |
+        v
+mold_deframe + mold_seq_guard
+        |
+        v
+packed ITCH payload + message lengths
+        |
+        v
+data_realign
+        |
+        v
+217-bit normalised event
 ```
 
-This flow tests the protocol layers required by a wire-fed design without claiming direct access to a live Nasdaq multicast stream.
+ `data_realign` performs message-boundary tracking and ITCH field extraction directly from the packed MoldUDP64 payload stream.
+
+
+Public Nasdaq ITCH samples are BinaryFILE streams rather than Ethernet captures. The host-side encapsulator therefore wraps the same ITCH messages used by the golden model in synthetic:
+
+```text
+Ethernet II -> IPv4 -> UDP -> MoldUDP64
+```
+
+frames for deterministic simulation and DMA replay.
 
 ---
 
-## Current RTL top level
+## 1. Current hardware sources
 
-`rtl/ingress_top.sv` connects:
+The ingress can receive frames from two sources.
 
-```text
-s_frame AXI stream
-    -> frame_crack
-    -> mold_deframe + mold_seq_guard
-    -> realign
-    -> m_itch AXI stream
-```
-
-The shared package defines:
+### DMA
 
 ```text
-AXIS_DATA_W = 32
-AXIS_KEEP_W = 4
+PS DDR
+  -> AXI DMA MM2S
+  -> AXIS clock converter
+  -> source boundary
 ```
 
-The earliest byte occupies the most-significant active lane. Final-beat `tkeep` values must be contiguous from that lane.
+This is the current board-level correctness path.
 
-### Ethernet-frame input
+The DMA AXI stream is clock-converted into the Taxi RX/user clock domain before source selection, so DMA replay exercises the same network-domain ingress as the Ethernet source.
+
+The notebook waits for individual DMA transfers and reads the resulting BBO state. It is therefore intended for deterministic correctness testing rather than as a measurement of maximum ingress throughput.
+
+### Taxi 10GbE RX
 
 ```text
-s_frame_tdata_i
-s_frame_tkeep_i
-s_frame_tvalid_i
-s_frame_tlast_i
-s_frame_tready_o
+SFP+
+  -> ZCU106 GTH
+  -> Taxi MAC/PCS
+  -> lane_rewire
+  -> source boundary
 ```
 
-### Aligned ITCH output
+The Taxi frontend instantiates both ZCU106 SFP+ lanes, while the ITCH feed-handler currently consumes lane 0 RX.
+
+Taxi exposes a 64-bit RX AXI stream and its native RX/user clock. The network ingress is clocked directly from that RX domain.
+
+The Taxi frontend also exposes lane-0 bring-up/debug status which we can track with an ILA:
 
 ```text
-m_itch_tdata_o
-m_itch_tvalid_o
-m_itch_tlast_o
-m_itch_tready_i
+GT power-good
+RX status
+block lock
+high BER
+error count
+bad packet
+bad FCS
 ```
 
-### MoldUDP64 and sequence status
-
-```text
-session_o
-seq_o
-count_o
-expected_next_o
-seq_valid_o
-in_order_o
-duplicate_o
-gap_o
-heartbeat_o
-eos_o
-stale_o
-expected_seq_o
-gap_start_o
-gap_end_o
-```
-
-### Error status
-
-```text
-frame_drop_o
-frame_err_o
-mold_drop_o
-mold_err_o
-realign_err_o
-```
-
-These status outputs are available for simulation and future CSR mapping. The current PYNQ block design does not expose every status bit to the Processing System.
+Physical SFP+/10GbE traffic is not yet the project's proven board input. The frontend is integrated and routed, while final external-network bring-up remains pending.
 
 ---
 
-## Software encapsulator
+## 2. Source boundary and byte order
 
-`golden/network_encapsulator.py` reads BinaryFILE payloads and writes:
+The project and Taxi use opposite AXI byte-lane conventions.
+
+### Project convention
+
+The ingress package defines:
+
+```text
+AXIS_DATA_W = 64
+AXIS_KEEP_W = 8
+```
+
+and uses:
+
+```text
+first network byte -> tdata[63:56]
+second byte        -> tdata[55:48]
+...
+eighth byte        -> tdata[7:0]
+```
+
+### Taxi convention
+
+Taxi presents the earliest frame byte in `tdata[7:0]`.
+
+`lane_rewire` reverses all eight byte lanes and the eight `tkeep` bits before the Taxi stream enters the common source mux.
+
+This is a pure wiring operation, so adds no cycles.
+
+### Static source mux
+
+`axis_source_mux` selects:
+
+```text
+select_taxi_i = 0 -> DMA
+select_taxi_i = 1 -> Taxi
+```
+
+Only the selected source receives downstream `ready`.
+
+---
+
+## 3. Software encapsulator
+
+`golden/network_encapsulator.py` reads length-prefixed BinaryFILE messages and generates Ethernet test vectors.
+
+Typical outputs are:
 
 ```text
 build/network/frames.bin
 build/network/frames.jsonl
 ```
 
-The frame stream contains raw concatenated Ethernet II frames. The metadata stream records frame lengths, source indices, sequence/count fields, and duplicate/feed annotations.
+The binary stream contains concatenated Ethernet frames. The metadata stream records the corresponding frame lengths, source indices, sequence/count values, and duplicate/feed annotations.
 
-The encapsulator can control:
+The encapsulator can generate:
 
-- number of ITCH messages per datagram;
-- sequence start;
-- MoldUDP64 session;
-- UDP source and destination ports;
-- exact frame duplication;
-- logical A/B copies;
-- a dropped frame for gap testing;
-- heartbeat and end-of-session packets;
-- source start index and maximum message count.
+- one or multiple ITCH messages per MoldUDP64 datagram;
+- configurable sequence start;
+- configurable MoldUDP64 session;
+- configurable UDP source/destination ports;
+- exact packet duplicates;
+- logical A/B duplicate copies;
+- a deliberate missing packet for gap testing;
+- heartbeat packets;
+- end-of-session packets;
+- bounded source ranges for repeatable campaigns.
 
-A baseline round-trip check de-encapsulates the generated frames and compares every recovered ITCH payload byte-for-byte with the BinaryFILE source. Perform this check before using the vectors to debug RTL.
-
-Commands are in [`running_the_project.md`](running_the_project.md).
+Commands are documented in [`running_the_project.md`](running_the_project.md).
 
 ---
 
-## Stage 1 — `frame_crack`
+## 4. Stage 1 — `frame_crack`
 
-`frame_crack` strips the supported Ethernet II, IPv4, and UDP headers and emits the UDP payload as one AXI datagram.
+`frame_crack` accepts one complete Ethernet frame per AXI packet and emits only the UDP payload.
+
+The UDP payload is the MoldUDP64 datagram consumed by the next stage.
 
 ### Supported packet shape
 
 | Layer | Current policy |
 |---|---|
-| Ethernet II | Require untagged EtherType `0x0800`; source/destination MAC are not used for filtering |
-| VLAN | Not supported; tagged frames are rejected by the EtherType check |
-| IPv4 | Require version 4 and IHL = 5 |
-| Fragmentation | Drop fragmented packets |
-| UDP | Require protocol 17; optionally check destination port |
-| Checksums | IP and UDP checksums are not validated |
-| Ethernet FCS | Assumed to have been handled before the RTL boundary |
-| AXI framing | Non-final beats require full `tkeep`; final `tkeep` must be contiguous |
+| Ethernet II | Untagged Ethernet II |
+| EtherType | Must be `0x0800` |
+| MAC filtering | Source/destination MAC addresses are not used for filtering |
+| VLAN | Not supported |
+| IPv4 | Version 4 with IHL = 5 |
+| IPv4 options | Not supported |
+| Fragmentation | Fragmented packets are dropped |
+| L4 | UDP / protocol 17 |
+| UDP destination port | Optional configured check |
+| IP checksum | Not validated |
+| UDP checksum | Not validated |
+| Ethernet FCS | Assumed to be handled before this RTL boundary |
+| AXI non-final `tkeep` | Must be `8'hff` |
+| AXI final `tkeep` | Must be contiguous from the MSB-side lane |
 
 The fixed supported prefix is:
 
 ```text
-Ethernet II 14 bytes + IPv4 20 bytes + UDP 8 bytes = 42 bytes
+Ethernet II 14 bytes
+IPv4        20 bytes
+UDP          8 bytes
+--------------------
+total        42 bytes
 ```
 
-At four bytes per cycle, the complete header requires eleven input beats. The payload begins two bytes into the final header beat, so the stage uses a fixed two-byte carry aligner.
+### 64-bit alignment
 
-This is a latency and simplicity trade-off: the fixed implementation avoids a general variable-offset parser, while unsupported VLAN tags and IPv4 options are rejected explicitly.
+Forty-two bytes do not align to a 64-bit boundary.
 
-### Outputs
-
-In addition to the UDP payload AXI stream, the stage provides:
+The first 40 bytes occupy five complete 64-bit beats. On zero-based input beat 5:
 
 ```text
-datagram length
-datagram-start pulse
-frame-drop pulse
-frame-error bit map
+bytes 40..41 -> final two UDP-header bytes
+bytes 42..47 -> first six MoldUDP64 bytes
 ```
 
-### Error conditions
+The stage captures those six payload bytes and carries them into the aligned output stream.
 
-The stage reports and drops:
+After this start-up alignment, it can forward up to one 64-bit payload beat per cycle.
 
-- bad `tkeep`;
+Supporting only the required fixed Ethernet/IPv4/UDP shape avoids inserting a general variable-offset barrel shifter into the latency-critical ingress path.
+
+### Metadata and errors
+
+The stage additionally produces:
+
+```text
+m_dgram_len_o
+m_dgram_start_o
+frame_drop_o
+frame_err_o
+```
+
+The datagram length is the UDP payload length.
+
+Drop/error conditions include:
+
+- malformed `tkeep`;
 - unsupported EtherType;
-- non-IPv4 version;
+- invalid IP version;
 - IHL other than 5;
+- fragmented IPv4;
 - non-UDP protocol;
-- fragmented IPv4 packets;
-- configured destination-port mismatch;
+- configured UDP destination-port mismatch;
 - invalid UDP length;
-- runt frames or early `tlast`.
-
-Dropped frames must not emit a partial UDP payload downstream.
+- runt/early-terminated frame.
 
 ---
 
-## Stage 2 — `mold_deframe`
+## 5. Stage 2 — `mold_deframe`
 
-`mold_deframe` parses:
+`mold_deframe` consumes one MoldUDP64 datagram per AXI packet.
 
-```text
-session[10] + sequence[8] + message_count[2]
-```
-
-For a normal data packet it then extracts:
+The header is:
 
 ```text
-message_length[2] + ITCH payload
+session[10 bytes]
+sequence_number[8 bytes]
+message_count[2 bytes]
 ```
 
-for each advertised message.
+For a normal data datagram, the body is:
 
-The stage emits:
+```text
+message_length[2 bytes]
+ITCH payload
+message_length[2 bytes]
+ITCH payload
+...
+```
 
-- concatenated ITCH payload bytes;
-- one 16-bit length token per ITCH message;
-- parsed session, sequence, count, and expected-next metadata;
-- message/count/length error status;
-- the sequence-guard status exposed by `ingress_top`.
+The stage removes the two-byte length prefixes and emits:
 
-The contract with `realign` is exact: one accepted length token must be followed by exactly that many payload bytes.
+```text
+packed ITCH payload AXI stream
++
+one 16-bit message-length token per ITCH message
+```
 
-Heartbeat, EOS, duplicate, gap, and stale semantics are kept in [`moldudp64_sequence_handling.md`](moldudp64_sequence_handling.md) rather than duplicated here.
+`m_payload_tlast_o` marks the end of the **MoldUDP64 datagram**, not the end of an individual ITCH message.
 
-### Malformed datagrams
+### Parallel 64-bit parser
 
-The stage detects cases including:
+The current implementation was redesigned for the native 64-bit ingress.
 
-- datagrams shorter than the 20-byte MoldUDP64 header;
-- a message length that extends beyond the UDP payload;
-- message count that cannot be satisfied by the datagram;
-- malformed final `tkeep`;
-- payload accompanying an EOS control header.
+Its main structure is:
 
-Malformed datagrams are dropped and must not emit a partial ITCH message.
+```text
+64-bit MoldUDP64 input
+        |
+        v
+20-byte header decode
+        |
+        v
+small raw-body FIFO
+        |
+        v
+parallel boundary parser
+        |
+        v
+registered descriptor
+        |
+        v
+payload compactor
+        |
+        v
+24-byte payload reservoir
+        |
+        v
+64-bit packed payload output
+```
+
+The parser can consume up to **8 raw body bytes per cycle**.
+
+A body beat may contain combinations such as:
+
+```text
+tail of message N
+length prefix for N+1
+head of message N+1
+```
+
+These cases are classified together in one parser cycle rather than being serialised byte-by-byte.
+
+Only one new message-length prefix needs to be discovered per cycle for legal ITCH traffic because even the shortest supported ITCH message plus its two-byte MoldUDP64 prefix is longer than one 64-bit beat.
+
+### Why the registered compaction pipeline exists
+
+The boundary parser does not directly perform a wide variable compaction and state update in one large combinational cone.
+
+Instead:
+
+```text
+boundary classification -> register -> byte compaction -> register/reservoir
+```
+
+This adds a small fixed latency but reduces the critical-path depth and preserves a one-input-beat-per-cycle initiation rate.
+
+
+### Length-token credit
+
+Message lengths are buffered separately from payload bytes.
+
+Payload bytes for a message are not released until the corresponding length token has been accepted downstream.
+
+This guarantees the contract expected by `data_realign` without allowing message payload to overtake its boundary information.
 
 ---
 
-## Stage 3 — `realign`
+## 6. `mold_seq_guard`
 
-MoldUDP64 messages are variable length and not aligned to the 32-bit stream. `realign` combines the payload byte stream with the corresponding message-length tokens and emits:
+Sequence checking is performed around the MoldUDP64 header metadata.
 
-```text
-one aligned AXI packet per ITCH message
-```
-
-It handles:
-
-- messages beginning at arbitrary byte offsets;
-- messages spanning several input beats;
-- multiple message boundaries within one datagram;
-- partial final output beats;
-- correct `tkeep` and `tlast` generation;
-- downstream backpressure;
-- zero length, underflow, overflow, and malformed-`tkeep` status.
-
-The aligned output preserves the decoder's file-fed contract: `data_handler` sees one complete ITCH message per AXI packet regardless of its original position in the MoldUDP64 datagram.
+The complete policy is documented in [`moldudp64_seq_handling.md`](moldudp64_seq_handling.md).
 
 ---
 
-## Integration with decoder and book
+## 7. Stage 3 — `data_realign`
 
-After realignment, the network path and file-fed path have the same decoder input contract:
+`data_realign` is both the message-boundary tracker and the active ITCH decoder.
+
+It receives:
 
 ```text
-ingress_top.m_itch_* -> data_handler -> symbol_router -> order_book
+s_payload_tdata_i[63:0]
+s_payload_tkeep_i[7:0]
+s_payload_tvalid_i
+s_payload_tlast_i
++
+s_msg_len_i[15:0]
+s_msg_len_valid_i
 ```
 
-The complete test flow is:
+and emits:
 
-1. generate `events.jsonl` and `states.jsonl` from a BinaryFILE source;
-2. encapsulate the same source messages into Ethernet frames;
-3. drive those frames into `ingress_top`;
-4. compare recovered ITCH messages where required;
-5. decode and apply accepted events;
-6. compare BBO output with the corresponding golden states.
+```text
+data_t rdata_o      // 217-bit normalised event
+valid_o
+ready_i
+```
 
-This common-source rule is important: network and file-fed tests must not accidentally use different event sequences.
+### Direct decode
+
+Fields are captured from fixed ITCH byte positions while the packed 64-bit stream passes through the module.
+
+Only fields needed by the hardware order-book contract are stored. Fields not required by the book, such as tracking number, timestamp, stock text, match number, printable flag, and MPID attribution, are consumed but are not copied into `data_t`.
+
+Supported book-mutating types are:
+
+```text
+A  Add Order
+F  Add Order with MPID
+E  Order Executed
+C  Order Executed with Price
+X  Order Cancel
+D  Order Delete
+U  Order Replace
+```
+
+### Message crossings inside a beat
+
+A packed payload beat can contain:
+
+```text
+message N tail | message N+1 head
+```
+
+The current message is completed first, then the buffered next-message length is used to start the next decode context from the remaining lanes of the same beat.
+
+This avoids per-message padding/realignment bubbles.
+
+A local message-length FIFO allows the next boundary to be known before the crossing beat arrives.
+
+### Output elasticity
+
+A one-entry event register absorbs downstream backpressure.
+
+If the previous event is accepted in a cycle, a newly completed event can replace it in that same cycle.
+
+This avoids an unconditional event-output bubble while keeping the output stable under valid/ready backpressure.
 
 ---
 
-## Verification coverage
+## 8. Event CDC and downstream boundary
 
-Directed ingress cases include:
+The active packaged Vivado IP `network_ingress` ends at the normalised event interface:
+
+```text
+ready_i
+rdata_o[216:0]
+valid_o
+```
+
+This connects directly to `event_async_fifo`.
+
+The FIFO crosses:
+
+```text
+network/Taxis RX domain
+        ->
+250 MHz order-book/data domain
+```
+
+Only complete semantic events cross this boundary.
+
+---
+
+## 9. Backpressure architecture
+
+The current ingress is designed so that downstream pressure does not create one long combinational path through the entire parser.
+
+Key decoupling points are:
+
+```text
+AXIS clock converter
+mold_deframe raw-body FIFO
+mold_deframe descriptor register
+mold_deframe compacted-payload register
+mold_deframe payload reservoir
+mold_deframe length FIFO
+data_realign length FIFO
+data_realign event register
+event_async_fifo
+```
+
+`mold_deframe` input readiness is based on registered local state rather than directly on downstream event readiness.
+
+`data_realign` similarly bases payload readiness on registered parser/output capacity and buffered message-length availability.
+
+This adds bounded local latency, but it is necessary to keep timing manageable at the 64-bit network frequency and to preserve sustained throughput.
+
+---
+
+## 10. Latency
+
+The native-64-bit ingress performance tests use a **156.25 MHz** modelled clock:
+
+```text
+period = 6.4 ns
+```
+
+Measured latency from the first Ethernet beat to the normalised event is:
+
+| ITCH type | Cycles | Approx. latency |
+|---|---:|---:|
+| `D` | 19 | 121.6 ns |
+| `X` | 19 | 121.6 ns |
+| `E` | 20 | 128.0 ns |
+| `U` | 21 | 134.4 ns |
+| `A` | 21 | 134.4 ns |
+| `C` | 21 | 134.4 ns |
+| `F` | 21 | 134.4 ns |
+
+The longer formats do not take extra cycles because of expensive arithmetic. Their required fields occur later in the ITCH payload, so more input bytes must arrive before the event can be declared complete.
+
+---
+
+## 11. Sustained throughput
+
+The current ingress was changed from a byte-serial implementation to the native 64-bit architecture specifically so that ingress throughput no longer limits a 10GbE frontend.
+
+The final native-64-bit simulation campaign reports:
+
+| Message | Measured AXI frame-path rate |
+|---|---:|
+| `D` | 9.911 Gbit/s |
+| `X` | 9.906 Gbit/s |
+| `E` | 9.866 Gbit/s |
+| `U` | 9.870 Gbit/s |
+| `A` | 9.902 Gbit/s |
+| `C` | 9.902 Gbit/s |
+| `F` | 9.911 Gbit/s |
+| Mixed | 9.830 Gbit/s |
+
+These figures are **simulation measurements on the AXI frame path**, not a measurement from an external cable/SFP+ link.
+
+The physical-wire pass/fail calculation includes Ethernet overhead that is not present as AXI frame bytes:
+
+```text
+preamble / SFD
+FCS
+inter-frame gap
+```
+
+Therefore the required AXI-side frame-byte rate for a saturated 10GbE wire is below 10.000 Gbit/s.
+
+All of the supported message campaigns pass that physical-wire-rate gate.
+
+A small number of zero-gap synthetic AXI stalls remain around the `frame_crack -> mold_deframe` boundary. They do not prevent the design from meeting the calculated 10GbE wire-rate requirement, but they remain useful stress-test instrumentation.
+
+---
+
+## 12. Verification coverage
+
+The current ingress verification includes both legacy/reference isolation tests and the active merged path.
+
+
+Directed coverage includes:
 
 | Campaign | Purpose |
 |---|---|
 | Valid minimal frame | Baseline Ethernet/IPv4/UDP stripping |
-| Ethernet padding | Stop at UDP length rather than forwarding padding |
-| Multiple ITCH messages per datagram | MoldUDP64 block splitting |
-| Message crosses AXI beats | Deframe and realignment correctness |
-| Partial final message beat | Correct `tkeep` and `tlast` |
-| Random downstream stalls | Lossless backpressure behaviour |
-| Invalid EtherType, IP version, IHL, protocol, fragment, or UDP length | Explicit frame-drop policies |
+| Ethernet padding | Respect UDP length rather than forwarding padding |
+| Multiple ITCH messages per MoldUDP64 packet | Deframe/message-boundary correctness |
+| Message crossing 64-bit beats | Packed-stream decode correctness |
+| Two messages sharing one payload beat | Tail/head boundary handling |
+| Partial final beat | `tkeep` correctness |
+| Random downstream stalls | Valid/ready stability and lossless backpressure |
+| Invalid Ethernet/IP/UDP fields | Explicit frame-drop policy |
 | MoldUDP64 length/count overrun | No partial malformed message emission |
-| Duplicate/gap/control packets | Sequence guard and no unintended book mutation |
+| Exact duplicate | Duplicate suppression |
+| Logical A/B copy | First-copy acceptance, second-copy suppression |
+| Forward gap | Gap range + sticky stale behaviour |
+| Late missing packet | Duplicate/late drop after gap |
+| Heartbeat | Status only; no order-book mutation |
+| EOS | Status only; no order-book mutation |
+| Lane rewire | Taxi byte ordering matches project convention |
+| Source mux | Only selected source participates in handshake |
+| Native line-rate campaigns | Throughput against physical 10GbE requirement |
 
-The full verification architecture is in [`golden_model.md`](golden_model.md).
+The complete verification architecture is documented in [`golden_model.md`](golden_model.md).
 
 ---
 
-## Current performance limitation
+## 13. Current hardware status and limitations
 
-`frame_crack` can forward approximately one 32-bit payload beat per cycle after the fixed header. The current bottleneck is later:
+The current ZCU106 Vivado design includes:
 
 ```text
-mold_deframe: stored beat -> one byte per cycle -> rebuilt payload beat
-realign:      stored beat -> one byte per cycle -> rebuilt aligned beat
+Taxi 10GbE SFP+ frontend
+64-bit Taxi RX datapath
+DMA replay source
+DMA -> Taxi-domain AXIS clock conversion
+combinational DMA/Taxi source boundary
+native 64-bit network_ingress_top
+217-bit asynchronous event FIFO
+250 MHz downstream order-book domain
 ```
 
-Both stages therefore achieve about four payload bytes per six cycles, limiting raw recovered ITCH throughput to approximately 0.569 Gbit/s at 106.667 MHz.
+The deterministic DMA path has already been used to compare hardware BBO behaviour against the Python golden model.
 
-The intended optimisation order is:
-
-1. make `mold_deframe` consume all four byte lanes each cycle;
-2. replace `realign` with a register/LUT reservoir that can accept and emit simultaneously;
-3. add skid buffers only where timing or elasticity measurements justify them;
-4. widen the interface only after the 32-bit path sustains one beat per cycle.
-
-This spends available LUT/register headroom while avoiding additional BRAM consumption.
+The Taxi frontend is integrated into the routed design, but final physical 10GbE receive validation is still pending external network-hardware bring-up as we are trying to get our hands on a 10GbE NIC.
