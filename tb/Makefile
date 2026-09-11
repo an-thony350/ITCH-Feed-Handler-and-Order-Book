@@ -266,7 +266,9 @@ test-golden:
 # Keep long-running performance campaigns out of the normal correctness suite.
 # The merged candidate is included alongside the legacy path until integration
 # is proven and the Vivado project is deliberately migrated.
-test-rtl: test-feed-handler-top
+test-rtl: test-mold-seq-guard test-data-realign test-data-handler \
+          test-order-book test-order-book-top \
+          test-ingress test-ingress-data-realign test-feed-handler-top
 
 test-mold-seq-guard:
 	$(MAKE) clean TOPLEVEL=mold_seq_guard MODULE=test_mold_seq_guard
