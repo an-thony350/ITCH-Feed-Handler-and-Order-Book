@@ -6,7 +6,7 @@ The project uses three distinct flows:
 
 1. **Python golden model** — parser, stimulus generation, reference order book, and JSONL oracle generation.
 2. **cocotb + Verilator** — host-side RTL verification and scoreboard integration.
-3. **Vivado 2023.2 / xsim** — directed SystemVerilog simulation, synthesis, implementation, timing closure, and PYNQ-Z1 bring-up.
+3. **Vivado 2023.2 / xsim** — directed SystemVerilog simulation, synthesis, implementation, timing closure, and ZCU106 bring-up.
 
 The golden-model and cocotb flows are intended to run from WSL/Linux. Vivado may run from Windows or Linux, depending on the local installation.
 
@@ -23,7 +23,7 @@ Recommended host environment:
 - Python 3.13 in a project-local virtual environment;
 - `uv` for Python installation and package management;
 - Verilator 5.036 for cocotb simulation;
-- Vivado 2023.2 for xsim and FPGA implementation.
+- Vivado 2023.2 for xsim and ZCU106 implementation.
 
 From a fresh shell, start from the repository root:
 
@@ -109,19 +109,19 @@ Python 3.13.x ...
 
 ## 5. Install Python dependencies
 
-Install the repository requirements and the formatting hook:
+Install the repository requirements:
 
 ```bash
 uv pip install pip setuptools wheel
-uv pip install -r requirements.txt
-uv pip install pre-commit
+uv pip install -r requirements-dev.txt
 ```
 
-The tested core versions include:
+The repository currently pins:
 
 ```text
 cocotb 2.0.1
-Verilator 5.036
+pytest 8.4.2
+pre-commit 4.6.0
 ```
 
 Verify the Python packages:
@@ -145,14 +145,13 @@ When the environment is inconsistent, delete `.venv` and recreate it instead of 
 
 ## 6. Verilator setup
 
-First check whether a suitable version is already installed:
+First check whether the project version is already installed:
 
 ```bash
 verilator --version
 ```
 
-The project uses Verilator 5.036. cocotb 2.0.1 requires Verilator 5.036 or
-later, and CI pins the minimum compatible release for repeatability.
+The project and CI use Verilator 5.036.
 
 ### Option A — package manager
 
@@ -164,7 +163,7 @@ sudo apt install -y verilator
 verilator --version
 ```
 
-Some Ubuntu/WSL package repositories provide an older version. Use the source build when the installed version is not compatible with the cocotb flow.
+Some Ubuntu/WSL package repositories provide an older version. Use the source build when the installed version does not match the tested project setup.
 
 ### Option B — build Verilator 5.036 from source
 
@@ -231,7 +230,7 @@ Vivado 2023.2 is the project toolchain for:
 - synthesis;
 - implementation;
 - static timing analysis;
-- PYNQ-Z1 bitstream generation and bring-up.
+- ZCU106 bitstream generation and bring-up.
 
 When Vivado is installed on Windows, launch it from the configured Xilinx environment or through the Vivado GUI.
 
@@ -245,7 +244,7 @@ xelab -version
 xsim -version
 ```
 
-The cocotb/Verilator flow is a host-side verification flow. It is not part of the FPGA implementation path.
+The cocotb/Verilator flow is a host-side verification flow. It is separate from the FPGA implementation and PYNQ board-regression flow.
 
 ---
 
