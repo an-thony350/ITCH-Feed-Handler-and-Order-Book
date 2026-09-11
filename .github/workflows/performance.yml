@@ -3,25 +3,23 @@ name: Performance
 on:
   pull_request:
     paths:
+      - "Makefile"
       - "rtl/**"
       - "tb/**"
       - "golden/**"
-      - "tools/**"
       - "scripts/**"
       - "requirements.txt"
-      - "requirements-dev.txt"
       - ".github/workflows/performance.yml"
   push:
     branches:
       - main
     paths:
+      - "Makefile"
       - "rtl/**"
       - "tb/**"
       - "golden/**"
-      - "tools/**"
       - "scripts/**"
       - "requirements.txt"
-      - "requirements-dev.txt"
       - ".github/workflows/performance.yml"
   schedule:
     - cron: "0 3 * * *"
@@ -49,8 +47,8 @@ env:
   VERILATOR_ARCHIVE: "verilator-5.036-linux-x64.tar.gz"
   # A make-install Verilator build embeds its configured prefix.
   VERILATOR_INSTALL_PREFIX: "/opt/verilator-5.036"
-  # Match the latest routed PYNQ-Z1 clock; comparisons remain cycle-based.
-  CLOCK_MHZ: "106.667"
+  # Current 64-bit Taxi-facing ingress clock on ZCU106.
+  INGRESS_CLOCK_MHZ: "156.25"
 
 jobs:
   select-mode:
@@ -154,7 +152,7 @@ jobs:
           retention-days: 7
 
   performance:
-    name: ${{ needs.select-mode.outputs.mode }} campaign
+    name: Ingress / ${{ needs.select-mode.outputs.mode }}
     needs:
       - select-mode
       - build-verilator
@@ -204,23 +202,24 @@ jobs:
           which ccache
           ccache --version
           printf 'performance mode: %s\n' "${PERF_MODE}"
-          printf 'modelled clock: %s MHz\n' "${CLOCK_MHZ}"
+          printf 'ingress clock: %s MHz\n' "${INGRESS_CLOCK_MHZ}"
 
-      - name: Run performance campaign
+      - name: Run current ingress performance campaign
         run: |
-          make -C tb \
-            "perf-${PERF_MODE}" \
-            CLOCK_MHZ="${CLOCK_MHZ}"
+          make "perf-${PERF_MODE}" \
+            INGRESS_CLOCK_MHZ="${INGRESS_CLOCK_MHZ}"
 
-      - name: Add performance summary
-        if: ${{ always() && hashFiles('build/perf/full_chain/summary.md') != '' }}
-        run: cat build/perf/full_chain/summary.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Add line-rate summary
+        if: ${{ always() && hashFiles('build/perf/data_realign_ingress_line_rate/summary.md') != '' }}
+        run: cat build/perf/data_realign_ingress_line_rate/summary.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload performance results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: performance-${{ needs.select-mode.outputs.mode }}-${{ github.sha }}
-          path: build/perf/full_chain/
-          if-no-files-found: warn
+          name: ingress-performance-${{ needs.select-mode.outputs.mode }}-${{ github.sha }}
+          path: |
+            build/perf/data_realign_ingress_latency.json
+            build/perf/data_realign_ingress_line_rate/
+          if-no-files-found: error
           retention-days: 14

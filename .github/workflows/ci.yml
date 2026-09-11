@@ -45,7 +45,7 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Run repository checks
-        run: pre-commit run --all-files --show-diff-on-failure
+        run: make quality
 
   golden-model:
     name: Golden model
@@ -68,10 +68,7 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Generate deterministic golden oracle
-        run: |
-          bash scripts/run_golden.sh \
-            --seed 7 \
-            --random-message-count 25
+        run: make test-golden
 
       - name: Validate generated oracle
         env:
@@ -179,12 +176,14 @@ jobs:
       fail-fast: false
       matrix:
         target:
+          - test-axis-source-mux
+          - test-lane-rewire
+          - test-source-boundary-equiv
           - test-mold-seq-guard
-          - test-data-handler
+          - test-data-realign
+          - test-ingress
           - test-order-book
           - test-order-book-top
-          - test-ingress
-          - test-feed-handler-top
 
     steps:
       - name: Check out repository
@@ -236,7 +235,7 @@ jobs:
           ccache --version
 
       - name: Run ${{ matrix.target }}
-        run: make -C tb ${{ matrix.target }}
+        run: make ${{ matrix.target }}
 
       - name: Upload failure diagnostics
         if: failure()
@@ -244,10 +243,10 @@ jobs:
         with:
           name: rtl-failure-${{ matrix.target }}-${{ github.sha }}
           path: |
-            tb/results.xml
-            tb/*.vcd
-            tb/*.fst
-            tb/sim_build/
+            results.xml
+            *.vcd
+            *.fst
+            build/sim/
           if-no-files-found: ignore
           retention-days: 7
 
