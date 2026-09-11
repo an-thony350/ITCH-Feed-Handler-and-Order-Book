@@ -1,0 +1,844 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2023.2 (win64) Build 4029153 Fri Oct 13 20:14:34 MDT 2023
+| Date              : Sat Sep 12 00:18:03 2026
+| Host              : dkeL running 64-bit major release  (build 9200)
+| Command           : report_timing -max_paths 10 -file ./design_evidence/critical_paths.rpt
+| Design            : v3_release_wrapper
+| Device            : xczu7ev-ffvc1156
+| Speed File        : -2  PRODUCTION 1.30 05-15-2022
+| Design State      : Routed
+| Temperature Grade : E
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.003ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3/ADDR_A[1]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.103ns  (logic 1.279ns (41.220%)  route 1.824ns (58.780%))
+  Logic Levels:           5  (LUT5=1 LUT6=4)
+  Clock Path Skew:        -0.319ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.023ns = ( 9.023 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.202ns (routing 1.085ns, distribution 1.117ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTADOUT[26])
+                                                      0.840     5.816 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTADOUT[26]
+                         net (fo=6, routed)           0.391     6.207    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[26]
+    SLICE_X69Y184        LUT5 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     6.258 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_116/O
+                         net (fo=1, routed)           0.191     6.449    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_116_n_0
+    SLICE_X70Y185        LUT6 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.123     6.572 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_109/O
+                         net (fo=1, routed)           0.100     6.672    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_109_n_0
+    SLICE_X70Y187        LUT6 (Prop_A6LUT_SLICEM_I5_O)
+                                                      0.125     6.797 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_95/O
+                         net (fo=3, routed)           0.150     6.947    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg_1
+    SLICE_X69Y186        LUT6 (Prop_B6LUT_SLICEL_I5_O)
+                                                      0.090     7.037 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_71/O
+                         net (fo=2, routed)           0.543     7.580    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_71_n_0
+    SLICE_X65Y185        LUT6 (Prop_D6LUT_SLICEL_I1_O)
+                                                      0.050     7.630 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_13/O
+                         net (fo=4, routed)           0.449     8.079    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[1]
+    URAM288_X0Y47        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3/ADDR_A[1]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.202     9.023    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y47        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3/CLK
+                         clock pessimism             -0.366     8.657
+                         clock uncertainty           -0.061     8.596
+    URAM288_X0Y47        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[1])
+                                                     -0.515     8.081    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3
+  -------------------------------------------------------------------
+                         required time                          8.081
+                         arrival time                          -8.079
+  -------------------------------------------------------------------
+                         slack                                  0.003
+
+Slack (MET) :             0.029ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[1]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.080ns  (logic 1.279ns (41.531%)  route 1.801ns (58.469%))
+  Logic Levels:           5  (LUT5=1 LUT6=4)
+  Clock Path Skew:        -0.315ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.027ns = ( 9.027 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.206ns (routing 1.085ns, distribution 1.121ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTADOUT[26])
+                                                      0.840     5.816 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTADOUT[26]
+                         net (fo=6, routed)           0.391     6.207    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[26]
+    SLICE_X69Y184        LUT5 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     6.258 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_116/O
+                         net (fo=1, routed)           0.191     6.449    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_116_n_0
+    SLICE_X70Y185        LUT6 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.123     6.572 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_109/O
+                         net (fo=1, routed)           0.100     6.672    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_109_n_0
+    SLICE_X70Y187        LUT6 (Prop_A6LUT_SLICEM_I5_O)
+                                                      0.125     6.797 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_95/O
+                         net (fo=3, routed)           0.150     6.947    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg_1
+    SLICE_X69Y186        LUT6 (Prop_B6LUT_SLICEL_I5_O)
+                                                      0.090     7.037 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_71/O
+                         net (fo=2, routed)           0.543     7.580    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_71_n_0
+    SLICE_X65Y185        LUT6 (Prop_D6LUT_SLICEL_I1_O)
+                                                      0.050     7.630 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_13/O
+                         net (fo=4, routed)           0.425     8.056    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[1]
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[1]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.206     9.027    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/CLK
+                         clock pessimism             -0.366     8.661
+                         clock uncertainty           -0.061     8.600
+    URAM288_X0Y45        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[1])
+                                                     -0.515     8.085    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2
+  -------------------------------------------------------------------
+                         required time                          8.085
+                         arrival time                          -8.056
+  -------------------------------------------------------------------
+                         slack                                  0.029
+
+Slack (MET) :             0.032ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_2/ADDR_A[0]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.085ns  (logic 1.396ns (45.249%)  route 1.689ns (54.751%))
+  Logic Levels:           5  (LUT4=1 LUT6=4)
+  Clock Path Skew:        -0.329ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.018ns = ( 9.018 - 4.000 )
+    Source Clock Delay      (SCD):    4.981ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.637ns (routing 1.192ns, distribution 1.445ns)
+  Clock Net Delay (Destination): 2.197ns (routing 1.085ns, distribution 1.112ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.637     4.981    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/clk
+    RAMB36_X2Y34         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y34         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTBDOUT[20])
+                                                      0.837     5.818 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg/DOUTBDOUT[20]
+                         net (fo=5, routed)           0.419     6.237    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[52]
+    SLICE_X67Y171        LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.123     6.360 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_119__0/O
+                         net (fo=1, routed)           0.131     6.491    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_119__0_n_0
+    SLICE_X68Y173        LUT6 (Prop_C6LUT_SLICEL_I5_O)
+                                                      0.050     6.541 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_89__0/O
+                         net (fo=8, routed)           0.105     6.646    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_89__0_n_0
+    SLICE_X68Y173        LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.090     6.736 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_72__0/O
+                         net (fo=6, routed)           0.116     6.853    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/p_4_out__0[1]
+    SLICE_X67Y174        LUT6 (Prop_E6LUT_SLICEM_I2_O)
+                                                      0.148     7.001 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_82__0/O
+                         net (fo=3, routed)           0.067     7.068    v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/current_best_ask_reg[0]
+    SLICE_X67Y174        LUT6 (Prop_F6LUT_SLICEM_I1_O)
+                                                      0.148     7.216 r  v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_i_14__0/O
+                         net (fo=4, routed)           0.850     8.066    v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/ADDR_A[0]
+    URAM288_X0Y50        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_2/ADDR_A[0]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.197     9.018    v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/clk
+    URAM288_X0Y50        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_2/CLK
+                         clock pessimism             -0.366     8.652
+                         clock uncertainty           -0.061     8.592
+    URAM288_X0Y50        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[0])
+                                                     -0.494     8.098    v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_2
+  -------------------------------------------------------------------
+                         required time                          8.098
+                         arrival time                          -8.066
+  -------------------------------------------------------------------
+                         slack                                  0.032
+
+Slack (MET) :             0.032ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[2]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.070ns  (logic 1.335ns (43.481%)  route 1.735ns (56.519%))
+  Logic Levels:           5  (LUT4=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.315ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.027ns = ( 9.027 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.206ns (routing 1.085ns, distribution 1.121ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTBDOUT[26])
+                                                      0.816     5.792 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTBDOUT[26]
+                         net (fo=4, routed)           0.372     6.164    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[58]
+    SLICE_X69Y184        LUT4 (Prop_G6LUT_SLICEL_I3_O)
+                                                      0.050     6.214 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80/O
+                         net (fo=3, routed)           0.159     6.373    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80_n_0
+    SLICE_X70Y184        LUT6 (Prop_A6LUT_SLICEM_I0_O)
+                                                      0.125     6.498 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75/O
+                         net (fo=11, routed)          0.177     6.675    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75_n_0
+    SLICE_X69Y185        LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.123     6.798 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_89/O
+                         net (fo=1, routed)           0.093     6.891    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_89_n_0
+    SLICE_X69Y186        LUT5 (Prop_D6LUT_SLICEL_I4_O)
+                                                      0.122     7.013 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_69__0/O
+                         net (fo=2, routed)           0.481     7.494    v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_10
+    SLICE_X65Y184        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.099     7.593 r  v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_i_12/O
+                         net (fo=4, routed)           0.453     8.046    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[2]
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[2]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.206     9.027    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/CLK
+                         clock pessimism             -0.366     8.661
+                         clock uncertainty           -0.061     8.600
+    URAM288_X0Y45        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[2])
+                                                     -0.522     8.078    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2
+  -------------------------------------------------------------------
+                         required time                          8.078
+                         arrival time                          -8.046
+  -------------------------------------------------------------------
+                         slack                                  0.032
+
+Slack (MET) :             0.068ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[0]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.062ns  (logic 1.412ns (46.111%)  route 1.650ns (53.889%))
+  Logic Levels:           5  (LUT3=1 LUT4=1 LUT5=1 LUT6=2)
+  Clock Path Skew:        -0.315ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.027ns = ( 9.027 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.206ns (routing 1.085ns, distribution 1.121ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTADOUT[1])
+                                                      0.832     5.808 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTADOUT[1]
+                         net (fo=1, routed)           0.208     6.016    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[1]
+    SLICE_X69Y181        LUT4 (Prop_B6LUT_SLICEL_I1_O)
+                                                      0.148     6.164 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_28/O
+                         net (fo=1, routed)           0.206     6.370    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_28_n_0
+    SLICE_X70Y183        LUT6 (Prop_C6LUT_SLICEM_I5_O)
+                                                      0.145     6.515 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_12/O
+                         net (fo=1, routed)           0.085     6.600    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_12_n_0
+    SLICE_X70Y182        LUT3 (Prop_A5LUT_SLICEM_I1_O)
+                                                      0.100     6.700 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_6/O
+                         net (fo=1, routed)           0.187     6.887    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_6_n_0
+    SLICE_X70Y182        LUT6 (Prop_G6LUT_SLICEM_I4_O)
+                                                      0.090     6.977 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_best_bid[0]_i_1/O
+                         net (fo=8, routed)           0.501     7.478    v3_release_i/order_book_top_0/inst/ob_stock0/update_read_tbl_block/next_best_bid[0]
+    SLICE_X65Y182        LUT5 (Prop_G6LUT_SLICEL_I0_O)
+                                                      0.097     7.575 r  v3_release_i/order_book_top_0/inst/ob_stock0/update_read_tbl_block/uram_reg_uram_0_i_14/O
+                         net (fo=4, routed)           0.463     8.038    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[0]
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[0]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.206     9.027    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/CLK
+                         clock pessimism             -0.366     8.661
+                         clock uncertainty           -0.061     8.600
+    URAM288_X0Y45        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[0])
+                                                     -0.494     8.106    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2
+  -------------------------------------------------------------------
+                         required time                          8.106
+                         arrival time                          -8.038
+  -------------------------------------------------------------------
+                         slack                                  0.068
+
+Slack (MET) :             0.077ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_0/ADDR_A[0]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.033ns  (logic 1.396ns (46.033%)  route 1.637ns (53.967%))
+  Logic Levels:           5  (LUT4=1 LUT6=4)
+  Clock Path Skew:        -0.336ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.011ns = ( 9.011 - 4.000 )
+    Source Clock Delay      (SCD):    4.981ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.637ns (routing 1.192ns, distribution 1.445ns)
+  Clock Net Delay (Destination): 2.190ns (routing 1.085ns, distribution 1.105ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.637     4.981    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/clk
+    RAMB36_X2Y34         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y34         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTBDOUT[20])
+                                                      0.837     5.818 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/bram_reg/DOUTBDOUT[20]
+                         net (fo=5, routed)           0.419     6.237    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/current_ask_chunk[52]
+    SLICE_X67Y171        LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.123     6.360 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_119__0/O
+                         net (fo=1, routed)           0.131     6.491    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_119__0_n_0
+    SLICE_X68Y173        LUT6 (Prop_C6LUT_SLICEL_I5_O)
+                                                      0.050     6.541 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_89__0/O
+                         net (fo=8, routed)           0.105     6.646    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_89__0_n_0
+    SLICE_X68Y173        LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.090     6.736 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_72__0/O
+                         net (fo=6, routed)           0.116     6.853    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/p_4_out__0[1]
+    SLICE_X67Y174        LUT6 (Prop_E6LUT_SLICEM_I2_O)
+                                                      0.148     7.001 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_ask_chunks/uram_reg_uram_0_i_82__0/O
+                         net (fo=3, routed)           0.067     7.068    v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/current_best_ask_reg[0]
+    SLICE_X67Y174        LUT6 (Prop_F6LUT_SLICEM_I1_O)
+                                                      0.148     7.216 r  v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_i_14__0/O
+                         net (fo=4, routed)           0.798     8.014    v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/ADDR_A[0]
+    URAM288_X0Y48        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_0/ADDR_A[0]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.190     9.011    v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/clk
+    URAM288_X0Y48        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_0/CLK
+                         clock pessimism             -0.366     8.645
+                         clock uncertainty           -0.061     8.584
+    URAM288_X0Y48        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[0])
+                                                     -0.494     8.090    v3_release_i/order_book_top_0/inst/ob_stock0/ask_price_book/uram_reg_uram_0
+  -------------------------------------------------------------------
+                         required time                          8.090
+                         arrival time                          -8.014
+  -------------------------------------------------------------------
+                         slack                                  0.077
+
+Slack (MET) :             0.078ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3/ADDR_A[2]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.020ns  (logic 1.335ns (44.201%)  route 1.685ns (55.799%))
+  Logic Levels:           5  (LUT4=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.319ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.023ns = ( 9.023 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.202ns (routing 1.085ns, distribution 1.117ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTBDOUT[26])
+                                                      0.816     5.792 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTBDOUT[26]
+                         net (fo=4, routed)           0.372     6.164    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[58]
+    SLICE_X69Y184        LUT4 (Prop_G6LUT_SLICEL_I3_O)
+                                                      0.050     6.214 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80/O
+                         net (fo=3, routed)           0.159     6.373    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80_n_0
+    SLICE_X70Y184        LUT6 (Prop_A6LUT_SLICEM_I0_O)
+                                                      0.125     6.498 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75/O
+                         net (fo=11, routed)          0.177     6.675    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75_n_0
+    SLICE_X69Y185        LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.123     6.798 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_89/O
+                         net (fo=1, routed)           0.093     6.891    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_89_n_0
+    SLICE_X69Y186        LUT5 (Prop_D6LUT_SLICEL_I4_O)
+                                                      0.122     7.013 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_69__0/O
+                         net (fo=2, routed)           0.481     7.494    v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_10
+    SLICE_X65Y184        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.099     7.593 r  v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_i_12/O
+                         net (fo=4, routed)           0.403     7.996    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[2]
+    URAM288_X0Y47        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3/ADDR_A[2]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.202     9.023    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y47        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3/CLK
+                         clock pessimism             -0.366     8.657
+                         clock uncertainty           -0.061     8.596
+    URAM288_X0Y47        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[2])
+                                                     -0.522     8.074    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_3
+  -------------------------------------------------------------------
+                         required time                          8.074
+                         arrival time                          -7.996
+  -------------------------------------------------------------------
+                         slack                                  0.078
+
+Slack (MET) :             0.084ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1/ADDR_A[1]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.065ns  (logic 1.279ns (41.734%)  route 1.786ns (58.266%))
+  Logic Levels:           5  (LUT5=1 LUT6=4)
+  Clock Path Skew:        -0.276ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.006ns = ( 9.006 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.306ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.185ns (routing 1.085ns, distribution 1.100ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTADOUT[26])
+                                                      0.840     5.816 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTADOUT[26]
+                         net (fo=6, routed)           0.391     6.207    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[26]
+    SLICE_X69Y184        LUT5 (Prop_B6LUT_SLICEL_I0_O)
+                                                      0.051     6.258 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_116/O
+                         net (fo=1, routed)           0.191     6.449    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_116_n_0
+    SLICE_X70Y185        LUT6 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.123     6.572 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_109/O
+                         net (fo=1, routed)           0.100     6.672    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_109_n_0
+    SLICE_X70Y187        LUT6 (Prop_A6LUT_SLICEM_I5_O)
+                                                      0.125     6.797 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_95/O
+                         net (fo=3, routed)           0.150     6.947    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg_1
+    SLICE_X69Y186        LUT6 (Prop_B6LUT_SLICEL_I5_O)
+                                                      0.090     7.037 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_71/O
+                         net (fo=2, routed)           0.543     7.580    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_71_n_0
+    SLICE_X65Y185        LUT6 (Prop_D6LUT_SLICEL_I1_O)
+                                                      0.050     7.630 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_13/O
+                         net (fo=4, routed)           0.410     8.041    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[1]
+    URAM288_X0Y51        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1/ADDR_A[1]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.185     9.006    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y51        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1/CLK
+                         clock pessimism             -0.306     8.700
+                         clock uncertainty           -0.061     8.639
+    URAM288_X0Y51        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[1])
+                                                     -0.515     8.124    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1
+  -------------------------------------------------------------------
+                         required time                          8.124
+                         arrival time                          -8.041
+  -------------------------------------------------------------------
+                         slack                                  0.084
+
+Slack (MET) :             0.084ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[3]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.059ns  (logic 1.215ns (39.722%)  route 1.844ns (60.278%))
+  Logic Levels:           5  (LUT4=1 LUT6=4)
+  Clock Path Skew:        -0.315ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.027ns = ( 9.027 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.366ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.206ns (routing 1.085ns, distribution 1.121ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTBDOUT[26])
+                                                      0.816     5.792 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTBDOUT[26]
+                         net (fo=4, routed)           0.372     6.164    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[58]
+    SLICE_X69Y184        LUT4 (Prop_G6LUT_SLICEL_I3_O)
+                                                      0.050     6.214 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80/O
+                         net (fo=3, routed)           0.159     6.373    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80_n_0
+    SLICE_X70Y184        LUT6 (Prop_A6LUT_SLICEM_I0_O)
+                                                      0.125     6.498 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75/O
+                         net (fo=11, routed)          0.133     6.631    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75_n_0
+    SLICE_X70Y186        LUT6 (Prop_E6LUT_SLICEM_I0_O)
+                                                      0.124     6.755 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_64/O
+                         net (fo=14, routed)          0.170     6.925    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/p_4_out[0]
+    SLICE_X69Y186        LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.050     6.975 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_66/O
+                         net (fo=2, routed)           0.234     7.209    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_66_n_0
+    SLICE_X68Y183        LUT6 (Prop_D6LUT_SLICEL_I2_O)
+                                                      0.050     7.259 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_11/O
+                         net (fo=4, routed)           0.776     8.035    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[3]
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/ADDR_A[3]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.206     9.027    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y45        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2/CLK
+                         clock pessimism             -0.366     8.661
+                         clock uncertainty           -0.061     8.600
+    URAM288_X0Y45        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[3])
+                                                     -0.481     8.119    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_2
+  -------------------------------------------------------------------
+                         required time                          8.119
+                         arrival time                          -8.035
+  -------------------------------------------------------------------
+                         slack                                  0.084
+
+Slack (MET) :             0.092ns  (required time - arrival time)
+  Source:                 v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+                            (rising edge-triggered cell RAMB36E2 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Destination:            v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1/ADDR_A[2]
+                            (rising edge-triggered cell URAM288 clocked by data_clk_v3_release_clk_wiz_0_0  {rise@0.000ns fall@2.000ns period=4.000ns})
+  Path Group:             data_clk_v3_release_clk_wiz_0_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            4.000ns  (data_clk_v3_release_clk_wiz_0_0 rise@4.000ns - data_clk_v3_release_clk_wiz_0_0 rise@0.000ns)
+  Data Path Delay:        3.049ns  (logic 1.335ns (43.780%)  route 1.714ns (56.220%))
+  Logic Levels:           5  (LUT4=1 LUT5=1 LUT6=3)
+  Clock Path Skew:        -0.276ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.006ns = ( 9.006 - 4.000 )
+    Source Clock Delay      (SCD):    4.976ns
+    Clock Pessimism Removal (CPR):    -0.306ns
+  Clock Uncertainty:      0.061ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.098ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      2.632ns (routing 1.192ns, distribution 1.440ns)
+  Clock Net Delay (Destination): 2.185ns (routing 1.085ns, distribution 1.100ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      0.000     0.000 r
+    PS8_X0Y0             PS8                          0.000     0.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.180     0.180    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.028     0.208 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.990     2.198    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.071 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.316    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.344 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.632     4.976    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/clk
+    RAMB36_X2Y36         RAMB36E2                                     r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB36_X2Y36         RAMB36E2 (Prop_RAMB36E2_RAMB36_CLKARDCLK_DOUTBDOUT[26])
+                                                      0.816     5.792 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/bram_reg/DOUTBDOUT[26]
+                         net (fo=4, routed)           0.372     6.164    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/current_bid_chunk[58]
+    SLICE_X69Y184        LUT4 (Prop_G6LUT_SLICEL_I3_O)
+                                                      0.050     6.214 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80/O
+                         net (fo=3, routed)           0.159     6.373    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_80_n_0
+    SLICE_X70Y184        LUT6 (Prop_A6LUT_SLICEM_I0_O)
+                                                      0.125     6.498 r  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75/O
+                         net (fo=11, routed)          0.177     6.675    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_75_n_0
+    SLICE_X69Y185        LUT6 (Prop_G6LUT_SLICEL_I4_O)
+                                                      0.123     6.798 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_89/O
+                         net (fo=1, routed)           0.093     6.891    v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_89_n_0
+    SLICE_X69Y186        LUT5 (Prop_D6LUT_SLICEL_I4_O)
+                                                      0.122     7.013 f  v3_release_i/order_book_top_0/inst/ob_stock0/shadow_bid_chunks/uram_reg_uram_0_i_69__0/O
+                         net (fo=2, routed)           0.481     7.494    v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_10
+    SLICE_X65Y184        LUT6 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.099     7.593 r  v3_release_i/order_book_top_0/inst/ob_stock0/evaluate_bbo_block/uram_reg_uram_0_i_12/O
+                         net (fo=4, routed)           0.432     8.025    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/ADDR_A[2]
+    URAM288_X0Y51        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1/ADDR_A[2]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock data_clk_v3_release_clk_wiz_0_0 rise edge)
+                                                      4.000     4.000 r
+    PS8_X0Y0             PS8                          0.000     4.000 r  v3_release_i/zynq_ultra_ps_e_0/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.143     4.143    v3_release_i/zynq_ultra_ps_e_0/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y72        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.025     4.168 r  v3_release_i/zynq_ultra_ps_e_0/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+                         net (fo=1, routed)           1.783     5.951    v3_release_i/clk_wiz_0/inst/clk_in1
+    MMCM_X1Y0            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.581 r  v3_release_i/clk_wiz_0/inst/mmcme4_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.216     6.797    v3_release_i/clk_wiz_0/inst/data_clk_v3_release_clk_wiz_0_0
+    BUFGCE_X1Y5          BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.821 r  v3_release_i/clk_wiz_0/inst/clkout1_buf/O
+    X1Y3 (CLOCK_ROOT)    net (fo=46073, routed)       2.185     9.006    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/clk
+    URAM288_X0Y51        URAM288                                      r  v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1/CLK
+                         clock pessimism             -0.306     8.700
+                         clock uncertainty           -0.061     8.639
+    URAM288_X0Y51        URAM288 (Setup_URAM_288K_INST_URAM288_CLK_ADDR_A[2])
+                                                     -0.522     8.117    v3_release_i/order_book_top_0/inst/ob_stock0/bid_price_book/uram_reg_uram_1
+  -------------------------------------------------------------------
+                         required time                          8.117
+                         arrival time                          -8.025
+  -------------------------------------------------------------------
+                         slack                                  0.092
