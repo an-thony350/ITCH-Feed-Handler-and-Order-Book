@@ -232,4 +232,33 @@ At 156.25 MHz, or 6.4ns, measured ingress/decode latency from the first Ethernet
 
 The difference is caused by where the fields required for each message occur in the ITCH payload. Price-bearing/longer formats require later bytes before the normalised event is complete.
 
+### Downstream latency
+
+Once a normalised event has been produced, the remaining path is:
+
+```text
+data_realign
+    -> event_async_fifo
+    -> symbol_router
+    -> order_book
+    -> per-stock BBO FIFO / round-robin output
+```
+
+The order-book side runs at **250 MHz**, or **4 ns per cycle**.
+
+| Stage | Latency contribution |
+|---|---:|
+| `event_async_fifo` | **30.4 ns** for an empty FIFO using the configured XPM FWFT CDC path |
+| `symbol_router` | **1 cycle / 4 ns** |
+| `order_book` | add in |
+| BBO FIFO + round-robin output | **2-4 cycles / 8-16 ns** |
+
+The FIFO uses `CDC_SYNC_STAGES=2`, `READ_MODE="fwft"` and `FIFO_READ_LATENCY=0`. For an asynchronous XPM FIFO in FWFT mode, read-side visibility after a write is `1 wr_clk + (N+4) rd_clk`. With the 156.25 MHz write clock, 250 MHz read clock and `N=2`:
+
+```text
+1 x 6.4 ns + 6 x 4 ns = 30.4 ns
+```
+
+The final BBO output latency is variable by up to two cycles because each order book first writes into its own output FIFO and the round-robin scheduler services one of the three stock FIFOs each cycle.
+
 ---
