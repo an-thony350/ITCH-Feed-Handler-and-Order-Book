@@ -12,7 +12,10 @@ set_property ip_repo_paths {./ip_repo} [current_project]
 update_ip_catalog
 
 puts "Adding taxi library sources..."
-add_files -norecurse [glob -nocomplain ./lib/taxi/src/*/rtl/*.sv]
+add_files -norecurse [glob -nocomplain ./lib/taxi/src/eth/rtl/*.sv]
+add_files -norecurse [glob -nocomplain ./lib/taxi/src/axis/rtl/*.sv]
+add_files -norecurse [glob -nocomplain ./lib/taxi/src/sync/rtl/*.sv]
+add_files -norecurse [glob -nocomplain ./lib/taxi/src/apb/rtl/*.sv]
 
 puts "Adding project RTL sources..."
 add_files -norecurse [glob -nocomplain ./rtl/*.v] [glob -nocomplain ./rtl/*.sv]
