@@ -610,7 +610,7 @@ Port;FD4A0000;FD4AFFFF;1|FPD;DPDMA;FD4C0000;FD4CFFFF;1|FPD;DDR_XMPU5_CFG;FD05000
 
 
   # Create instance: order_book_top_0, and set properties
-  set order_book_top_0 [ create_bd_cell -type ip -vlnv xilinx.com:user:order_book_top:3.0 order_book_top_0 ]
+  set order_book_top_0 [ create_bd_cell -type ip -vlnv xilinx.com:user:order_book_top:4.0 order_book_top_0 ]
 
   # Create instance: xlslice_stock_id, and set properties
   set xlslice_stock_id [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_stock_id ]
