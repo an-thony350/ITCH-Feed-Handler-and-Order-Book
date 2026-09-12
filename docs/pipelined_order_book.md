@@ -1,8 +1,10 @@
 # Pipelined Order Book
 
-> Note that information for the top module, and symbol router also part of the entire order book system can be found in the [v2 varient](/docs/order_book.md) of the order book. The information about the v2 rder book may also provide good context for the changes made here. However, this document should provide a comprehensive description of what occurs in this block
+> Note that information for the top module, and symbol router also part of the entire order book system can be found in the [v2 varient](/docs/order_book.md) of the order book. The information about the v2 order book may also provide good context for the changes made here. However, this document should provide a comprehensive description of what occurs in this block
 
-The Pipelined Order Book is an updated version of the v2 order book. It is now a 10-stage pipeline which takes in data from the data handler, updates the order book and bid/ask price books, and outputs the BBO outputs.
+> Note that this has now been updated for the v4 release of the order book, see the relevant branches to look at previous versions of this block
+
+The Pipelined Order Book is an updated version of the v2 and v3 order books. It is now a 16-stage pipeline which takes in data from an async FIFO which bridges the 156.25 MHz netowrking domain,and the 250 MHz order book domain. The order book then updates the order book and bid/ask price books, and outputs the BBO outputs.
 
 ---
 
@@ -12,26 +14,31 @@ The design of this module can be explained through this diagram below:
 
 ```mermaid
 flowchart LR
-    %% Data Stores
-    subgraph Data_Stores ["Multi-pumped Memory Blocks holding order and price books"]
+    %% Data Stores column
+    subgraph Data_Stores ["Memory Blocks holding order and price books"]
+        direction TB
         K[(order_table)]
         L[(price_book)]
     end
 
-    %% Pipeline States
+    %% Pipeline column (vertical flow keeps it compact)
     subgraph Pipeline ["Order Book Pipeline"]
-        A([ob_idle]) --> B[ob_idx_req]
+        direction TB
+        M([replace_check]) --> A[ob_idle]
+        A --> B[ob_idx_req]
         B --> C[ob_idx_search]
         C --> D[ob_update_read_tbl]
         D --> E[issue_book_read]
-        E --> F[update_read_book]
+        E --> N[(URAM delay blocks)]
+        N --> F[update_read_book]
         F --> G[update_write]
         G --> H[bbo_evaluate]
         H --> I[bbo_resolve]
-        I --> J([bbo_out])
+        I --> O[(URAM bbo delay blocks)]
+        O --> J([bbo_out])
     end
 
-    %% Table Interactions
+    %% Table Interactions (cross horizontally between columns)
     A -.-> K
     B -.-> K
     K -.-> C
@@ -45,6 +52,10 @@ flowchart LR
 ## Logic
 
 Each block has a specific function which is similar to that of the v2 order book states. They will be referred to here, but a full description of the block will be given otherwise.
+
+### ob_replace_check
+
+This block is new (and unlike any other block we had originally) which has a similar impact to the `REPLACE_ADD` state. Essentially this block detects whether there has been a replace instruction given. If so, we will de-assert our ready_o signal, and pass a delete instruction followed by an add instruction with signals indicating that these instructions came from a given replace instruction. Given the complexities of a replace instruction, this was deemed an optimal solution
 
 ### ob_idle
 
@@ -76,11 +87,11 @@ This block acts similarly to the `UPDATE_READ_BOOK` state. In this state, we det
 
 ### ob_update_write
 
-This block is an accumulation of both the `UPDATE_WRITE` and `REPLACE_ADD` states. This block has to determine and do much of our complex logic that has been built up from other blocks, as well as preparation for BBO outputs. This includes:
+This block acts as the `UPDATE_WRITE` state. This block has to determine and do much of our complex logic that has been built up from other blocks, as well as preparation for BBO outputs. This includes:
 
 - Level depletion (i.e. if we are completely removing an entry via a reduce instruction)
 - Same level replacement (i.e. if we are replacing an instruction but using the same hashing index in the updated instruction)
-- Writing of data into all books (order and price books) and/or CAM **including for both ports if using a replace instruction**
+- Writing of data into all books (order and price books) and/or CAM
 
 ### ob_evaluate_bbo
 
@@ -94,12 +105,16 @@ This block is similar to `BBO_SEARCH_EVAL` where we concatenate the most signifi
 
 This block is a combination of the `FETCH_BBO`, `FETCH_BBO_WAIT` and `EMIT` states. Given the read of the relevant price entry occurs in the previous cycle, we form out `bbo_t` strcut with the relevant bid/ask price and shares values (determining price by adding the latched base price to the delta value to obtain the original price).
 
-## Memory Management with Multi-pumped BRAM
+### URAM Delay Blocks
 
-In this system, given we are using True Dual-Port RAM (TDP) to hold our books. We are able to read and write from a book in the same clock cycle (which is useful for pipelining and holding all these books as such). This allows us to have 2 requests per clock cycle on a book
+These blocks are used as pipelined stages due to the price books being synthesised as URAM in our new system. These extra states are also helpful for some read conditions with the order table explained in the next chapter, but thet are mostly used for the URAM delays required at high frequencies.
 
-However, there comes an issue with the price books where we require 3 accesses per clock cycle. This comes from blocks `ob_issue_book_read` (read), `ob_update_write` (write), and `ob_bbo_resolve` (read). This is one too many interaction which would mean that we cannot synthesise the price books as BRAM (would otherwise be synthesised as FFs which is a major concern as we do not have the utilisation for this).
+## Memory Management of order and price books
 
-This issue has been fixed through the `multi_pumped_bram` block. This bloccks runs at 2x the frequency of the order book module (i.e. at 200 MHz). This allows the block to have 4 interactions per order book clock cycle. However, we also require duplicate memory (seen via the "shadow blocks" in the `order_book_v3` module) to handle this faster interaction.
+The L3-in order book (unfortunately named `order_table`) has been synthesised using BRAM acting as simple dual port (SDP) RAM. The order table is also a 3-way associative RAM block, meaning it stores 3 order entries (and relevant data) per address. Given a depth of 2^10 (1024), this gives a total space for entries being equal to 3072 per stock (this may seem low initially, but it must be noted that deleted entries/ replaced entries can also be removed, hence a larger space is not required).
 
-We see this as a temporary stopgap for now, however our next version plans to remove this issue, as it is causing both excessive BRAM usage, but is also stopping us from inceasing our clock frequency in this domain given the critical path stems from this `bram_clk`.
+Given each entry stores 131 bits as defined by the struct below, the entire order table holds **402,432 bits**. This means that each order table synthesises into 12 BRAM blocks.
+
+The bid and ask price books have been synthesised using URAM also acting as SDP RAM. These books have a depth of 2^14 (16,384) due to their price windoow and each entry stores 32 bits of data. This means each price book holds **524,288 bits**. This means that each price book synthesises into 4 URAM blocks (due to using SDP RAM, single-port would give 2 URAM blocks per book).
+
+> Note that the choice for price books being in URAM stems from the posibility of extending our price window depth, also given that BRAM was our limiting factor, we decided that URAM price books may be more optimal
