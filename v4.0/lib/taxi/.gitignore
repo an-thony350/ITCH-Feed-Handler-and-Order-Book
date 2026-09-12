@@ -1,0 +1,9 @@
+*~
+*.bak
+*.lxt
+*.fst
+*.pyc
+*.vvp
+
+sim_build
+results.xml

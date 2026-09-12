@@ -1,0 +1,270 @@
+# Configuration for LMK04832 PLL on HTG-ZRF8-R2
+
+# PLL1
+# CLKin0 = 12.2880 MHz TCXO
+# CLKin1 = 10 MHz
+# CLKin0 R = 768
+# CLKin1 R = 625
+# PFD = in0 / R0 = in1 / R1 = 16 kHz
+# N1 = 7680
+# VCO = PFD * N1 = 122.88 MHz
+# Ext VCO is 122.88 MHz
+
+# PLL2
+# 122.88 MHz from ext VCO
+# VCO0 range 2440 - 2580 MHz
+# VCO1 range 2945 - 3255 MHz
+# R2 = 1536
+# P = 2
+# N2 = 15625
+# PFD = 122.88 / R2 = 0.08
+# VCO = PFD * P * N2 = 2500
+# VCO/10 = 250 MHz
+# VCO/250 = 10 MHz
+# VCO/1280 = 1.953125 MHz
+
+# CLKout0: LMK_CLK_OUT SMPM
+# CLKout1: RF_CLKOUT to Si5341
+# CLKout2: CLK_IN_PLL3 (refclk)
+# CLKout3: DAC 228 SYSREF (sysref)
+# CLKout4: CLK_IN_PLL2 (refclk)
+# CLKout5: SYSREF_FPGA (sysref)
+# CLKout6: CLK_IN_PLL1 (refclk)
+# CLKout7: NC
+# CLKout8: REFCLK_FPGA (refclk)
+# CLKout9: NC
+# CLKout10: NC
+# CLKout11: SYNC_IN_PLL1/SYNC_IN_PLL2 (sysref)
+# CLKout12: NC
+# CLKout13: SYNC_IN_PLL3 (sysref)
+
+Address,Data
+
+# Reset
+0x000,0x80
+
+# Configure outputs
+
+# DCLK0_1_DIV: 10 (2500/10 = 250)
+0x100,0x0a
+# DCLK0_1_DDLY: 10
+0x101,0x0a
+# CLKout0_1_PD
+0x102,0x00
+# CLKout0_SRC_MUX: 0 (device clock)
+0x103,0x40
+# CLKout1_SRC_MUX: 0 (device clock)
+0x104,0x00
+# SCLK0_1_ADLY: 0
+0x105,0x00
+# SCLK0_1_DDLY: 0
+0x106,0x00
+# CLKout0_FMT: 5 (LVPECL 2000 mV)
+# CLKout1_FMT: 1 (LVDS)
+0x107,0x15
+# DCLK2_3_DIV: 10 (2500/10 = 250)
+0x108,0x0a
+# DCLK2_3_DDLY: 10
+0x109,0x0a
+# CLKout2_3_PD
+0x10a,0x00
+# CLKout2_SRC_MUX: 0 (device clock)
+0x10b,0x40
+# CLKout3_SRC_MUX: 1 (sysref)
+0x10c,0x20
+# SCLK2_3_ADLY: 0
+0x10d,0x00
+# SCLK2_3_DDLY: 0
+0x10e,0x00
+# CLKout2_FMT: 1 (LVDS)
+# CLKout3_FMT: 1 (LVDS)
+0x10f,0x11
+# DCLK4_5_DIV: 10 (2500/10 = 250)
+0x110,0x0a
+# DCLK4_5_DDLY: 10
+0x111,0x0a
+# CLKout4_5_PD
+0x112,0x00
+# CLKout4_SRC_MUX: 0 (device clock)
+0x113,0x40
+# CLKout5_SRC_MUX: 1 (sysref)
+0x114,0x20
+# SCLK4_5_ADLY: 0
+0x115,0x00
+# SCLK4_5_DDLY: 0
+0x116,0x00
+# CLKout4_FMT: 1 (LVDS)
+# CLKout5_FMT: 1 (LVDS)
+0x117,0x11
+# DCLK6_7_DIV: 10 (2500/10 = 250)
+0x118,0x0a
+# DCLK6_7_DDLY: 10
+0x119,0x0a
+# CLKout6_7_PD
+0x11a,0x00
+# CLKout6_SRC_MUX: 0 (device clock)
+0x11b,0x40
+# CLKout7_SRC_MUX: 1 (sysref)
+0x11c,0x20
+# SCLK6_7_ADLY: 0
+0x11d,0x00
+# SCLK6_7_DDLY: 0
+0x11e,0x00
+# CLKout6_FMT: 1 (LVDS)
+# CLKout7_FMT: 0 (PD)
+0x11f,0x01
+# DCLK8_9_DIV: 10 (2500/10 = 250)
+0x120,0x0a
+# DCLK8_9_DDLY: 10
+0x121,0x0a
+# CLKout8_9_PD
+0x122,0x00
+# CLKout8_SRC_MUX: 0 (device clock)
+0x123,0x40
+# CLKout9_SRC_MUX: 1 (sysref)
+0x124,0x20
+# SCLK8_9_ADLY: 0
+0x125,0x00
+# SCLK8_9_DDLY: 0
+0x126,0x00
+# CLKout8_FMT: 1 (LVDS)
+# CLKout9_FMT: 0 (PD)
+0x127,0x01
+# DCLK10_11_DIV: 10 (2500/10 = 250)
+0x128,0x0a
+# DCLK10_11_DDLY: 10
+0x129,0x0a
+# CLKout10_11_PD
+0x12a,0x00
+# CLKout10_SRC_MUX: 0 (device clock)
+0x12b,0x40
+# CLKout11_SRC_MUX: 1 (sysref)
+0x12c,0x20
+# SCLK10_11_ADLY: 0
+0x12d,0x00
+# SCLK10_11_DDLY: 0
+0x12e,0x00
+# CLKout10_FMT: 0 (PD)
+# CLKout11_FMT: 15 (CMOS norm/norm)
+0x12f,0xf0
+# DCLK12_13_DIV: 10 (2500/10 = 250)
+0x130,0x0a
+# DCLK12_13_DDLY: 10
+0x131,0x0a
+# CLKout12_13_PD
+0x132,0x00
+# CLKout12_SRC_MUX: 1 (sysref)
+0x133,0x60
+# CLKout13_SRC_MUX: 1 (sysref)
+0x134,0x20
+# SCLK12_13_ADLY: 0
+0x135,0x00
+# SCLK12_13_DDLY: 0
+0x136,0x00
+# CLKout12_FMT: 0 (PD)
+# CLKout13_FMT: 12 (CMOS norm/norm)
+0x137,0xc0
+
+# configure PLL1
+
+# VCO_MUX: VCO0
+# OSCout_FMT: power down
+0x138,0x00
+# PLL2_RCLK_MUX: 0 (OSCin)
+# PLL2_NCLK_MUX: 0 (prescaler)
+# PLL1_NCLK_MUX: 0 (OSCin)
+# FB_MUX: 0
+# FB_MUX_EN: 0
+0x13f,0x00
+# release power down
+0x140,0x00
+# 0x141,0x00
+# 0x142,0x00
+# 0x143,0x00
+# 0x144,0x00
+# 0x145,0x00
+# enable CLKin0 and CLKin1 with bipolar buffers
+0x146,0x18
+# route CLKin0 and CLKin1 to PLL1, enable auto revert
+0x147,0x8a
+# CLKin_SEL0: input
+0x148,0x00
+# CLKin_SEL1: input
+0x149,0x00
+# reset mux/type: input
+0x14a,0x00
+# auto DAC
+0x14b,0x10
+# MAN_DAC
+0x14c,0x00
+# DAC trip low: 0
+0x14d,0x00
+# DAC trip high: 63
+# DAC_CLK_MULT: 3 (16384)
+0x14e,0xff
+# DAC_CLK_CNTR
+0x14f,0x7f
+# no holdover
+0x150,0x00
+# holdover DLD count
+#0x151,0x00
+#0x152,0x00
+# CLKin0 R = 768 (0x300)
+0x153,0x03
+0x154,0x00
+# CLKin1 R = 625 (0x271)
+0x155,0x02
+0x156,0x71
+# CLKin2 R
+#0x157,0x00
+#0x158,0x00
+# PLL1 N = 7680 (0x1e00)
+0x159,0x1e
+0x15a,0x00
+# PLL1_WND_SIZE: 3
+# PLL1_CP_TRI: 0
+# PLL1_CP_POL: 1
+# PLL1_CP_GAIN: 4
+0x15b,0xd4
+# PLL1_DLD_CNT: 32, 0
+0x15c,0x20
+0x15d,0x00
+# HOLDOVER_EXIT_NADJ: 30
+0x15e,0x1e
+# PLL1 LD pin: SPI readback
+0x15f,0x3b
+
+# configure PLL2
+
+# release PLL2 PD
+0x173,0x10
+
+# PLL2 R: 1536 (0x600)
+0x160,0x06
+0x161,0x00
+# PLL2 P: 2 (2)
+# OSCin_FREQ: 1 (63-127)
+# 2X: off
+0x162,0x44
+# PLL2_N_CAL: 15625 (0x3d09)
+0x163,0x00
+0x164,0x3d
+0x165,0x09
+# PLL2_N_CAL: 15625 (0x3d09)
+0x166,0x00
+0x167,0x3d
+0x168,0x09
+# PLL2_WND_SIZE: 2 (1.8 ns)
+# PLL2_CP_GAIN: 3
+# PLL2_CP_POL: 0
+# PLL2_CP_TRI: 0
+# PLL2_DLD_EN: 1
+0x169,0x59
+# PLL2_DLD_CNT: 32, 0
+0x16a,0x20
+0x16b,0x00
+# PLL2 LD pin: PLL1+PLL2 DLD
+0x16e,0x1b
+
+# release PLL1 R reset
+0x177,0x00

@@ -1,0 +1,313 @@
+/* SPDX-License-Identifier: GPL */
+/*
+
+Copyright (c) 2025-2026 FPGA Ninja, LLC
+
+Authors:
+- Alex Forencich
+
+*/
+
+#ifndef CNDM_H
+#define CNDM_H
+
+#include <linux/kernel.h>
+#include <linux/pci.h>
+#include <linux/miscdevice.h>
+#include <linux/net_tstamp.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+#include <linux/ptp_clock_kernel.h>
+#include <net/devlink.h>
+
+#include "cndm_hw.h"
+
+#define DRIVER_VERSION "0.1"
+
+#define CNDM_MAX_IRQ 256
+
+struct cndm_irq {
+	int index;
+	int irqn;
+	char name[16+3];
+	struct atomic_notifier_head nh;
+};
+
+struct cndm_dev {
+	struct pci_dev *pdev;
+	struct device *dev;
+
+	unsigned int id;
+	char name[16];
+
+	struct miscdevice misc_dev;
+
+	int irq_count;
+	struct cndm_irq *irq;
+
+	struct net_device *ndev[32];
+
+	resource_size_t hw_regs_size;
+	phys_addr_t hw_regs_phys;
+	void __iomem *hw_addr;
+
+	struct mutex mbox_lock;
+
+	u32 port_count;
+
+	struct ptp_clock *ptp_clock;
+	struct ptp_clock_info ptp_clock_info;
+	u64 ptp_nom_period;
+
+	// config
+	u16 cfg_page_max;
+	u32 cmd_ver;
+
+	// FW ID
+	u32 fpga_id;
+	u32 fw_id;
+	u32 fw_ver;
+	u32 board_id;
+	u32 board_ver;
+	u32 build_date;
+	u32 git_hash;
+	u32 release_info;
+	char build_date_str[32];
+
+	// HW config
+	u16 sys_clk_per_ns_num;
+	u16 sys_clk_per_ns_den;
+	u16 ptp_clk_per_ns_num;
+	u16 ptp_clk_per_ns_den;
+
+	// Resources
+	u8 log_max_eq;
+	u8 log_max_eq_sz;
+	u8 eq_pool;
+	u8 eqe_ver;
+	u8 log_max_cq;
+	u8 log_max_cq_sz;
+	u8 cq_pool;
+	u8 cqe_ver;
+	u8 log_max_sq;
+	u8 log_max_sq_sz;
+	u8 sq_pool;
+	u8 sqe_ver;
+	u8 log_max_rq;
+	u8 log_max_rq_sz;
+	u8 rq_pool;
+	u8 rqe_ver;
+
+	// HW IDs
+	char sn_str[32];
+	char base_mac[ETH_ALEN];
+	int mac_cnt;
+};
+
+struct cndm_tx_info {
+	struct sk_buff *skb;
+	dma_addr_t dma_addr;
+	u32 len;
+	int ts_requested;
+};
+
+struct cndm_rx_info {
+	struct page *page;
+	dma_addr_t dma_addr;
+	u32 len;
+};
+
+struct cndm_ring {
+	// written on enqueue
+	u32 prod_ptr;
+	u64 bytes;
+	u64 packet;
+	u64 dropped_packets;
+	struct netdev_queue *tx_queue;
+
+	// written from completion
+	u32 cons_ptr ____cacheline_aligned_in_smp;
+	u64 ts_s;
+	u8 ts_valid;
+
+	// mostly constant
+	u32 size;
+	u32 full_size;
+	u32 size_mask;
+	u32 stride;
+
+	u32 mtu;
+
+	size_t buf_size;
+	u8 *buf;
+	dma_addr_t buf_dma_addr;
+
+	union {
+		struct cndm_tx_info *tx_info;
+		struct cndm_rx_info *rx_info;
+	};
+
+	struct device *dev;
+	struct cndm_dev *cdev;
+	struct cndm_priv *priv;
+	int index;
+	int enabled;
+
+	struct cndm_cq *cq;
+
+	u32 db_offset;
+	u8 __iomem *db_addr;
+} ____cacheline_aligned_in_smp;
+
+struct cndm_cq {
+	u32 cons_ptr;
+
+	u32 size;
+	u32 size_mask;
+	u32 stride;
+
+	size_t buf_size;
+	u8 *buf;
+	dma_addr_t buf_dma_addr;
+
+	struct device *dev;
+	struct cndm_dev *cdev;
+	struct cndm_priv *priv;
+	struct napi_struct napi;
+	int cqn;
+	int enabled;
+
+	struct cndm_ring *src_ring;
+	struct cndm_eq *eq;
+	struct cndm_irq *irq;
+	struct notifier_block irq_nb;
+
+	void (*handler)(struct cndm_cq *cq);
+
+	u32 db_offset;
+	u8 __iomem *db_addr;
+};
+
+struct cndm_eq {
+	u32 cons_ptr;
+
+	u32 size;
+	u32 size_mask;
+	u32 stride;
+
+	size_t buf_size;
+	u8 *buf;
+	dma_addr_t buf_dma_addr;
+
+	struct device *dev;
+	struct cndm_dev *cdev;
+	struct cndm_priv *priv;
+	int eqn;
+	int enabled;
+
+	struct cndm_irq *irq;
+	struct notifier_block irq_nb;
+
+	void (*handler)(struct cndm_eq *eq);
+
+	spinlock_t table_lock;
+	struct radix_tree_root cq_table;
+
+	u32 db_offset;
+	u8 __iomem *db_addr;
+};
+
+struct cndm_priv {
+	struct device *dev;
+	struct net_device *ndev;
+	struct cndm_dev *cdev;
+
+	bool registered;
+	bool port_up;
+
+	void __iomem *hw_addr;
+
+	struct hwtstamp_config hwts_config;
+
+	int rxq_count;
+	int txq_count;
+
+	struct cndm_eq *eq;
+
+	struct cndm_ring *txq;
+	struct cndm_ring *rxq;
+};
+
+// cndm_cmd.c
+int cndm_exec_mbox_cmd(struct cndm_dev *cdev, void *cmd, void *rsp);
+int cndm_exec_cmd(struct cndm_dev *cdev, void *cmd, void *rsp);
+int cndm_access_reg(struct cndm_dev *cdev, u32 reg, int raw, int write, u64 *data);
+int cndm_hwid_sn_rd(struct cndm_dev *cdev, int *len, void *data);
+int cndm_hwid_mac_rd(struct cndm_dev *cdev, u16 index, int *cnt, void *data);
+
+// cndm_devlink.c
+struct devlink *cndm_devlink_alloc(struct device *dev);
+void cndm_devlink_free(struct devlink *devlink);
+
+// cndm_irq.c
+int cndm_irq_init_pcie(struct cndm_dev *cdev);
+void cndm_irq_deinit_pcie(struct cndm_dev *cdev);
+
+// cndm_netdev.c
+struct net_device *cndm_create_netdev(struct cndm_dev *cdev, int port);
+void cndm_destroy_netdev(struct net_device *ndev);
+
+// cndm_dev.c
+extern const struct file_operations cndm_fops;
+
+// cndm_ethtool.c
+extern const struct ethtool_ops cndm_ethtool_ops;
+
+// cndm_ptp.c
+ktime_t cndm_read_cpl_ts(struct cndm_ring *ring, const struct cndm_cpl *cpl);
+int cndm_register_phc(struct cndm_dev *cdev);
+void cndm_unregister_phc(struct cndm_dev *cdev);
+
+// cndm_eq.c
+struct cndm_eq *cndm_create_eq(struct cndm_priv *priv);
+void cndm_destroy_eq(struct cndm_eq *eq);
+int cndm_open_eq(struct cndm_eq *eq, struct cndm_irq *irq, int size);
+void cndm_close_eq(struct cndm_eq *eq);
+int cndm_eq_attach_cq(struct cndm_eq *eq, struct cndm_cq *cq);
+void cndm_eq_detach_cq(struct cndm_eq *eq, struct cndm_cq *cq);
+void cndm_eq_write_cons_ptr(const struct cndm_eq *eq);
+void cndm_eq_write_cons_ptr_arm(const struct cndm_eq *eq);
+
+// cndm_cq.c
+struct cndm_cq *cndm_create_cq(struct cndm_priv *priv);
+void cndm_destroy_cq(struct cndm_cq *cq);
+int cndm_open_cq(struct cndm_cq *cq, struct cndm_eq *eq, struct cndm_irq *irq, int size);
+void cndm_close_cq(struct cndm_cq *cq);
+void cndm_cq_write_cons_ptr(const struct cndm_cq *cq);
+void cndm_cq_write_cons_ptr_arm(const struct cndm_cq *cq);
+
+// cndm_sq.c
+struct cndm_ring *cndm_create_sq(struct cndm_priv *priv);
+void cndm_destroy_sq(struct cndm_ring *sq);
+int cndm_open_sq(struct cndm_ring *sq, struct cndm_priv *priv, struct cndm_cq *cq, int size);
+void cndm_close_sq(struct cndm_ring *sq);
+bool cndm_is_sq_ring_empty(const struct cndm_ring *sq);
+bool cndm_is_sq_ring_full(const struct cndm_ring *sq);
+void cndm_sq_write_prod_ptr(const struct cndm_ring *sq);
+int cndm_free_tx_buf(struct cndm_ring *sq);
+int cndm_poll_tx_cq(struct napi_struct *napi, int budget);
+int cndm_start_xmit(struct sk_buff *skb, struct net_device *ndev);
+
+// cndm_rq.c
+struct cndm_ring *cndm_create_rq(struct cndm_priv *priv);
+void cndm_destroy_rq(struct cndm_ring *rq);
+int cndm_open_rq(struct cndm_ring *rq, struct cndm_priv *priv, struct cndm_cq *cq, int size);
+void cndm_close_rq(struct cndm_ring *rq);
+bool cndm_is_rq_ring_empty(const struct cndm_ring *rq);
+bool cndm_is_rq_ring_full(const struct cndm_ring *rq);
+void cndm_rq_write_prod_ptr(const struct cndm_ring *rq);
+int cndm_free_rx_buf(struct cndm_ring *rq);
+int cndm_refill_rx_buffers(struct cndm_ring *rq);
+int cndm_poll_rx_cq(struct napi_struct *napi, int budget);
+
+#endif
