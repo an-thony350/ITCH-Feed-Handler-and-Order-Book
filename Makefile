@@ -60,7 +60,7 @@ CURRENT_INGRESS_RTL := \
 	$(RTL_DIR)/ingress_data_realign_top.sv
 
 ORDER_BOOK_CORE_RTL := \
-	$(RTL_DIR)/ob/order_book_v3.sv \
+	$(RTL_DIR)/ob/order_book_v4.sv \
 	$(RTL_DIR)/ob/ob_bram_block.sv \
 	$(RTL_DIR)/ob/ob_uram_block.sv \
 	$(RTL_DIR)/ob/ob_uram_delay_bbo.sv \
