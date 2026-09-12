@@ -1,0 +1,3 @@
+[submodule "lib/taxi"]
+	path = releases/v4.0/lib/taxi
+	url = https://github.com/fpganinja/taxi.git

@@ -1,0 +1,14 @@
+taxi_eth_mac_1g.sv
+taxi_axis_gmii_rx.sv
+taxi_axis_gmii_tx.sv
+taxi_eth_mac_stats.f
+taxi_mac_ctrl_tx.sv
+taxi_mac_ctrl_rx.sv
+taxi_mac_pause_ctrl_tx.sv
+taxi_mac_pause_ctrl_rx.sv
+../lib/taxi/src/lfsr/rtl/taxi_lfsr.sv
+../lib/taxi/src/axis/rtl/taxi_axis_if.sv
+../lib/taxi/src/axis/rtl/taxi_axis_pad.sv
+../lib/taxi/src/axis/rtl/taxi_axis_null_src.sv
+../lib/taxi/src/axis/rtl/taxi_axis_tie.sv
+../lib/taxi/src/sync/rtl/taxi_sync_signal.sv

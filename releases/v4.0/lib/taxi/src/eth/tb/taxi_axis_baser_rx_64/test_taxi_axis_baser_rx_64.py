@@ -1,0 +1,481 @@
+#!/usr/bin/env python
+# SPDX-License-Identifier: CERN-OHL-S-2.0
+"""
+
+Copyright (c) 2021-2025 FPGA Ninja, LLC
+
+Authors:
+- Alex Forencich
+
+"""
+
+import itertools
+import logging
+import os
+import sys
+
+import pytest
+import cocotb
+from cocotb.clock import Clock
+from cocotb.triggers import RisingEdge
+from cocotb.utils import get_time_from_sim_steps
+from cocotb_tools.runner import get_runner
+
+from cocotbext.eth import XgmiiFrame, PtpClockSimTime
+from cocotbext.axi import AxiStreamBus, AxiStreamSink
+
+try:
+    from baser import BaseRSerdesSource
+except ImportError:
+    # attempt import from current directory
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+    try:
+        from baser import BaseRSerdesSource
+    finally:
+        del sys.path[0]
+
+
+class TB:
+    def __init__(self, dut, gbx_cfg=None, usxgmii_speed=None):
+        self.dut = dut
+
+        self.log = logging.getLogger("cocotb.tb")
+        self.log.setLevel(logging.DEBUG)
+
+        if gbx_cfg:
+            self.clk_period = 6.206206
+        else:
+            self.clk_period = 6.4
+
+        cocotb.start_soon(Clock(dut.clk, self.clk_period, units="ns").start())
+
+        self.source = BaseRSerdesSource(
+            data=dut.encoded_rx_data,
+            data_valid=dut.encoded_rx_data_valid,
+            hdr=dut.encoded_rx_hdr,
+            hdr_valid=dut.encoded_rx_hdr_valid,
+            gbx_sync=dut.rx_gbx_sync,
+            clock=dut.clk,
+            scramble=False,
+            gbx_cfg=gbx_cfg
+        )
+        self.sink = AxiStreamSink(AxiStreamBus.from_entity(dut.m_axis_rx), dut.clk, dut.rst)
+
+        self.ptp_clock = PtpClockSimTime(ts_tod=dut.ptp_ts, clock=dut.clk)
+
+        dut.ptp_ts_cor_val.setimmediatevalue(0)
+
+        dut.cfg_rx_max_pkt_len.setimmediatevalue(0)
+        dut.cfg_rx_enable.setimmediatevalue(0)
+        if usxgmii_speed is not None:
+            dut.cfg_rx_usxgmii_en.setimmediatevalue(1)
+            if usxgmii_speed & 8 == 0:
+                dut.cfg_rx_usxgmii_5g.setimmediatevalue(0)
+                dut.cfg_rx_usxgmii_speed.setimmediatevalue(usxgmii_speed & 0x7)
+                if usxgmii_speed == 0:
+                    self.source.set_xgmii_rep_count(999) # 10 Mbps
+                elif usxgmii_speed == 1:
+                    self.source.set_xgmii_rep_count(99) # 100 Mbps
+                elif usxgmii_speed == 2:
+                    self.source.set_xgmii_rep_count(9) # 1 Gbps
+                elif usxgmii_speed == 4:
+                    self.source.set_xgmii_rep_count(3) # 2.5 Gbps
+                elif usxgmii_speed == 5:
+                    self.source.set_xgmii_rep_count(1) # 5 Gbps
+                else:
+                    self.source.set_xgmii_rep_count(0) # 10 Gbps
+            else:
+                dut.cfg_rx_usxgmii_5g.setimmediatevalue(1)
+                dut.cfg_rx_usxgmii_speed.setimmediatevalue(usxgmii_speed & 0x7)
+                if usxgmii_speed == 8:
+                    self.source.set_xgmii_rep_count(499) # 10 Mbps
+                elif usxgmii_speed == 9:
+                    self.source.set_xgmii_rep_count(49) # 100 Mbps
+                elif usxgmii_speed == 10:
+                    self.source.set_xgmii_rep_count(4) # 1 Gbps
+                elif usxgmii_speed == 12:
+                    self.source.set_xgmii_rep_count(1) # 2.5 Gbps
+                else:
+                    self.source.set_xgmii_rep_count(0) # 5 Gbps
+        else:
+            dut.cfg_rx_usxgmii_en.setimmediatevalue(0)
+            dut.cfg_rx_usxgmii_5g.setimmediatevalue(0)
+            dut.cfg_rx_usxgmii_speed.setimmediatevalue(0b011)
+            self.source.set_xgmii_rep_count(0)
+
+        self.stats = {}
+        self.stats["stat_rx_byte"] = 0
+        self.stats["stat_rx_pkt_len"] = 0
+        self.stats["stat_rx_pkt_fragment"] = 0
+        self.stats["stat_rx_pkt_jabber"] = 0
+        self.stats["stat_rx_pkt_ucast"] = 0
+        self.stats["stat_rx_pkt_mcast"] = 0
+        self.stats["stat_rx_pkt_bcast"] = 0
+        self.stats["stat_rx_pkt_vlan"] = 0
+        self.stats["stat_rx_pkt_good"] = 0
+        self.stats["stat_rx_pkt_bad"] = 0
+        self.stats["stat_rx_err_oversize"] = 0
+        self.stats["stat_rx_err_bad_fcs"] = 0
+        self.stats["stat_rx_err_bad_block"] = 0
+        self.stats["stat_rx_err_framing"] = 0
+        self.stats["stat_rx_err_preamble"] = 0
+
+        cocotb.start_soon(self._run_stats_counters())
+        if gbx_cfg:
+            cocotb.start_soon(self._run_ts_cor())
+
+    async def reset(self):
+        self.dut.rst.setimmediatevalue(0)
+        await RisingEdge(self.dut.clk)
+        await RisingEdge(self.dut.clk)
+        self.dut.rst.value = 1
+        await RisingEdge(self.dut.clk)
+        await RisingEdge(self.dut.clk)
+        self.dut.rst.value = 0
+        await RisingEdge(self.dut.clk)
+        await RisingEdge(self.dut.clk)
+
+        self.stats_reset()
+
+    def stats_reset(self):
+        for stat in self.stats:
+            self.stats[stat] = 0
+
+    async def _run_stats_counters(self):
+        while True:
+            await RisingEdge(self.dut.clk)
+            for stat in self.stats:
+                self.stats[stat] += int(getattr(self.dut, stat).value)
+
+    async def _run_ts_cor(self):
+        seq_len = self.source.gbx_seq_len
+        seq = 0
+        val = 0
+        ui = self.clk_period / self.source.width
+        step = int(ui*2*65536+0.5)
+        while True:
+            await RisingEdge(self.dut.clk)
+            seq += 1
+            val += step
+            if seq >= seq_len:
+                seq = 0
+                val = 0
+            self.dut.ptp_ts_cor_val.value = val
+            if int(self.dut.ptp_ts_cor_sync.value):
+                seq = 1
+
+
+def size_list():
+    return list(range(60, 128)) + [512, 1514, 9214] + [60]*10 + [i for i in range(64, 73) for k in range(8)]
+
+
+def incrementing_payload(length):
+    return bytearray(itertools.islice(itertools.cycle(range(256)), length))
+
+
+gbx_cfgs = [None]
+usxgmii_speeds = [None]
+if getattr(cocotb, 'top', None) is not None:
+    if cocotb.top.GBX_IF_EN.value:
+        gbx_cfgs.append((33, [32]))
+        gbx_cfgs.append((66, [64, 65]))
+    if cocotb.top.USXGMII_EN.value:
+        usxgmii_speeds.extend([2, 4, 5, 3, 10, 12, 13])
+
+@cocotb.test()
+@cocotb.parametrize(
+    ("payload_lengths", [size_list]),
+    ("payload_data", [incrementing_payload]),
+    ("ifg", [0, 1, 11, 12]),
+    ("offset_start", [False, True]),
+    ("usxgmii_speed", usxgmii_speeds),
+    ("gbx_cfg", gbx_cfgs),
+)
+async def run_test(dut, gbx_cfg=None, offset_start=False, usxgmii_speed=None, payload_lengths=None, payload_data=None, ifg=12):
+
+    if dut.USXGMII_EN.value:
+        pipe_delay = 2
+    else:
+        pipe_delay = 1
+
+    if gbx_cfg:
+        # baseline gearbox delay
+        pipe_delay += len(gbx_cfg[1])
+
+    tb = TB(dut, gbx_cfg, usxgmii_speed)
+
+    tb.source.ifg = ifg
+    tb.source.force_offset_start = offset_start
+    tb.dut.cfg_rx_max_pkt_len.value = 9218-1
+    tb.dut.cfg_rx_enable.value = 1
+
+    await tb.reset()
+
+    for k in range(200):
+        await RisingEdge(dut.clk)
+
+    test_frames = [payload_data(x) for x in payload_lengths()]
+    tx_frames = []
+
+    total_bytes = 0
+    total_pkts = 0
+
+    for test_data in test_frames:
+        test_frame = XgmiiFrame.from_payload(test_data, tx_complete=tx_frames.append)
+        await tb.source.send(test_frame)
+        total_bytes += max(len(test_data), 60)+4
+        total_pkts += 1
+
+    for test_data in test_frames:
+        rx_frame = await tb.sink.recv()
+        tx_frame = tx_frames.pop(0)
+
+        frame_error = rx_frame.tuser & 1
+        ptp_ts = rx_frame.tuser >> 1
+        ptp_ts_ns = ptp_ts / 2**16
+
+        tx_frame_sfd_ns = get_time_from_sim_steps(tx_frame.sim_time_sfd, "ns")
+        diff = ptp_ts_ns - tx_frame_sfd_ns
+        error = diff - tb.clk_period*pipe_delay
+
+        tb.log.info("RX frame PTP TS: %f ns", ptp_ts_ns)
+        tb.log.info("TX frame SFD sim time: %f ns", tx_frame_sfd_ns)
+        tb.log.info("Difference: %f ns", diff)
+        tb.log.info("Error: %f ns", error)
+
+        assert rx_frame.tdata == test_data
+        assert frame_error == 0
+        assert abs(error) < 0.001
+
+    assert tb.sink.empty()
+
+    for stat, val in tb.stats.items():
+        tb.log.info("%s: %d", stat, val)
+
+    assert tb.stats["stat_rx_byte"] == total_bytes
+    assert tb.stats["stat_rx_pkt_len"] == total_bytes
+    assert tb.stats["stat_rx_pkt_fragment"] == 0
+    assert tb.stats["stat_rx_pkt_jabber"] == 0
+    assert tb.stats["stat_rx_pkt_ucast"] == total_pkts
+    assert tb.stats["stat_rx_pkt_mcast"] == 0
+    assert tb.stats["stat_rx_pkt_bcast"] == 0
+    assert tb.stats["stat_rx_pkt_vlan"] == 0
+    assert tb.stats["stat_rx_pkt_good"] == total_pkts
+    assert tb.stats["stat_rx_pkt_bad"] == 0
+    assert tb.stats["stat_rx_err_oversize"] == 0
+    assert tb.stats["stat_rx_err_bad_fcs"] == 0
+    assert tb.stats["stat_rx_err_bad_block"] == 0
+    assert tb.stats["stat_rx_err_framing"] == 0
+    assert tb.stats["stat_rx_err_preamble"] == 0
+
+    for k in range(10):
+        await RisingEdge(dut.clk)
+
+
+@cocotb.test()
+@cocotb.parametrize(
+    # ("ifg", [0, 1, 11, 12]),
+    ("usxgmii_speed", usxgmii_speeds),
+    ("gbx_cfg", gbx_cfgs),
+)
+async def run_test_oversize(dut, gbx_cfg=None, usxgmii_speed=None, ifg=12):
+
+    tb = TB(dut, gbx_cfg, usxgmii_speed)
+
+    tb.source.ifg = ifg
+    tb.dut.cfg_rx_max_pkt_len.value = 1518-1
+    tb.dut.cfg_rx_enable.value = 1
+
+    await tb.reset()
+
+    for max_len in range(128-4-8, 128-4+9):
+
+        tb.stats_reset()
+
+        total_bytes = 0
+        total_pkts = 0
+        good_bytes = 0
+        oversz_pkts = 0
+        oversz_bytes_in = 0
+        oversz_bytes_out = 0
+
+        for test_pkt_len in range(max_len-8, max_len+9):
+
+            tb.log.info("max len %d (without FCS), test len %d (without FCS)", max_len, test_pkt_len)
+
+            tb.dut.cfg_rx_max_pkt_len.value = max_len+4-1
+
+            test_data_1 = bytes(x for x in range(60))
+            test_data_2 = bytes(x for x in range(test_pkt_len))
+
+            for k in range(3):
+                if k == 1:
+                    test_data = test_data_2
+                else:
+                    test_data = test_data_1
+                test_frame = XgmiiFrame.from_payload(test_data)
+                await tb.source.send(test_frame)
+                total_bytes += max(len(test_data), 60)+4
+                total_pkts += 1
+                if len(test_data) > max_len:
+                    oversz_pkts += 1
+                    oversz_bytes_in += len(test_data)+4
+                    oversz_bytes_out += max_len
+                else:
+                    good_bytes += len(test_data)+4
+
+            for k in range(3):
+                rx_frame = await tb.sink.recv()
+
+                if k == 1:
+                    if test_pkt_len > max_len:
+                        frame_error = rx_frame.tuser[-1] & 1
+                        assert frame_error
+                    else:
+                        frame_error = rx_frame.tuser & 1
+                        assert rx_frame.tdata == test_data_2
+                        assert frame_error == 0
+                else:
+                    frame_error = rx_frame.tuser & 1
+                    assert rx_frame.tdata == test_data_1
+                    assert frame_error == 0
+
+        assert tb.sink.empty()
+
+        for stat, val in tb.stats.items():
+            tb.log.info("%s: %d", stat, val)
+
+        assert tb.stats["stat_rx_byte"] >= good_bytes+oversz_bytes_out
+        assert tb.stats["stat_rx_byte"] <= good_bytes+oversz_bytes_in
+        assert tb.stats["stat_rx_pkt_len"] >= good_bytes+oversz_bytes_out
+        assert tb.stats["stat_rx_pkt_len"] <= good_bytes+oversz_bytes_in
+        assert tb.stats["stat_rx_pkt_fragment"] == 0
+        assert tb.stats["stat_rx_pkt_jabber"] == 0
+        assert tb.stats["stat_rx_pkt_ucast"] == total_pkts
+        assert tb.stats["stat_rx_pkt_mcast"] == 0
+        assert tb.stats["stat_rx_pkt_bcast"] == 0
+        assert tb.stats["stat_rx_pkt_vlan"] == 0
+        assert tb.stats["stat_rx_pkt_good"] == total_pkts-oversz_pkts
+        assert tb.stats["stat_rx_pkt_bad"] == oversz_pkts
+        assert tb.stats["stat_rx_err_oversize"] == oversz_pkts
+        assert tb.stats["stat_rx_err_bad_fcs"] == 0
+        assert tb.stats["stat_rx_err_bad_block"] == 0
+        assert tb.stats["stat_rx_err_framing"] == 0
+        assert tb.stats["stat_rx_err_preamble"] == 0
+
+    for k in range(10):
+        await RisingEdge(dut.clk)
+
+
+@cocotb.test()
+@cocotb.parametrize(
+    ("usxgmii_speed", usxgmii_speeds),
+    ("gbx_cfg", gbx_cfgs),
+)
+async def run_test_os(dut, gbx_cfg=None, usxgmii_speed=None):
+
+    tb = TB(dut, gbx_cfg, usxgmii_speed)
+
+    await tb.reset()
+
+    for sig in [False, True]:
+        for k in range(24):
+            os = 1 << k
+
+            tb.source.set_os(os, sig)
+
+            for k in range(20):
+                await RisingEdge(dut.clk)
+
+            assert int(dut.rx_os.value) == os
+            assert int(dut.rx_os_sig.value) == sig
+
+            tb.source.set_os(None)
+
+            for k in range(20):
+                await RisingEdge(dut.clk)
+
+    for k in range(10):
+        await RisingEdge(dut.clk)
+
+
+# cocotb-test
+
+tests_dir = os.path.abspath(os.path.dirname(__file__))
+rtl_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'rtl'))
+lib_dir = os.path.abspath(os.path.join(tests_dir, '..', '..', 'lib'))
+taxi_src_dir = os.path.abspath(os.path.join(lib_dir, 'taxi', 'src'))
+
+
+def process_f_files(files):
+    lst = {}
+    for f in files:
+        if f[-2:].lower() == '.f':
+            with open(f, 'r') as fp:
+                l = fp.read().split()
+            for f in process_f_files([os.path.join(os.path.dirname(f), x) for x in l]):
+                lst[os.path.basename(f)] = f
+        else:
+            lst[os.path.basename(f)] = f
+    return list(lst.values())
+
+
+@pytest.mark.parametrize("usxgmii_en", [1, 0])
+@pytest.mark.parametrize("gbx_en", [1, 0])
+def test_taxi_axis_baser_rx_64(request, gbx_en, usxgmii_en):
+    dut = "taxi_axis_baser_rx_64"
+    module = os.path.splitext(os.path.basename(__file__))[0]
+    toplevel = module
+
+    sources = [
+        os.path.join(tests_dir, f"{toplevel}.sv"),
+        os.path.join(rtl_dir, f"{dut}.sv"),
+        os.path.join(taxi_src_dir, "lfsr", "rtl", "taxi_lfsr.sv"),
+        os.path.join(taxi_src_dir, "axis", "rtl", "taxi_axis_if.sv"),
+    ]
+
+    sources = process_f_files(sources)
+
+    parameters = {}
+
+    parameters['DATA_W'] = 64
+    parameters['HDR_W'] = 2
+    parameters['GBX_IF_EN'] = gbx_en
+    parameters['GBX_CNT'] = 1
+    parameters['USXGMII_EN'] = usxgmii_en
+    parameters['PTP_TS_EN'] = 1
+    parameters['PTP_TS_FMT_TOD'] = 1
+    parameters['PTP_TS_W'] = 96 if parameters['PTP_TS_FMT_TOD'] else 64
+    parameters['PTP_TS_COR_EN'] = 1
+    parameters['PTP_TS_COR_W'] = 16+4
+
+    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+
+    sim_build = os.path.join(tests_dir, "sim_build",
+        request.node.name.replace('[', '-').replace(']', ''))
+
+    timescale = ("1ns", "1fs")
+    sim = os.getenv("SIM", "verilator")
+    waves = bool(int(os.getenv("WAVES", 0)))
+
+    sys.path.append(tests_dir)
+
+    runner = get_runner(sim)
+    runner.build(
+        sources=sources,
+        hdl_toplevel=toplevel,
+        parameters=parameters,
+        always=True,
+        build_dir=sim_build,
+        timescale=timescale,
+        waves=waves,
+    )
+    runner.test(
+        hdl_toplevel=toplevel,
+        test_module=module,
+        parameters=parameters,
+        extra_env=extra_env,
+        build_dir=sim_build,
+        timescale=timescale,
+        waves=waves,
+    )

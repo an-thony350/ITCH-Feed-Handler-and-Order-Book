@@ -1,0 +1,38 @@
+name: Regression Tests
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Python (${{ matrix.group }}/20)
+    runs-on: ubuntu-24.04
+
+    strategy:
+      matrix:
+        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+    steps:
+    - name: Check disk usage
+      run: df -h
+
+    - name: Check out repository
+      uses: actions/checkout@v6
+
+    - name: Install Verilator
+      uses: v0xnihili/install-verilator-action@main
+      with:
+        version: v5.050
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox tox-gh-actions
+
+    - name: Check disk usage
+      run: df -h
+
+    - name: Test with tox
+      run: tox -- -n auto --verbose --splits 20 --group ${{ matrix.group }} --splitting-algorithm least_duration
+
+    - name: Check disk usage
+      run: df -h

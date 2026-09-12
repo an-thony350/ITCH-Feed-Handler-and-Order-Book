@@ -1,0 +1,143 @@
+
+create_ip -name usp_rf_data_converter -vendor xilinx.com -library ip -module_name usp_rfdc_0
+
+set ADC_RATE {1.0}
+set ADC_REFCLK_FREQ {1000.000}
+set ADC_OUTCLK_FREQ {62.500}
+set ADC_FABRIC_FREQ {250.000}
+set ADC_DATA_WIDTH {4}
+
+set DAC_RATE $ADC_RATE
+set DAC_REFCLK_FREQ $ADC_REFCLK_FREQ
+set DAC_OUTCLK_FREQ $ADC_OUTCLK_FREQ
+set DAC_FABRIC_FREQ $ADC_FABRIC_FREQ
+set DAC_DATA_WIDTH $ADC_DATA_WIDTH
+
+set_property -dict [list \
+    CONFIG.Axiclk_Freq {125} \
+    CONFIG.DAC_Output_Current {1} \
+    CONFIG.DAC_RTS {false} \
+    CONFIG.ADC0_Sampling_Rate $ADC_RATE \
+    CONFIG.ADC0_Refclk_Freq $ADC_REFCLK_FREQ \
+    CONFIG.ADC0_Outclk_Freq $ADC_OUTCLK_FREQ \
+    CONFIG.ADC0_Fabric_Freq $ADC_FABRIC_FREQ \
+    CONFIG.ADC_Data_Width00 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Data_Width01 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice02_Enable {true} \
+    CONFIG.ADC_Decimation_Mode02 {1} \
+    CONFIG.ADC_Mixer_Type02 {0} \
+    CONFIG.ADC_Data_Width02 $ADC_DATA_WIDTH \
+    CONFIG.ADC_OBS02 {0} \
+    CONFIG.ADC_Slice03_Enable {true} \
+    CONFIG.ADC_Decimation_Mode03 {1} \
+    CONFIG.ADC_Mixer_Type03 {0} \
+    CONFIG.ADC_Data_Width03 $ADC_DATA_WIDTH \
+    CONFIG.ADC1_Enable {1} \
+    CONFIG.ADC1_Sampling_Rate $ADC_RATE \
+    CONFIG.ADC1_Refclk_Freq $ADC_REFCLK_FREQ \
+    CONFIG.ADC1_Outclk_Freq $ADC_OUTCLK_FREQ \
+    CONFIG.ADC1_Fabric_Freq $ADC_FABRIC_FREQ \
+    CONFIG.ADC_Slice10_Enable {true} \
+    CONFIG.ADC_Decimation_Mode10 {1} \
+    CONFIG.ADC_Mixer_Type10 {0} \
+    CONFIG.ADC_Data_Width10 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice11_Enable {true} \
+    CONFIG.ADC_Decimation_Mode11 {1} \
+    CONFIG.ADC_Mixer_Type11 {0} \
+    CONFIG.ADC_Data_Width11 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice12_Enable {true} \
+    CONFIG.ADC_Decimation_Mode12 {1} \
+    CONFIG.ADC_Mixer_Type12 {0} \
+    CONFIG.ADC_Data_Width12 $ADC_DATA_WIDTH \
+    CONFIG.ADC_OBS12 {0} \
+    CONFIG.ADC_Slice13_Enable {true} \
+    CONFIG.ADC_Decimation_Mode13 {1} \
+    CONFIG.ADC_Mixer_Type13 {0} \
+    CONFIG.ADC_Data_Width13 $ADC_DATA_WIDTH \
+    CONFIG.ADC2_Enable {1} \
+    CONFIG.ADC2_Sampling_Rate $ADC_RATE \
+    CONFIG.ADC2_Refclk_Freq $ADC_REFCLK_FREQ \
+    CONFIG.ADC2_Outclk_Freq $ADC_OUTCLK_FREQ \
+    CONFIG.ADC2_Fabric_Freq $ADC_FABRIC_FREQ \
+    CONFIG.ADC_Slice20_Enable {true} \
+    CONFIG.ADC_Decimation_Mode20 {1} \
+    CONFIG.ADC_Mixer_Type20 {0} \
+    CONFIG.ADC_Data_Width20 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice21_Enable {true} \
+    CONFIG.ADC_Decimation_Mode21 {1} \
+    CONFIG.ADC_Mixer_Type21 {0} \
+    CONFIG.ADC_Data_Width21 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice22_Enable {true} \
+    CONFIG.ADC_Decimation_Mode22 {1} \
+    CONFIG.ADC_Mixer_Type22 {0} \
+    CONFIG.ADC_Data_Width22 $ADC_DATA_WIDTH \
+    CONFIG.ADC_OBS22 {0} \
+    CONFIG.ADC_Slice23_Enable {true} \
+    CONFIG.ADC_Decimation_Mode23 {1} \
+    CONFIG.ADC_Mixer_Type23 {0} \
+    CONFIG.ADC_Data_Width23 $ADC_DATA_WIDTH \
+    CONFIG.ADC3_Enable {1} \
+    CONFIG.ADC3_Sampling_Rate $ADC_RATE \
+    CONFIG.ADC3_Refclk_Freq $ADC_REFCLK_FREQ \
+    CONFIG.ADC3_Outclk_Freq $ADC_OUTCLK_FREQ \
+    CONFIG.ADC3_Fabric_Freq $ADC_FABRIC_FREQ \
+    CONFIG.ADC_Slice30_Enable {true} \
+    CONFIG.ADC_Decimation_Mode30 {1} \
+    CONFIG.ADC_Mixer_Type30 {0} \
+    CONFIG.ADC_Data_Width30 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice31_Enable {true} \
+    CONFIG.ADC_Decimation_Mode31 {1} \
+    CONFIG.ADC_Mixer_Type31 {0} \
+    CONFIG.ADC_Data_Width31 $ADC_DATA_WIDTH \
+    CONFIG.ADC_Slice32_Enable {true} \
+    CONFIG.ADC_Decimation_Mode32 {1} \
+    CONFIG.ADC_Mixer_Type32 {0} \
+    CONFIG.ADC_Data_Width32 $ADC_DATA_WIDTH \
+    CONFIG.ADC_OBS32 {0} \
+    CONFIG.ADC_Slice33_Enable {true} \
+    CONFIG.ADC_Decimation_Mode33 {1} \
+    CONFIG.ADC_Mixer_Type33 {0} \
+    CONFIG.ADC_Data_Width33 $ADC_DATA_WIDTH \
+    CONFIG.DAC0_Enable {1} \
+    CONFIG.DAC0_Sampling_Rate $DAC_RATE \
+    CONFIG.DAC0_Refclk_Freq $DAC_REFCLK_FREQ \
+    CONFIG.DAC0_Outclk_Freq $DAC_OUTCLK_FREQ \
+    CONFIG.DAC0_Fabric_Freq $DAC_FABRIC_FREQ \
+    CONFIG.DAC_Slice00_Enable {true} \
+    CONFIG.DAC_Data_Width00 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode00 {1} \
+    CONFIG.DAC_Mixer_Type00 {0} \
+    CONFIG.DAC_Slice01_Enable {true} \
+    CONFIG.DAC_Data_Width01 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode01 {1} \
+    CONFIG.DAC_Mixer_Type01 {0} \
+    CONFIG.DAC_Slice02_Enable {true} \
+    CONFIG.DAC_Data_Width02 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode02 {1} \
+    CONFIG.DAC_Mixer_Type02 {0} \
+    CONFIG.DAC_Slice03_Enable {true} \
+    CONFIG.DAC_Data_Width03 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode03 {1} \
+    CONFIG.DAC_Mixer_Type03 {0} \
+    CONFIG.DAC1_Enable {1} \
+    CONFIG.DAC1_Sampling_Rate $DAC_RATE \
+    CONFIG.DAC1_Refclk_Freq $DAC_REFCLK_FREQ \
+    CONFIG.DAC1_Outclk_Freq $DAC_OUTCLK_FREQ \
+    CONFIG.DAC1_Fabric_Freq $DAC_FABRIC_FREQ \
+    CONFIG.DAC_Slice10_Enable {true} \
+    CONFIG.DAC_Data_Width10 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode10 {1} \
+    CONFIG.DAC_Mixer_Type10 {0} \
+    CONFIG.DAC_Slice11_Enable {true} \
+    CONFIG.DAC_Data_Width11 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode11 {1} \
+    CONFIG.DAC_Mixer_Type11 {0} \
+    CONFIG.DAC_Slice12_Enable {true} \
+    CONFIG.DAC_Data_Width12 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode12 {1} \
+    CONFIG.DAC_Mixer_Type12 {0} \
+    CONFIG.DAC_Slice13_Enable {true} \
+    CONFIG.DAC_Data_Width13 $DAC_DATA_WIDTH \
+    CONFIG.DAC_Interpolation_Mode13 {1} \
+    CONFIG.DAC_Mixer_Type13 {0} \
+] [get_ips usp_rfdc_0]
