@@ -1,3 +1,0 @@
-taxi_eth_phy_10g.sv
-taxi_eth_phy_10g_rx.f
-taxi_eth_phy_10g_tx.f

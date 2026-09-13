@@ -1,3 +1,0 @@
-taxi_eth_phy_1g_basex_tx.sv
-taxi_eth_phy_1g_basex_tx_if.f
-taxi_gmii_basex_enc.sv

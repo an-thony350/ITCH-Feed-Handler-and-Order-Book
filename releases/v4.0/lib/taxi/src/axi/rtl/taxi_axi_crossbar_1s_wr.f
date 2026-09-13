@@ -1,3 +1,0 @@
-taxi_axi_crossbar_1s_wr.sv
-taxi_axi_crossbar_wr.f
-taxi_axi_tie_wr.sv

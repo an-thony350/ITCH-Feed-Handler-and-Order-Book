@@ -1,3 +1,0 @@
-taxi_axis_cobs_encode.sv
-taxi_axis_fifo.sv
-taxi_axis_if.sv

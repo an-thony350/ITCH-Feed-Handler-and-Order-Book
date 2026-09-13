@@ -1,4 +1,0 @@
-taxi_axi_ram_if_wr.sv
-taxi_axi_ram_if_rd.sv
-taxi_axi_ram_if_rdwr.sv
-taxi_axi_if.sv

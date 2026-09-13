@@ -1,3 +1,0 @@
-taxi_dma_if_mux.sv
-taxi_dma_if_mux_rd.f
-taxi_dma_if_mux_wr.f

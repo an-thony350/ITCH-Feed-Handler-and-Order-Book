@@ -1,3 +1,0 @@
-taxi_axis_pipeline_register.sv
-taxi_axis_register.sv
-taxi_axis_if.sv

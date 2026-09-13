@@ -1,4 +1,0 @@
-taxi_axi_register.sv
-taxi_axi_register_wr.sv
-taxi_axi_register_rd.sv
-taxi_axi_if.sv

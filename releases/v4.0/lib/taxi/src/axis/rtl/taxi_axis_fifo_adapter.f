@@ -1,4 +1,0 @@
-taxi_axis_fifo_adapter.sv
-taxi_axis_fifo.sv
-taxi_axis_adapter.sv
-taxi_axis_if.sv

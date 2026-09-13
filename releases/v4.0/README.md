@@ -25,7 +25,6 @@ cd ITCH-Feed-Handler-and-Order-Book
 git sparse-checkout init --cone
 git sparse-checkout set v4.0
 git checkout release-v4
-git submodule update --init --recursive
 ```
 
 2. Open Vivado 2023.2
@@ -54,7 +53,9 @@ Once completing the Hardware & implementation instructions, enter the following 
 
 ## Processing System Instructions
 
-The notebook used to run this can be found in [`v4.0/processing_system`](v4.0/processing_system). The following instructions should provide detail on how to use this system.
+The notebook used to run this can be found in `v4.0/processing_system`. The following instructions should provide detail on how to use this system.
+
+> For a more visual representation, use the readme in `/demo` and follow the instructions there.
 
 
 1. Upload all the files given in this directory to a jupyter directory (keep note of this directory) - If you are using your own bit and hwh files, then these specific files can be ignored
@@ -73,3 +74,15 @@ The notebook used to run this can be found in [`v4.0/processing_system`](v4.0/pr
 
 4. Historical Nasdaq ITCH data can be found from this [website](https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/), this data should have the form `<date>.NASDAQ_ITCH50.gz`. If you are unable to stream the data, you can download from here
 5. Using the notebook `v4_notebook.ipynb`, proceed to test the hardware and software designs, changing constants in the second cell where necessary
+
+## Licensing and Third-Party IP
+
+The V4.0 FPGA design integrates the [Taxi transport library](https://github.com/fpganinja/taxi) by FPGA Ninja, LLC.
+
+Taxi core RTL is provided under the **CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)** unless an individual source file states otherwise. Some Taxi example and interface files use less restrictive licences, including MIT.
+
+Original Taxi licence and copyright notices are retained in [`lib/taxi`](lib/taxi), including the complete CERN-OHL-S-2.0 licence at [`lib/taxi/LICENSE`](lib/taxi/LICENSE).
+
+The project-specific V4.0 integration, source availability and licence scope are documented in [`LICENSE.md`](LICENSE.md).
+
+The upstream Taxi project is available at: https://github.com/fpganinja/taxi
