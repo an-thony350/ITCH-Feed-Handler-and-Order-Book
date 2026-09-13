@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FPGA Nasdaq ITCH Demo</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">ZCU106 · deterministic hardware replay · Python oracle</div>
+        <h1>FPGA Nasdaq ITCH Feed Handler &amp; Order Book</h1>
+      </div>
+      <div class="run-panel">
+        <span id="connection" class="connection online">ONLINE</span>
+        <span id="status" class="status idle">IDLE</span>
+        <button id="run-button" type="button">Run</button>
+      </div>
+    </header>
+
+    <section class="notice">
+      Historical Nasdaq ITCH 5.0 is replayed through the current 64-bit FPGA
+      datapath. Hardware BBO updates for AAPL, MSFT and NFLX are checked
+      positionally against a pre-generated Python golden-model oracle.
+    </section>
+
+    <section class="summary-grid">
+      <article class="summary-card">
+        <span>Source messages</span>
+        <strong id="source-messages">0</strong>
+      </article>
+      <article class="summary-card">
+        <span>DMA packets</span>
+        <strong id="dma-packets">0</strong>
+      </article>
+      <article class="summary-card">
+        <span>BBO updates</span>
+        <strong id="bbo-updates">0</strong>
+      </article>
+      <article class="summary-card">
+        <span>Oracle comparisons</span>
+        <strong id="oracle-comparisons">0</strong>
+      </article>
+      <article class="summary-card">
+        <span>Mismatches</span>
+        <strong id="mismatches">0</strong>
+      </article>
+    </section>
+
+    <div class="progress-track">
+      <div id="progress-bar" class="progress-bar"></div>
+    </div>
+    <div class="detail-row">
+      <p id="detail" class="detail">Ready for deterministic oracle-verified board replay.</p>
+      <p id="oracle-progress" class="oracle-progress"></p>
+    </div>
+    <p id="error" class="error hidden"></p>
+    <p id="mismatch-detail" class="error hidden"></p>
+
+    <section id="stock-cards" class="stock-grid"></section>
+
+    <section class="graph-panel">
+      <div class="graph-header">
+        <div>
+          <div class="eyebrow">BBO update progression</div>
+          <h2>Best bid / ask</h2>
+        </div>
+        <div id="stock-selector" class="selector">
+          <button data-symbol="AAPL">AAPL</button>
+          <button data-symbol="MSFT" class="selected">MSFT</button>
+          <button data-symbol="NFLX">NFLX</button>
+        </div>
+      </div>
+
+      <div class="legend-row">
+        <div class="legend">
+          <span><i class="bid-key"></i>Best bid</span>
+          <span><i class="ask-key"></i>Best ask</span>
+        </div>
+        <span id="graph-window" class="graph-window"></span>
+      </div>
+
+      <svg id="bbo-graph" viewBox="0 0 960 340" role="img"
+           aria-label="Best bid and ask by BBO update">
+      </svg>
+      <div class="axis-label">BBO update index</div>
+    </section>
+
+    <footer>
+      The browser reads cached software state only. Dashboard refresh does not
+      sit on the FPGA datapath and is not a latency or throughput measurement.
+    </footer>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
