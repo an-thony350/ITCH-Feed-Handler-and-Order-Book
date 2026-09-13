@@ -22,7 +22,7 @@ To run this design, there are a couple pre-requisites that must be noted before 
 **Note that this instruction is only if you are cloning the entire repository, and not using the specific release - look into that specific release README in the same equivalent directory to clone properly**
 
 ```bash
-git clone --no-checkout release-v4 https://github.com/an-thony350/ITCH-Feed-Handler-and-Order-Book
+git clone --no-checkout https://github.com/an-thony350/ITCH-Feed-Handler-and-Order-Book
 cd ITCH-Feed-Handler-and-Order-Book
 git sparse-checkout init --cone
 git sparse-checkout set release/v4.0
