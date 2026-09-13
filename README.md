@@ -42,8 +42,7 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
 As of **12th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
 
 ```text
-Ethernet II -> IPv4 -> UDP -> MoldUDP64
-    -> ITCH decode -> symbol routing -> order book -> BBO
+Ethernet II -> IPv4 -> UDP -> MoldUDP64 -> ITCH decode -> symbol routing -> order book -> BBO
 ```
 
 The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path. The ingress has now been migrated from a 32-bit to a **native 64-bit AXI4-Stream architecture**, with the network path designed around the 10GbE datapath width.
@@ -152,7 +151,7 @@ Detailed contracts, parsing assumptions, backpressure behaviour, and per-stage r
 
 The previous separate `realign -> data_handler` path remains useful as a behavioural/reference implementation, but the current packaged Vivado ingress uses the merged `data_realign` path to avoid recreating a padded AXI packet for every ITCH message.
 
-MoldUDP64 sequencing and recovery policy are documented separately in [`docs/moldudp64_sequence_handling.md`](docs/moldudp64_sequence_handling.md).
+MoldUDP64 sequencing and recovery policy are documented separately in [`docs/moldudp64_seq_handling.md`](docs/moldudp64_seq_handling.md).
 
 ---
 
@@ -272,7 +271,6 @@ These figures are measured on the AXI frame path while the pass/fail gate accoun
 - [`docs/rtl_datapath.md`](docs/rtl_datapath.md) — RTL stage contracts, handshakes, and design boundaries
 - [`docs/networking_ingress.md`](docs/networking_ingress.md) — detailed Ethernet/IPv4/UDP/MoldUDP64 ingress behaviour
 - [`docs/moldudp64_seq_handling.md`](docs/moldudp64_seq_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
-- [`docs/data_handler.md`](docs/data_handler.md) — ITCH decoder details
 - [`docs/order_book.md`](docs/order_book.md) — v2 hardware order-book implementation
 - [`docs/pipelined_order_book.md`](docs/pipelined_order_book.md) - v3 varient of the order book specifically
 - [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project

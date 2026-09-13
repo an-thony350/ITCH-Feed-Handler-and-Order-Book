@@ -1,10 +1,10 @@
 # Pipelined Order Book
 
-> Note that information for the top module, and symbol router also part of the entire order book system can be found in the [v2 varient](/docs/order_book.md) of the order book. The information about the v2 order book may also provide good context for the changes made here. However, this document should provide a comprehensive description of what occurs in this block
+> Note that information for the top module, and symbol router also part of the entire order book system can be found in the [v2 variant](/docs/order_book.md) of the order book. The information about the v2 order book may also provide good context for the changes made here. However, this document should provide a comprehensive description of what occurs in this block
 
 > Note that this has now been updated for the v4 release of the order book, see the relevant branches to look at previous versions of this block
 
-The Pipelined Order Book is an updated version of the v2 and v3 order books. It is now a 16-stage pipeline which takes in data from an async FIFO which bridges the 156.25 MHz netowrking domain,and the 250 MHz order book domain. The order book then updates the order book and bid/ask price books, and outputs the BBO outputs.
+The Pipelined Order Book is an updated version of the v2 and v3 order books. It is now a 16-stage pipeline which takes in data from an async FIFO which bridges the 156.25 MHz networking domain,and the 250 MHz order book domain. The order book then updates the order book and bid/ask price books, and outputs the BBO outputs.
 
 ---
 
@@ -29,11 +29,11 @@ The ob_idle block acts similar to the `IDLE` state. In this block, we hash the o
 
 ### ob_idx_req
 
-This blocks acts similar to the `IDX_REQ` state. In this block, we search the Content Addressable Memory (CAM) determining both if there is an avaiilable free spot, or the specific entry we are looking for is present in the CAM (this handles entry search for all instruction types we allow through this system). As well as passing data through the required state, we also determine our delta value (i.e. the difference in price between the incoming entry price and the base price of the stock we are looking at defined in the PS).
+This blocks acts similar to the `IDX_REQ` state. In this block, we search the Content Addressable Memory (CAM) determining both if there is an available free spot, or the specific entry we are looking for is present in the CAM (this handles entry search for all instruction types we allow through this system). As well as passing data through the required state, we also determine our delta value (i.e. the difference in price between the incoming entry price and the base price of the stock we are looking at defined in the PS).
 
 ### ob_idx_search
 
-This block acts similar to the `IDX_SEARCH` state. In this block we look at three entires in our order table (given that we ae using 3-way associative hashing) and determine whether we have a free slot (for an add instruction), or have found the correct entry relative to its ORN (for a delete/reduce instruction).
+This block acts similar to the `IDX_SEARCH` state. In this block we look at three entries in our order table (given that we ae using 3-way associative hashing) and determine whether we have a free slot (for an add instruction), or have found the correct entry relative to its ORN (for a delete/reduce instruction).
 
 > Note that in the case where we cannot find an entry to slot data into, the system will drop this order entry. Although in testing, this case does not happen, it must be noted that it would happen in this case
 
@@ -69,7 +69,7 @@ This block is similar to `BBO_SEARCH_EVAL` where we concatenate the most signifi
 
 ### ob_bbo_out
 
-This block is a combination of the `FETCH_BBO`, `FETCH_BBO_WAIT` and `EMIT` states. Given the read of the relevant price entry occurs in the previous cycle, we form out `bbo_t` strcut with the relevant bid/ask price and shares values (determining price by adding the latched base price to the delta value to obtain the original price).
+This block is a combination of the `FETCH_BBO`, `FETCH_BBO_WAIT` and `EMIT` states. Given the read of the relevant price entry occurs in the previous cycle, we form out `bbo_t` struct with the relevant bid/ask price and shares values (determining price by adding the latched base price to the delta value to obtain the original price).
 
 ### URAM Delay Blocks
 
@@ -81,6 +81,6 @@ The L3-in order book (unfortunately named `order_table`) has been synthesised us
 
 Given each entry stores 131 bits as defined by the struct below, the entire order table holds **402,432 bits**. This means that each order table synthesises into 12 BRAM blocks.
 
-The bid and ask price books have been synthesised using URAM also acting as SDP RAM. These books have a depth of 2^14 (16,384) due to their price windoow and each entry stores 32 bits of data. This means each price book holds **524,288 bits**. This means that each price book synthesises into 4 URAM blocks (due to using SDP RAM, single-port would give 2 URAM blocks per book).
+The bid and ask price books have been synthesised using URAM also acting as SDP RAM. These books have a depth of 2^14 (16,384) due to their price window and each entry stores 32 bits of data. This means each price book holds **524,288 bits**. This means that each price book synthesises into 4 URAM blocks (due to using SDP RAM, single-port would give 2 URAM blocks per book).
 
 > Note that the choice for price books being in URAM stems from the posibility of extending our price window depth, also given that BRAM was our limiting factor, we decided that URAM price books may be more optimal

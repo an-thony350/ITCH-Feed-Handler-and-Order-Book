@@ -13,66 +13,54 @@ source .venv/bin/activate
 
 ## 1. Complete host-side regression
 
-From `tb/`:
+From the repository root:
 
 ```bash
-cd tb
-make
+make test
 ```
 
-The current default target runs:
+The current default regression runs:
 
 1. golden Python compilation, unit tests, and oracle generation;
-2. MoldUDP64 sequence-guard tests;
-3. merged `data_realign` decoder tests;
-4. legacy `data_handler` regression tests;
-5. direct order-book tests;
-6. router/book wrapper tests;
-7. legacy `ingress_top` regression tests;
-8. current native-64-bit `ingress_data_realign_top` tests;
-9. legacy `feed_handler_top` network-to-book regression tests.
+2. AXI source-mux, lane-rewire, and source-boundary equivalence tests;
+3. MoldUDP64 sequence-guard tests;
+4. merged `data_realign` decoder tests;
+5. current native-64-bit `ingress_data_realign_top` tests;
+6. direct order-book tests;
+7. symbol-router / three-book wrapper tests.
 
-The legacy paths are intentionally retained as regression/reference implementations. The active Vivado ingress uses the native-64-bit `ingress_data_realign_top` architecture.
-
-Return to the repository root with:
-
-```bash
-cd ..
-```
+Deprecated architectural paths remain archived under `tb/tests/deprecated/`, but are intentionally excluded from the active regression.
 
 ---
 
 ## 2. Individual cocotb / Verilator targets
 
-Run these from `tb/`:
+Run these from the repository root:
 
 | Make target | DUT / purpose |
 |---|---|
 | `make test-golden` | Compile/test the Python oracle and regenerate default oracle files |
+| `make test-axis-source-mux` | AXI source-selection boundary |
+| `make test-lane-rewire` | Taxi/DMA lane-rewire boundary |
+| `make test-source-boundary-equiv` | Equivalence check across the two source-boundary paths |
 | `make test-mold-seq-guard` | Sequence, duplicate, gap, heartbeat, EOS, and stale policy |
 | `make test-data-realign` | Current packed-message decoder |
-| `make test-ingress-data-realign` | Current 64-bit Ethernet/MoldUDP64-to-event ingress |
-| `make test-ingress-data-realign-probe` | Current ingress through the performance-probe wrapper |
-| `make test-ingress-data-realign-perf` | Current ingress/decode latency test |
+| `make test-ingress` | Current 64-bit Ethernet/MoldUDP64-to-event ingress |
 | `make test-order-book` | Direct order-book lifecycle and oracle BBO tests |
 | `make test-order-book-top` | Symbol-router and three-book wrapper tests |
-| `make test-data-handler` | Legacy standalone decoder regression |
-| `make test-ingress` | Legacy `ingress_top` regression |
-| `make test-feed-handler-top` | Legacy complete network-to-book regression |
-| `make test-rtl` | Current default RTL correctness set without regenerating the golden oracle |
-| `make test-all` | Golden generation followed by `test-rtl` |
+| `make test-rtl` | All active cocotb RTL correctness tests without regenerating the golden oracle |
+| `make test` | Golden generation followed by `test-rtl` |
 
 For example, to run the current merged ingress:
 
 ```bash
-cd tb
-make test-ingress-data-realign
+make test-ingress
 ```
 
 Direct cocotb invocation is also available:
 
 ```bash
-make TOPLEVEL=ingress_data_realign_top MODULE=test_ingress_data_realign CLOCK_MHZ=156.25
+make TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress_data_realign CLOCK_MHZ=156.25
 ```
 
 The Makefile selects the required RTL sources, adds the repository and test harness to `PYTHONPATH`, and enables SystemVerilog, timing, and trace support.
@@ -82,36 +70,36 @@ The Makefile selects the required RTL sources, adds the repository and test harn
 The source-boundary blocks can be tested directly:
 
 ```bash
-make TOPLEVEL=lane_rewire MODULE=test_lane_rewire
-make TOPLEVEL=axis_source_mux MODULE=test_axis_source_mux
-make TOPLEVEL=source_boundary_equiv_top MODULE=test_source_boundary_equiv
+make TOPLEVEL=lane_rewire COCOTB_TEST_MODULES=test_lane_rewire
+make TOPLEVEL=axis_source_mux COCOTB_TEST_MODULES=test_axis_source_mux
+make TOPLEVEL=source_boundary_equiv_top COCOTB_TEST_MODULES=test_source_boundary_equiv
 ```
 
 ---
 
 ## 3. Native 64-bit line-rate regression
 
-The preferred current ingress performance target is in `Makefile.line_rate`.
+The preferred current ingress performance targets are in the root `Makefile`.
 
-From `tb/`:
-
-```bash
-make -f Makefile.line_rate ingress-smoke
-```
-
-runs the short smoke campaign.
+From the repository root:
 
 ```bash
-make -f Makefile.line_rate ingress-measure
+make perf-smoke
 ```
 
-runs the full measurement campaign without enforcing the pass/fail threshold.
+runs the ingress latency sweep plus the short enforced line-rate gate.
 
 ```bash
-make -f Makefile.line_rate ingress-gate
+make perf-measure
 ```
 
-runs the native-64-bit ingress campaign with the calculated physical 10GbE wire-rate requirement enforced.
+runs the full measurement campaign without enforcing the line-rate pass/fail threshold.
+
+```bash
+make perf-campaign
+```
+
+runs the ingress latency sweep plus the full native-64-bit ingress campaign with the calculated physical 10GbE wire-rate requirement enforced.
 
 The current test uses a modelled ingress clock of:
 
@@ -122,10 +110,14 @@ The current test uses a modelled ingress clock of:
 and writes results beneath:
 
 ```text
-build/perf/data_realign_ingress_line_rate/
+build/perf/
 ```
 
-The older aligned-ITCH ingress measurement is retained for A/B comparison through the `legacy-ingress-*` targets, but it is not the preferred measurement for the current architecture.
+with line-rate results under:
+
+```text
+build/perf/data_realign_ingress_line_rate/
+```
 
 ---
 
@@ -292,23 +284,37 @@ Useful additional options include `--src-port`, `--dst-port`, `--start-index`, a
 
 ---
 
-## 6. ZCU106 deterministic hardware regression
+## 6. ZCU106 deterministic hardware regression and showcase demo
 
-The current board regression is:
+### Browser showcase
+
+The current user-facing board demonstration is under:
 
 ```text
-notebooks/v3_1_notebook.ipynb
+demo/
 ```
 
-It loads the matching `.bit`/`.hwh` overlay and runs historical ITCH data through:
+It replays a frozen historical Nasdaq workload through:
 
 ```text
 PS DDR -> AXI DMA -> native 64-bit PL ingress -> order books -> BBO GPIO
 ```
 
-The notebook then runs the same source range through the Python golden model and compares the resulting BBO-change sequences.
+and serves the captured BBO state and golden-model comparison to a laptop browser over HTTP.
 
-This is a **correctness regression**, not a throughput benchmark: the notebook waits for each DMA transfer to complete before issuing the next one.
+The demo is a **correctness and visualisation path, not a throughput benchmark**. Full setup, oracle-generation, and launch instructions are documented in [`../demo/README.md`](../demo/README.md).
+
+### Notebook regression
+
+The deterministic notebook regression remains available at:
+
+```text
+notebooks/v3_1_notebook.ipynb
+```
+
+It loads the matching `.bit`/`.hwh` overlay and runs historical ITCH data through the same PS DDR / AXI DMA / PL path. The notebook then runs the same source range through the Python golden model and compares the resulting BBO-change sequences.
+
+This is also a **correctness regression**, not a throughput benchmark: the notebook waits for each DMA transfer to complete before issuing the next one.
 
 Configuration, price conversion, symbol mapping, and comparison behaviour are documented in [`processing_system.md`](processing_system.md).
 
@@ -375,29 +381,24 @@ Generated files should remain outside source control:
 ```text
 .venv/
 build/
-tb/sim_build/
-tb/results.xml
-tb/*.vcd
-tb/*.fst
+results.xml
 __pycache__/
 .pytest_cache/
 ```
 
-### Clean cocotb output
+### Clean cocotb and generated regression output
 
 ```bash
-cd tb
 make clean-all
-rm -rf sim_build results.xml dump.vcd *.vcd *.fst
-cd ..
+rm -f results.xml
+rm -rf build/network
 ```
 
-### Clean Python caches and generated vectors
+### Clean Python caches
 
 ```bash
 find . -type d -name __pycache__ -prune -exec rm -rf {} +
 find . -type d -name .pytest_cache -prune -exec rm -rf {} +
-rm -rf build/golden build/network
 ```
 
 ### Rebuild a broken Python environment
@@ -420,8 +421,7 @@ python -VV
 python -c "import cocotb; print(cocotb.__version__)"
 verilator --version
 
-cd tb
-make
+make test
 ```
 
 ---
@@ -443,5 +443,5 @@ Typical causes are:
 - `.venv` is not active;
 - cocotb was installed into a different Python interpreter;
 - an older `/usr/bin/verilator` is found before `$HOME/.local/bin/verilator`;
-- the cocotb command is being run from the wrong directory;
-- stale `sim_build` output remains after changing sources or top-level parameters.
+- cocotb/Verilator commands are being run outside the repository root;
+- stale `build/sim` output remains after changing sources or top-level parameters.
