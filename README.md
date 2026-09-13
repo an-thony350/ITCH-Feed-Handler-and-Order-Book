@@ -12,6 +12,7 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
 - [ITCH 5.0 Feed Handler and FPGA Hardware Order Book](#itch-50-feed-handler-and-fpga-hardware-order-book)
   - [Contents](#contents)
   - [Project status](#project-status)
+  - [Demo](#demo)
   - [System architecture](#system-architecture)
     - [Host, Processing System, and Programmable Logic](#host-processing-system-and-programmable-logic)
     - [PL hot path](#pl-hot-path)
@@ -52,75 +53,23 @@ The latest routed design completes bitstream generation and meets timing. The or
 
 ---
 
+## Demo
+
+The current ZCU106 demonstration replays historical Nasdaq ITCH data through the FPGA datapath and visualises the resulting best-bid/ask updates for AAPL, MSFT, and NFLX while comparing the hardware output against the Python golden model.
+
+![ITCH FPGA hardware demo](assets/itch_demo.gif)
+
+---
+
 ## System architecture
 
 ### Host, Processing System, and Programmable Logic
 
-```mermaid
-flowchart TB
-    subgraph HOST[Host / offline verification]
-        BIN[ITCH BinaryFILE]
-        STIM[Synthetic stimulus generator]
-        GP[Python ITCH parser]
-        GB[Python golden order book]
-        ENC[Network encapsulator]
-        ORA[events.jsonl + states.jsonl]
-
-        BIN --> GP
-        STIM --> GP
-        GP --> GB
-        GP --> ORA
-        GB --> ORA
-        BIN --> ENC
-    end
-
-    subgraph PS[ZCU106 Processing System]
-        PY[PYNQ Python / notebook]
-        DDR[PS DDR / DMA buffer]
-        DMA[AXI DMA MM2S]
-        GPIO[AXI GPIO control and BBO readout]
-
-        PY --> DDR --> DMA
-        PY <--> GPIO
-    end
-
-    subgraph PL[Programmable Logic]
-        TAXI[Taxi 10GbE SFP+ frontend]
-        SRC[DMA / Taxi source boundary]
-        FC[frame_crack]
-        MD[mold_deframe + mold_seq_guard]
-        DR[data_realign]
-        CDC[event_async_fifo]
-        SR[symbol_router]
-        OB[order_book]
-        BBO[BBO output]
-
-        TAXI --> SRC
-        SRC --> FC --> MD --> DR --> CDC --> SR --> OB --> BBO
-    end
-
-    ENC -. simulation frames .-> FC
-    DMA --> SRC
-    BBO --> GPIO
-    ORA -. cocotb scoreboards .-> DR
-    ORA -. cocotb scoreboards .-> OB
-```
+![PS PL Architecture](assets/host_ps_pl_architecture.png)
 
 ### PL hot path
 
-```mermaid
-flowchart LR
-    A[64-bit AXI-Stream Ethernet frame] --> B[frame_crack]
-    B -->|UDP payload| C[mold_deframe]
-    C -->|message lengths + packed payload| D[data_realign]
-    D -->|normalised event| E[event async FIFO]
-    E --> F[symbol_router]
-    F -->|selected event| G[order_book]
-    G -->|BBO + valid pulse| H[BBO output]
-
-    C --> I[mold_seq_guard]
-    I --> J[duplicate / gap / stale / heartbeat / EOS status]
-```
+![PL Hot Path](assets/pl_hot_path.png)
 
 The network ingress remains in the fast network clock domain until a complete **217-bit normalised event** has been produced. The event FIFO then performs the CDC into the 250 MHz order-book/data domain. This avoids crossing the full raw Ethernet stream after parsing and keeps the CDC at a narrow semantic boundary.
 
@@ -158,12 +107,7 @@ The frontend also exposes link/debug status including GT power-good, RX status, 
 
 Nasdaq TotalView-ITCH describes the lifecycle of individual displayed orders. The feed handler reconstructs the book; it does not match orders.
 
-```mermaid
-flowchart LR
-    A[ITCH L3 order messages] --> B[Order-reference table]
-    B --> C[Per-price bid/ask aggregates]
-    C --> D[Best bid / best ask]
-```
+![Protocol and Book Model](assets/protocol_book_model.png)
 
 ### Relevant ITCH message types
 
@@ -223,30 +167,12 @@ The golden-model architecture, verification layers, current coverage, and remain
 
 ### Current block design
 
-```mermaid
-flowchart LR
-    PS[Zynq UltraScale+ Processing System] --> HP[AXI path to DDR]
-    PS --> GP[AXI HPM control]
-    DDR[PS DDR] --> DMA[AXI DMA MM2S]
-    DMA --> CC[AXIS clock converter]
-    CC --> SRC[DMA / Taxi source boundary]
-
-    SFP[SFP+ cages] --> TAXI[Taxi 10GbE GTH + PCS/MAC]
-    TAXI --> SRC
-
-    SRC --> NI[64-bit network_ingress custom IP]
-    NI --> EF[event async FIFO]
-    EF --> OBT[order_book_top custom IP]
-    OBT --> BID[AXI GPIO bid price + shares]
-    OBT --> ASK[AXI GPIO ask price + shares]
-    OBT --> VAL[AXI GPIO BBO valid]
-    GP --> BASE[AXI GPIO base price]
-    BASE --> OBT
-```
+![Current ZCU106 Vivado block design](assets/BD.png)
 
 The hardware build remains modular. The DMA is **MM2S-only** and provides the deterministic replay source, while Taxi provides the real SFP+ Ethernet source. The DMA stream is clock-converted into the Taxi RX/user clock domain before the two sources meet at the static mux.
 
 The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete normalised event has been decoded, `event_async_fifo` crosses the event into the 250 MHz order-book domain.
+
 ### Address map
 
 | Peripheral | Base address | Direction / use |
