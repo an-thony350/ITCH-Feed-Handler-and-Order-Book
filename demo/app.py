@@ -21,6 +21,7 @@ from oracle import OracleVerifier
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
 GRAPH_HISTORY_LIMIT = 320
+GRAPH_WARMUP_BBO_UPDATES = 50
 
 
 class DemoState:
@@ -125,15 +126,21 @@ class DemoState:
 
             history_index = int(stock["history_total"])
             stock["history_total"] = history_index + 1
-            stock["history"].append(
-                {
-                    "index": history_index,
-                    "bid": bid_valid,
-                    "ask": ask_valid,
-                }
-            )
-            if len(stock["history"]) > GRAPH_HISTORY_LIMIT:
-                del stock["history"][:-GRAPH_HISTORY_LIMIT]
+
+            # Keep the first BBO updates available to the verifier and counters,
+            # but never expose them to the graph. Early book-population states can
+            # otherwise dominate the y-axis until they age out of the display
+            # history window.
+            if history_index >= GRAPH_WARMUP_BBO_UPDATES:
+                stock["history"].append(
+                    {
+                        "index": history_index,
+                        "bid": bid_valid,
+                        "ask": ask_valid,
+                    }
+                )
+                if len(stock["history"]) > GRAPH_HISTORY_LIMIT:
+                    del stock["history"][:-GRAPH_HISTORY_LIMIT]
 
             self._state["progress"]["bbo_updates"] += 1
             self._state["verification"]["comparisons"] = comparison["comparisons"]
@@ -325,6 +332,9 @@ def make_handler(application: DemoApplication):
                 content_type or "application/octet-stream",
             )
             self.send_header("Content-Length", str(len(content)))
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
             self.wfile.write(content)
 

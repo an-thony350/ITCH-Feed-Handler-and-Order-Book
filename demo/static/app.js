@@ -2,6 +2,8 @@ const symbols = ["AAPL", "MSFT", "NFLX"];
 let selectedSymbol = "MSFT";
 let latestState = null;
 
+const GRAPH_WARMUP_BBO_UPDATES = 50;
+
 const statusEl = document.getElementById("status");
 const connectionEl = document.getElementById("connection");
 const runButton = document.getElementById("run-button");
@@ -133,8 +135,10 @@ function stepPath(history, key, x, y) {
 function drawGraph(stock) {
   graph.replaceChildren();
 
-  const history = stock?.history || [];
-  const historyTotal = Number(stock?.history_total || history.length || 0);
+  const fullHistory = stock?.history || [];
+  const historyTotal = Number(
+    stock?.history_total || fullHistory.length || 0
+  );
   const historyLimit = Number(stock?.history_limit || 0);
 
   const width = 960;
@@ -146,6 +150,36 @@ function drawGraph(stock) {
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
 
+  /*
+   * Allow the order book to settle before showing anything on the graph.
+   *
+   * BBO indices 0..49 are deliberately ignored. They still participate in
+   * oracle verification and all hardware counters, but they never affect
+   * the graph or its y-axis price range.
+   */
+  if (historyTotal <= GRAPH_WARMUP_BBO_UPDATES) {
+    graphWindowEl.textContent =
+      `${formatInteger(historyTotal)} / ${GRAPH_WARMUP_BBO_UPDATES} warm-up BBO updates`;
+
+    graph.appendChild(svgEl("text", {
+      x: width / 2,
+      y: height / 2,
+      "text-anchor": "middle",
+      class: "empty-graph"
+    }, `Waiting for ${GRAPH_WARMUP_BBO_UPDATES} BBO updates…`));
+
+    return;
+  }
+
+  /*
+   * history_total is the complete per-stock count, while history may be a
+   * rolling display window. Filter by the original BBO index so the warm-up
+   * samples can never re-enter the plotted data.
+   */
+  const history = fullHistory.filter(
+    point => Number(point.index) >= GRAPH_WARMUP_BBO_UPDATES
+  );
+
   const values = [];
   for (const point of history) {
     if (point.bid != null) values.push(Number(point.bid));
@@ -154,21 +188,29 @@ function drawGraph(stock) {
 
   if (!history.length || !values.length) {
     graphWindowEl.textContent = "";
+
     graph.appendChild(svgEl("text", {
       x: width / 2,
       y: height / 2,
       "text-anchor": "middle",
       class: "empty-graph"
-    }, "Waiting for BBO updates…"));
+    }, "Waiting for post-warm-up BBO data…"));
+
     return;
   }
+
+  const displayedHistoryTotal = Math.max(
+    0,
+    historyTotal - GRAPH_WARMUP_BBO_UPDATES
+  );
 
   const firstIndex = Number(history[0].index);
   const lastIndex = Number(history[history.length - 1].index);
   const shown = history.length;
-  graphWindowEl.textContent = historyTotal > shown
-    ? `Latest ${formatInteger(shown)} of ${formatInteger(historyTotal)} BBO updates`
-    : `${formatInteger(shown)} BBO updates`;
+
+  graphWindowEl.textContent = displayedHistoryTotal > shown
+    ? `Latest ${formatInteger(shown)} of ${formatInteger(displayedHistoryTotal)} displayed BBO updates`
+    : `${formatInteger(shown)} displayed BBO updates`;
 
   if (historyLimit > 0 && historyTotal >= historyLimit) {
     graphWindowEl.title =
@@ -177,8 +219,13 @@ function drawGraph(stock) {
     graphWindowEl.removeAttribute("title");
   }
 
+  /*
+   * Crucially, min/max are calculated only from post-warm-up samples.
+   * The first 50 BBOs therefore cannot distort the displayed price range.
+   */
   let minY = Math.min(...values);
   let maxY = Math.max(...values);
+
   if (minY === maxY) {
     minY -= 1;
     maxY += 1;
@@ -189,12 +236,17 @@ function drawGraph(stock) {
   maxY += pad;
 
   const xSpan = Math.max(1, lastIndex - firstIndex);
-  const x = index => left + ((Number(index) - firstIndex) / xSpan) * plotWidth;
-  const y = price => top + ((maxY - Number(price)) / (maxY - minY)) * plotHeight;
+
+  const x = index =>
+    left + ((Number(index) - firstIndex) / xSpan) * plotWidth;
+
+  const y = price =>
+    top + ((maxY - Number(price)) / (maxY - minY)) * plotHeight;
 
   for (let i = 0; i <= 4; i += 1) {
     const yy = top + (i / 4) * plotHeight;
     const price = maxY - (i / 4) * (maxY - minY);
+
     graph.appendChild(svgEl("line", {
       x1: left,
       x2: width - right,
@@ -202,6 +254,7 @@ function drawGraph(stock) {
       y2: yy,
       class: "grid-line"
     }));
+
     graph.appendChild(svgEl("text", {
       x: left - 12,
       y: yy + 4,
@@ -218,8 +271,11 @@ function drawGraph(stock) {
     }, String(firstIndex)));
   } else {
     for (let i = 0; i <= 4; i += 1) {
-      const index = Math.round(firstIndex + (i / 4) * (lastIndex - firstIndex));
+      const index = Math.round(
+        firstIndex + (i / 4) * (lastIndex - firstIndex)
+      );
       const xx = x(index);
+
       if (i > 0 && i < 4) {
         graph.appendChild(svgEl("line", {
           x1: xx,
@@ -229,6 +285,7 @@ function drawGraph(stock) {
           class: "grid-line"
         }));
       }
+
       graph.appendChild(svgEl("text", {
         x: xx,
         y: height - 17,
@@ -245,6 +302,7 @@ function drawGraph(stock) {
     y2: height - bottom,
     class: "axis-line"
   }));
+
   graph.appendChild(svgEl("line", {
     x1: left,
     x2: width - right,
@@ -262,6 +320,7 @@ function drawGraph(stock) {
       class: "bid-line"
     }));
   }
+
   if (askPath) {
     graph.appendChild(svgEl("path", {
       d: askPath,
@@ -272,6 +331,7 @@ function drawGraph(stock) {
 
 function renderMismatch(verification) {
   const first = verification.first_mismatch;
+
   if (!first) {
     mismatchEl.textContent = "";
     mismatchEl.classList.add("hidden");
@@ -280,13 +340,16 @@ function renderMismatch(verification) {
 
   mismatchEl.textContent =
     `First mismatch: ${JSON.stringify(first)}`;
+
   mismatchEl.classList.remove("hidden");
 }
 
 function render(state) {
   latestState = state;
+
   setConnection(true);
   setStatus(state.status);
+
   detailEl.textContent = state.detail || "";
 
   const progress = state.progress;
@@ -294,22 +357,30 @@ function render(state) {
 
   document.getElementById("source-messages").textContent =
     formatInteger(progress.source_messages);
+
   document.getElementById("dma-packets").textContent =
     formatInteger(progress.dma_packets);
+
   document.getElementById("bbo-updates").textContent =
     formatInteger(progress.bbo_updates);
+
   document.getElementById("oracle-comparisons").textContent =
     formatInteger(verification.comparisons || 0);
+
   document.getElementById("mismatches").textContent =
     formatInteger(verification.mismatches || 0);
 
   const limit = Number(progress.message_limit || 0);
   const source = Number(progress.source_messages || 0);
-  const pct = limit > 0 ? Math.min(100, (source / limit) * 100) : 0;
+  const pct = limit > 0
+    ? Math.min(100, (source / limit) * 100)
+    : 0;
+
   progressBar.style.width = `${pct}%`;
 
   const expectedTotal = Number(verification.expected_total || 0);
   const comparisons = Number(verification.comparisons || 0);
+
   document.getElementById("oracle-progress").textContent =
     expectedTotal > 0
       ? `Oracle ${formatInteger(comparisons)} / ${formatInteger(expectedTotal)}`
@@ -330,8 +401,16 @@ function render(state) {
 
 async function pollState() {
   try {
-    const response = await fetch("/api/state", { cache: "no-store" });
-    if (!response.ok) throw new Error(`state request failed: ${response.status}`);
+    const response = await fetch("/api/state", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `state request failed: ${response.status}`
+      );
+    }
+
     render(await response.json());
   } catch (error) {
     setConnection(false);
@@ -343,9 +422,18 @@ runButton.addEventListener("click", async () => {
   errorEl.classList.add("hidden");
 
   try {
-    const response = await fetch("/api/run", { method: "POST" });
+    const response = await fetch("/api/run", {
+      method: "POST"
+    });
+
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || "Run request failed");
+
+    if (!response.ok) {
+      throw new Error(
+        payload.error || "Run request failed"
+      );
+    }
+
     await pollState();
   } catch (error) {
     errorEl.textContent = String(error);
@@ -354,19 +442,27 @@ runButton.addEventListener("click", async () => {
   }
 });
 
-document.getElementById("stock-selector").addEventListener("click", event => {
-  const button = event.target.closest("button[data-symbol]");
-  if (!button) return;
+document
+  .getElementById("stock-selector")
+  .addEventListener("click", event => {
+    const button = event.target.closest("button[data-symbol]");
 
-  selectedSymbol = button.dataset.symbol;
-  document.querySelectorAll("#stock-selector button").forEach(el => {
-    el.classList.toggle("selected", el === button);
+    if (!button) {
+      return;
+    }
+
+    selectedSymbol = button.dataset.symbol;
+
+    document
+      .querySelectorAll("#stock-selector button")
+      .forEach(el => {
+        el.classList.toggle("selected", el === button);
+      });
+
+    if (latestState) {
+      drawGraph(latestState.stocks[selectedSymbol]);
+    }
   });
-
-  if (latestState) {
-    drawGraph(latestState.stocks[selectedSymbol]);
-  }
-});
 
 makeStockCards();
 pollState();

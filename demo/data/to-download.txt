@@ -1,0 +1,39 @@
+Nasdaq ITCH demo dataset
+========================
+
+Required file:
+12302019.NASDAQ_ITCH50.gz
+
+Place the downloaded file in this directory:
+
+demo/data/12302019.NASDAQ_ITCH50.gz
+
+Download source:
+https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/12302019.NASDAQ_ITCH50.gz
+
+Linux / WSL / board terminal
+----------------------------
+From the repository root:
+
+mkdir -p demo/data
+cd demo/data
+
+wget -O 12302019.NASDAQ_ITCH50.gz \
+  "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/12302019.NASDAQ_ITCH50.gz"
+
+Alternatively, with curl:
+
+curl -L \
+  "https://emi.nasdaq.com/ITCH/Nasdaq%20ITCH/12302019.NASDAQ_ITCH50.gz" \
+  -o 12302019.NASDAQ_ITCH50.gz
+
+Manual download
+---------------
+Open the download source above in a browser, then save the file as:
+
+demo/data/12302019.NASDAQ_ITCH50.gz
+
+The compressed file is approximately 3.5 GB.
+
+Do not extract the .gz file. The demo scripts read
+12302019.NASDAQ_ITCH50.gz directly.
