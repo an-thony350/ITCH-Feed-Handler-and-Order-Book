@@ -25,7 +25,7 @@ To run this design, there are a couple pre-requisites that must be noted before 
 git clone --no-checkout https://github.com/an-thony350/ITCH-Feed-Handler-and-Order-Book
 cd ITCH-Feed-Handler-and-Order-Book
 git sparse-checkout init --cone
-git sparse-checkout set release/v4.0
+git sparse-checkout set releases/v4.0
 git checkout main
 ```
 
