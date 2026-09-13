@@ -32,6 +32,7 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
     - [Network ingress](#network-ingress)
     - [Decoder and order book](#decoder-and-order-book)
   - [Further documentation](#further-documentation)
+  - [Contributors](#contributors)
   - [Continuous integration](#continuous-integration)
 
 ---
@@ -256,7 +257,7 @@ These figures are measured on the AXI frame path while the pass/fail gate accoun
 | Stage | Latency | Initiation behaviour | Reason for the decision |
 |---|---|---|---|
 | `data_realign` | Included in the **19-21 cycle** ingress/decode figures above | Direct packed-stream decode avoids the old `realign -> data_handler` per-message bubble | Merging realignment and decode removes duplicated byte movement and improves sustained ingress throughput |
-| `event_async_fifo` | CDC/buffering latency only; no protocol processing | Decouples the fast network domain from the 100 MHz order-book domain | Crossing complete 217-bit events is simpler and lower bandwidth than crossing raw Ethernet data |
+| `event_async_fifo` | CDC/buffering latency only; no protocol processing | Decouples the fast network domain from the 250 MHz order-book domain | Crossing complete 217-bit events is simpler and lower bandwidth than crossing raw Ethernet data |
 | `symbol_router` | **1 cycle / 4 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
 | `order_book` | **16-stage pipeline / 64 ns** at 250 MHz | Pipeline latency is separate from initiation rate; successive events can occupy different stages concurrently | Pipelining removes the old state-machine throughput limit while retaining the BRAM-based order and price books |
 
@@ -270,11 +271,22 @@ These figures are measured on the AXI frame path while the pass/fail gate accoun
 - [`docs/golden_model.md`](docs/golden_model.md) — golden-model architecture and consolidated verification methodology
 - [`docs/rtl_datapath.md`](docs/rtl_datapath.md) — RTL stage contracts, handshakes, and design boundaries
 - [`docs/networking_ingress.md`](docs/networking_ingress.md) — detailed Ethernet/IPv4/UDP/MoldUDP64 ingress behaviour
-- [`docs/moldudp64_sequence_handling.md`](docs/moldudp64_sequence_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
+- [`docs/moldudp64_seq_handling.md`](docs/moldudp64_seq_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
 - [`docs/data_handler.md`](docs/data_handler.md) — ITCH decoder details
 - [`docs/order_book.md`](docs/order_book.md) — v2 hardware order-book implementation
 - [`docs/pipelined_order_book.md`](docs/pipelined_order_book.md) - v3 varient of the order book specifically
 - [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project
+
+---
+
+## Contributors
+
+Built collaboratively by:
+
+- [Anthony Bartlett](https://github.com/an-thony350)
+- [Denzil Erza-Essien](https://github.com/derza-essien)
+
+Both contributors worked across the FPGA architecture, RTL implementation, verification, hardware integration and system bring-up.
 
 ---
 
