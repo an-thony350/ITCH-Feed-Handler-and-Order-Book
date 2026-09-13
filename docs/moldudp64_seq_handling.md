@@ -46,15 +46,8 @@ Both are status-only and contain no ITCH message blocks.
 
 ## 2. RTL split
 
-```mermaid
-flowchart LR
-    A[UDP payload] --> B[mold_deframe]
-    B --> C[session / seq / count]
-    C --> D[mold_seq_guard]
-    D --> E[accept or drop]
-    D --> F[in-order / duplicate / gap / stale / heartbeat / EOS]
-    B -->|accepted packed payload + lengths| G[data_realign]
-```
+![RTL Split](../assets/moldudp64_rtl_split.png)
+
 
 `mold_deframe` parses the header and message blocks. `mold_seq_guard` decides whether the current datagram may forward payload and updates the expected sequence state.
 

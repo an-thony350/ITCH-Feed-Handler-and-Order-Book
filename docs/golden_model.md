@@ -10,28 +10,7 @@ Commands for generating the oracles and running the RTL tests are kept in [`runn
 
 ## 1. Verification architecture
 
-```mermaid
-flowchart TB
-    INPUT[BinaryFILE input] --> PARSE[golden.itch_parser]
-    PARSE --> EVENT[Normalised events]
-    EVENT --> BOOK[golden.order_book]
-    EVENT --> EJ[events.jsonl]
-    BOOK --> SJ[states.jsonl]
-
-    INPUT --> ENCAP[golden.network_encapsulator]
-    ENCAP --> NI[64-bit ingress + data_realign]
-    EJ --> NI
-
-    EJ --> OB[order_book cocotb driver]
-    SJ --> OB
-
-    ENCAP --> SEQ[duplicate / gap / heartbeat / EOS campaigns]
-
-    INPUT --> BOARD[ZCU106 DMA replay]
-    BOARD --> HWBBO[hardware BBO changes]
-    SJ --> CMP[hardware / golden comparison]
-    HWBBO --> CMP
-```
+![Golden model verification architecture](../assets/golden_model_verification_architecture.png)
 
 The verification stack is layered so that failures can be localised:
 

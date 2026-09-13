@@ -12,41 +12,7 @@ The Pipelined Order Book is an updated version of the v2 and v3 order books. It 
 
 The design of this module can be explained through this diagram below:
 
-```mermaid
-flowchart LR
-    %% Data Stores column
-    subgraph Data_Stores ["Memory Blocks holding order and price books"]
-        direction TB
-        K[(order_table)]
-        L[(price_book)]
-    end
-
-    %% Pipeline column (vertical flow keeps it compact)
-    subgraph Pipeline ["Order Book Pipeline"]
-        direction TB
-        M([replace_check]) --> A[ob_idle]
-        A --> B[ob_idx_req]
-        B --> C[ob_idx_search]
-        C --> D[ob_update_read_tbl]
-        D --> E[issue_book_read]
-        E --> N[(URAM delay blocks)]
-        N --> F[update_read_book]
-        F --> G[update_write]
-        G --> H[bbo_evaluate]
-        H --> I[bbo_resolve]
-        I --> O[(URAM bbo delay blocks)]
-        O --> J([bbo_out])
-    end
-
-    %% Table Interactions (cross horizontally between columns)
-    A -.-> K
-    B -.-> K
-    K -.-> C
-    G -.-> K
-    G -.-> L
-    L -.-> J
-
-```
+![Pipelined order book architecture](../assets/pipelined_order_book_format.png)
 ---
 
 ## Logic
