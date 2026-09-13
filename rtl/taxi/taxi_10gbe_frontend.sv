@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: MIT
+/*
+ * Portions adapted from the Taxi ZCU106 Ethernet example.
+ *
+ * Copyright (c) 2020-2025 FPGA Ninja, LLC
+ * Copyright (c) 2026 Anthony Bartlett, Denzil Erza-Essien
+ *
+ * Taxi: https://github.com/fpganinja/taxi
+ */
 // Thin Taxi 10GbE frontend for the ZCU106 SFP+ interface.
 //
 // This wrapper preserves the proven two-channel ZCU106 Taxi transceiver

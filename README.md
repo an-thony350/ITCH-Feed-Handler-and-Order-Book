@@ -32,6 +32,7 @@ RTL is written in SystemVerilog, with Python-controlled PS and reference models 
     - [Network ingress](#network-ingress)
     - [Decoder and order book](#decoder-and-order-book)
   - [Further documentation](#further-documentation)
+  - [Licensing](#licensing)
   - [Contributors](#contributors)
   - [Continuous integration](#continuous-integration)
 
@@ -274,6 +275,16 @@ These figures are measured on the AXI frame path while the pass/fail gate accoun
 - [`docs/order_book.md`](docs/order_book.md) — v2 hardware order-book implementation
 - [`docs/pipelined_order_book.md`](docs/pipelined_order_book.md) - v3 varient of the order book specifically
 - [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project
+
+---
+
+## Licensing
+
+Project-specific software, documentation and independently authored components are provided under the repository's [MIT licence](LICENSE) unless otherwise stated.
+
+The V4.0 FPGA hardware design integrates the [Taxi transport library](https://github.com/fpganinja/taxi), whose core RTL is provided under the **CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)** unless an individual Taxi file states otherwise.
+
+The V4.0 licensing scope, third-party attribution and source information are documented in [`releases/v4.0/LICENSE.md`](releases/v4.0/LICENSE.md).
 
 ---
 
