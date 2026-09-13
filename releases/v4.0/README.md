@@ -79,12 +79,12 @@ The notebook used to run this can be found in `v4.0/processing_system`. The foll
 
 ## Licensing and Third-Party IP
 
-The V4.0 FPGA design integrates the [Taxi transport library](https://github.com/fpganinja/taxi) by FPGA Ninja, LLC.
+The V4.0 FPGA hardware design integrates a vendored snapshot of the
+[Taxi transport library](https://github.com/fpganinja/taxi), whose core
+RTL is provided under the **CERN Open Hardware Licence Version 2 -
+Strongly Reciprocal (CERN-OHL-S-2.0)** unless an individual Taxi file
+states otherwise.
 
-Taxi core RTL is provided under the **CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)** unless an individual source file states otherwise. Some Taxi example and interface files use less restrictive licences, including MIT.
-
-Original Taxi licence and copyright notices are retained in [`lib/taxi`](lib/taxi), including the complete CERN-OHL-S-2.0 licence at [`lib/taxi/LICENSE`](lib/taxi/LICENSE).
-
-The project-specific V4.0 integration, source availability and licence scope are documented in [`LICENSE.md`](LICENSE.md).
-
-The upstream Taxi project is available at: https://github.com/fpganinja/taxi
+The exact upstream revision, vendored source location, modifications,
+third-party attribution and licence scope are documented in
+[`releases/v4.0/LICENSE.md`](releases/v4.0/LICENSE.md).
