@@ -1,4 +1,5 @@
-"""cocotb tests for the merged data_realign streaming decoder.
+"""
+cocotb tests for the merged data_realign streaming decoder.
 
 Scope:
 - Drive the exact packed 64-bit payload + message-length contract produced by
@@ -8,9 +9,6 @@ Scope:
 - Exercise message boundaries at every 64-bit byte-lane offset.
 - Prove unsupported ITCH messages are consumed without producing events.
 - Prove downstream event backpressure does not corrupt or overwrite output.
-
-This test intentionally stops at data_realign. frame_crack, mold_deframe, the
-event CDC FIFO, symbol_router, and order_book are outside this isolation gate.
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
 from golden.itch_parser import parse_itch_message
-from itch_harness.axis import axis_bytes_to_words
+from itch_harness.axis import axis_bytes_to_words, axis_word_bytes
 from itch_harness.ingress_packets import (
     add_order_payload,
     add_order_with_mpid_payload,
@@ -162,7 +160,13 @@ async def drive_packed_datagram(
     """
 
     packed = b"".join(payloads)
-    words = axis_bytes_to_words(packed, word_bytes=8)
+
+    word_bytes = axis_word_bytes(
+        dut.s_payload_tdata_i,
+        dut.s_payload_tkeep_i,
+    )
+
+    words = axis_bytes_to_words(packed, word_bytes=word_bytes)
 
     accepted_beats = 0
     stalled_cycles = 0
@@ -365,13 +369,19 @@ async def test_data_realign_decodes_mixed_packed_messages(dut: Any) -> None:
 
 @cocotb.test()
 async def test_data_realign_covers_every_message_start_lane(dut: Any) -> None:
-    """Repeated 19-byte D messages move the next start through all 8 byte lanes.
+    """Repeated 19-byte D messages move the next start through all byte lanes.
 
-    gcd(19, 8) == 1, so eight consecutive Delete messages exercise every
-    possible message-start alignment without inserting padding.
+    For 32-bit and 64-bit interfaces, 19 is coprime to the number of
+    byte lanes, so consecutive Delete messages exercise every possible
+    message-start alignment without inserting padding.
     """
 
     await initialise_data_realign(dut)
+
+    word_bytes = axis_word_bytes(
+        dut.s_payload_tdata_i,
+        dut.s_payload_tkeep_i,
+    )
 
     payloads = [
         delete_order_payload(
@@ -380,16 +390,16 @@ async def test_data_realign_covers_every_message_start_lane(dut: Any) -> None:
             tracking=index,
             timestamp_ns=1_000 + index,
         )
-        for index in range(8)
+        for index in range(word_bytes)
     ]
 
     start_offsets = []
     cursor = 0
     for payload in payloads:
-        start_offsets.append(cursor % 8)
+        start_offsets.append(cursor % word_bytes)
         cursor += len(payload)
 
-    assert sorted(start_offsets) == list(range(8))
+    assert sorted(start_offsets) == list(range(word_bytes))
 
     monitor = EventMonitor(dut)
     monitor_task = cocotb.start_soon(monitor.run())
@@ -403,8 +413,7 @@ async def test_data_realign_covers_every_message_start_lane(dut: Any) -> None:
     await FallingEdge(dut.clk)
     monitor_task.cancel()
 
-    expected_beats = (sum(len(payload) for payload in payloads) + 7) // 8
-
+    expected_beats = ( sum(len(payload) for payload in payloads) + word_bytes - 1 ) // word_bytes
     assert accepted_beats == expected_beats
     assert stalled_cycles == 0, (
         "streaming decoder inserted a padding/realignment bubble: "

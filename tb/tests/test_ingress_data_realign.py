@@ -17,7 +17,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
 from golden.itch_parser import parse_itch_message
-from itch_harness.axis import drive_axis_frame, reset_dut
+from itch_harness.axis import axis_word_bytes, drive_axis_frame, reset_dut
 from itch_harness.ingress_packets import (
     SESSION,
     add_order_payload,
@@ -274,9 +274,14 @@ async def test_candidate_ingress_decodes_mixed_mold_datagram(dut: Any) -> None:
 async def test_candidate_ingress_dense_delete_crosses_every_alignment(
     dut: Any,
 ) -> None:
-    """Dense 19-byte deletes exercise every packed 64-bit start offset."""
+    """Dense 19-byte deletes exercise every packed input start offset."""
 
     await _initialise(dut)
+
+    word_bytes = axis_word_bytes(
+        dut.s_frame_tdata_i,
+        dut.s_frame_tkeep_i,
+    )
 
     payloads = [
         delete_order_payload(
@@ -285,16 +290,16 @@ async def test_candidate_ingress_dense_delete_crosses_every_alignment(
             tracking=index + 1,
             timestamp_ns=1000 + index,
         )
-        for index in range(16)
+        for index in range(word_bytes * 2)
     ]
 
     start_offsets: list[int] = []
     cursor = 0
     for payload in payloads:
-        start_offsets.append(cursor % 8)
+        start_offsets.append(cursor % word_bytes)
         cursor += len(payload)
 
-    assert set(start_offsets) == set(range(8))
+    assert set(start_offsets) == set(range(word_bytes))
 
     frame = build_eth_ipv4_udp_frame(
         build_mold_datagram(payloads, seq=200)
