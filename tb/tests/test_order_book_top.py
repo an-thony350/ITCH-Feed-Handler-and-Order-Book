@@ -34,10 +34,7 @@ TARGET_LOCATE = 1
 BASE_PRICE = 9000
 CLOCK_PERIOD = 10
 
-# order_book.sv currently indexes 4096 price levels using a 12-bit delta from
-# base_price_i. Keep this explicit so an out-of-window oracle fails clearly
-# rather than silently wrapping through RTL truncation.
-PRICE_INDEX_MAX = (1 << 12) - 1
+PRICE_INDEX_MAX = (1 << 14) - 1
 
 RESET_CYCLES = 5
 EVENT_TIMEOUT_CYCLES = 100_000

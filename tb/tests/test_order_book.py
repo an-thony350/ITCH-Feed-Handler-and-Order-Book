@@ -671,7 +671,7 @@ from itch_harness.axis import wait_bbo_valid
 from itch_harness.layout import DATA_FIELDS, ITCH_EXECUTE_PRICE, insert_field, pack_data_t
 
 ITCH_ADD_WITH_MPID = ord("F")
-BBO_LAST_IDX = (1 << 12) - 1
+BBO_LAST_IDX = (1 << 14) - 1
 
 
 async def drive_order_book_event_with_rtl_msg_type(
