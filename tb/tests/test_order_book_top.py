@@ -15,8 +15,6 @@ from typing import Any
 
 import cocotb
 from cocotb.triggers import FallingEdge, RisingEdge
-from cocotb.clock import Clock
-
 
 from itch_harness.axis import (
     drive_order_book_top_event,
@@ -32,7 +30,6 @@ from itch_harness.scoreboard import (
 
 TARGET_LOCATE = 1
 BASE_PRICE = 9000
-CLOCK_PERIOD = 10
 
 PRICE_INDEX_MAX = (1 << 14) - 1
 
@@ -125,7 +122,7 @@ async def initialise_order_book_top(
 ) -> None:
     """Start and reset order_book_top with stable configuration inputs."""
 
-    cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD, unit="ns").start())
+    await start_clock(dut)
 
     dut.rdata_i.value = 0
     dut.valid_i.value = 0
@@ -135,11 +132,6 @@ async def initialise_order_book_top(
     await FallingEdge(dut.clk)
 
     assert signal_value_to_int(dut.bbo_valid_o.value) == 0
-
-    # Do not use ready_o here as proof that the internal book has finished its
-    # table clear. With valid_i low, symbol_router intentionally drives ready_o
-    # high regardless of downstream readiness. The first matching event is held
-    # by drive_order_book_top_event() until the real ready handshake occurs.
 
 
 async def drive_and_check(

@@ -17,7 +17,6 @@ from dataclasses import asdict
 from typing import Any
 
 import cocotb
-from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
 from golden.itch_parser import parse_itch_message
@@ -31,13 +30,13 @@ from itch_harness.ingress_packets import (
     execute_order_with_price_payload,
     replace_order_payload,
 )
+from itch_harness.perf import start_perf_clock
 from itch_harness.scoreboard import (
     assert_data_t_matches_word,
     signal_value_to_int,
 )
 
 
-CLOCK_PERIOD_NS = 6.4
 TIMEOUT_CYCLES = 20_000
 
 
@@ -83,9 +82,9 @@ def system_event_payload(
 
 
 async def initialise_data_realign(dut: Any) -> None:
-    """Start the 156.25 MHz network clock and reset the isolated decoder."""
+    """Start the configured network clock and reset the isolated decoder."""
 
-    cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD_NS, unit="ns").start())
+    await start_perf_clock(dut)
 
     dut.s_payload_tdata_i.value = 0
     dut.s_payload_tkeep_i.value = 0

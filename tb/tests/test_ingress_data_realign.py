@@ -13,7 +13,6 @@ from dataclasses import asdict
 from typing import Any, Callable
 
 import cocotb
-from cocotb.clock import Clock
 from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 
 from golden.itch_parser import parse_itch_message
@@ -30,13 +29,13 @@ from itch_harness.ingress_packets import (
     execute_order_with_price_payload,
     replace_order_payload,
 )
+from itch_harness.perf import start_perf_clock
 from itch_harness.scoreboard import (
     assert_data_t_matches_word,
     signal_value_to_int,
 )
 
 
-CLOCK_PERIOD_NS = 6.4
 TIMEOUT_CYCLES = 50_000
 FRAME_ERR_BAD_ETHERTYPE = 0
 
@@ -65,7 +64,7 @@ def _system_event_payload(*, event_code: str = "O") -> bytes:
 
 
 async def _initialise(dut: Any) -> None:
-    cocotb.start_soon(Clock(dut.clk, CLOCK_PERIOD_NS, unit="ns").start())
+    await start_perf_clock(dut)
 
     dut.s_frame_tdata_i.value = 0
     dut.s_frame_tkeep_i.value = 0
