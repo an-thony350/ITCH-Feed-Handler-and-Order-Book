@@ -1,0 +1,5 @@
+# Exclude archived releases from repository language statistics.
+releases/** -linguist-detectable
+
+# Exclude third-party Taxi RTL from repository language statistics.
+rtl/taxi/** linguist-vendored
