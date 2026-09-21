@@ -94,6 +94,7 @@ jobs:
             build/golden/itch_synthetic.bin
             build/golden/events.jsonl
             build/golden/states.jsonl
+            build/golden/stimulus_metadata.json
           if-no-files-found: error
           retention-days: 7
 

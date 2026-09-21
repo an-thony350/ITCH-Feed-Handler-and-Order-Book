@@ -8,6 +8,10 @@ from typing import Any
 import cocotb
 from cocotb.triggers import RisingEdge
 
+import json
+import os
+from pathlib import Path
+
 from golden.contracts import NormalisedEvent, Op, Side
 from golden.order_book import OrderBook
 from itch_harness.axis import (
@@ -661,8 +665,55 @@ def make_random_valid_events(
 
 @cocotb.test(skip=False)
 async def test_order_book_random_valid_stream_matches_python_golden(dut: Any) -> None:
-    events = make_random_valid_events(seed=12345, count=75)
-    await drive_sequence_against_python_golden(dut, events)
+    seed = int(os.environ.get("TEST_SEED", "7"), 0)
+    count = 75
+
+    dut._log.info(
+        "order-book random regression: seed=%d count=%d; "
+        "replay: make test-order-book TEST_SEED=%d",
+        seed,
+        count,
+        seed,
+    )
+
+    report_path = (
+        Path(__file__).resolve().parents[2]
+        / "build"
+        / "test-results"
+        / "order_book_random.json"
+    )
+
+    status = "passed"
+    failure = None
+
+    try:
+        events = make_random_valid_events(seed=seed, count=count)
+        await drive_sequence_against_python_golden(dut, events)
+    except Exception as exc:
+        status = "failed"
+        failure = repr(exc)
+        dut._log.error(
+            "order-book random regression failed with seed=%d: %s",
+            seed,
+            exc,
+        )
+        raise
+    finally:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(
+                {
+                    "test": "order_book_random_valid_stream_matches_python_golden",
+                    "seed": seed,
+                    "event_count": count,
+                    "status": status,
+                    "failure": failure,
+                },
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
 
 
 from itch_harness.axis import wait_bbo_valid

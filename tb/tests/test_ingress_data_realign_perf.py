@@ -274,6 +274,7 @@ async def test_candidate_single_message_latency_sweep(dut: Any) -> None:
             "frame_bytes": len(frame),
             "datagram_bytes": len(datagram),
             "clock_mhz": clock_mhz,
+            "axis_width_bits": len(dut.s_frame_tdata_i),
             "frame_to_event_cycles": event_cycle - first_frame,
             "frame_to_event_ns": cycles_to_ns(
                 event_cycle - first_frame,

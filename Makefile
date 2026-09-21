@@ -16,6 +16,7 @@ TB_RTL_DIR := $(TB_DIR)/rtl
 # The active Ethernet/ITCH ingress is 64-bit at 156.25 MHz.
 INGRESS_CLOCK_MHZ ?= 156.25
 CLOCK_MHZ ?= $(INGRESS_CLOCK_MHZ)
+TEST_SEED ?= 7
 
 LINE_RATE_MODE ?= campaign
 LINE_RATE_EVENT_COUNT ?=
@@ -24,6 +25,7 @@ LINE_RATE_RESULTS_DIR ?= $(REPO_ROOT)/build/perf/data_realign_ingress_line_rate
 INGRESS_LATENCY_RESULTS_FILE ?= $(REPO_ROOT)/build/perf/data_realign_ingress_latency.json
 
 export CLOCK_MHZ
+export TEST_SEED
 export LINE_RATE_MODE
 export LINE_RATE_EVENT_COUNT
 export LINE_RATE_ENFORCE
@@ -187,7 +189,7 @@ quality:
 
 test-golden:
 	cd $(REPO_ROOT) && PYTHON="$(PYTHON)" scripts/run_golden.sh \
-		--seed 7 \
+		--seed $(TEST_SEED) \
 		--random-message-count 25
 
 # Active cocotb correctness tests

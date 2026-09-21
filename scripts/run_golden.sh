@@ -140,7 +140,7 @@ states_out="${out_dir}/states.jsonl"
 synthetic_input="${out_dir}/itch_synthetic.bin"
 
 echo "clearing stale golden outputs"
-rm -f "$events_out" "$states_out"
+rm -f "$events_out" "$states_out" "${out_dir}/stimulus_metadata.json"
 
 if [[ "$skip_tests" -eq 0 ]]; then
     echo "[1/4] compiling golden Python files"
@@ -165,6 +165,10 @@ if [[ -z "$input_path" ]]; then
     "${python_bin}" -m golden.stimulus "$input_path" \
         --seed "$seed" \
         --random-message-count "$random_message_count"
+    echo "synthetic stimulus: seed=$seed random_message_count=$random_message_count"
+    printf '{"seed": %s, "random_message_count": %s}\n' \
+        "$seed" "$random_message_count" \
+        > "${out_dir}/stimulus_metadata.json"
 else
     [[ -f "$input_path" ]] || die "input file does not exist: $input_path"
     if [[ -z "$locate" && -z "$symbol" && "$allow_unfiltered" -eq 0 ]]; then

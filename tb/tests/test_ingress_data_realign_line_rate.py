@@ -55,7 +55,6 @@ SMOKE_CAMPAIGN_EVENTS = 48
 MAX_MOLD_BODY_BYTES = 1_452
 TIMEOUT_CYCLES_PER_BEAT = 20_000
 WAIT_TIMEOUT_CYCLES = 30_000
-RANDOM_SEED = 0x1_7C4
 
 # Physical byte-times not visible on the MAC-side AXI frame stream:
 # 8 preamble/SFD + 4 FCS + 12 minimum IFG.
@@ -377,11 +376,12 @@ def _pack_frames(
     *,
     seq_start: int,
     randomise_counts: bool,
+    seed: int,
 ) -> list[bytes]:
     frames: list[bytes] = []
     sequence = seq_start
     offset = 0
-    rng = random.Random(RANDOM_SEED)
+    rng = random.Random(seed)
 
     while offset < len(payloads):
         body_budget = (
@@ -566,6 +566,20 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
     count = _event_count(mode)
     enforce = _enforce()
     clock_mhz = clock_mhz_from_env(default=156.25)
+    seed = int(os.environ.get("TEST_SEED", "7"), 0)
+    axis_width_bits = len(dut.s_frame_tdata_i)
+
+    dut._log.info(
+        "line-rate regression: seed=%d mode=%s events=%d; "
+        "replay: make perf-ingress-line-rate-gate "
+        "TEST_SEED=%d LINE_RATE_MODE=%s LINE_RATE_EVENT_COUNT=%d",
+        seed,
+        mode,
+        count,
+        seed,
+        mode,
+        count,
+    )
 
     await start_perf_clock(dut, clock_mhz=clock_mhz)
     await _reset_candidate(dut)
@@ -581,6 +595,7 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
             case.payloads,
             seq_start=1,
             randomise_counts=case.randomise_mold_counts,
+            seed = seed,
         )
 
         monitor = LineRateMonitor(dut)
@@ -657,7 +672,8 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
         "mode": mode,
         "scope": "frame_crack -> mold_deframe -> data_realign -> always-ready event sink",
         "clock_mhz": clock_mhz,
-        "axis_width_bits": 64,
+        "axis_width_bits": axis_width_bits,
+        "seed": seed,
         "wire_overhead_bytes_per_frame": WIRE_OVERHEAD_BYTES_PER_FRAME,
         "cases": records,
         "enforcement_failures": enforcement_failures,
@@ -676,7 +692,9 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
         "",
         f"Mode: `{mode}`",
         "",
-        f"Clock: {clock_mhz:.3f} MHz, 64-bit AXI4-Stream.",
+        f"Seed: `{seed}`",
+        "",
+        f"Clock: {clock_mhz:.3f} MHz, {axis_width_bits}-bit AXI4-Stream.",
         "",
         "Scope: `frame_crack -> mold_deframe -> data_realign -> always-ready event sink`.",
         "",
@@ -725,7 +743,7 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
 
     if enforce and enforcement_failures:
         raise AssertionError(
-            "merged ingress line-rate gate failed:\n"
+            f"merged ingress line-rate gate failed (seed={seed}):\n"
             + "\n".join(
                 f"  - {failure}"
                 for failure in enforcement_failures
