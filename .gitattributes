@@ -1,5 +1,5 @@
-# Exclude archived releases from repository language statistics.
+# Exclude archived releases and generated Vivado IP.
 releases/** -linguist-detectable
 
-# Exclude third-party Taxi RTL from repository language statistics.
+# Exclude third-party Taxi RTL from language statistics.
 rtl/taxi/** linguist-vendored
