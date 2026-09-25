@@ -6,7 +6,11 @@
 
 We currently have a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
 
-![PS PL Architecture](assets/host_ps_pl_architecture.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/host_ps_pl_architecture_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/host_ps_pl_architecture_light.png">
+  <img alt="Host, Processing System and Programmable Logic Architecture" src="assets/host_ps_pl_architecture_light.png">
+</picture>
 
 The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path.
 
