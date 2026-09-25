@@ -34,9 +34,9 @@ The frontend also exposes link/debug status including GT power-good, RX status, 
 The order book allows us to take in ITCH messages and maintain price books and output BBO.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/images/architecture_light.png">
-  <img alt="Architecture diagram" src="docs/images/architecture_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/protocol_book_model_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/protocol_book_model_light.png">
+  <img alt="Protocol and Book Model" src="assets/protocol_book_model_light.png">
 </picture>
 
 ### Important ITCH message types
