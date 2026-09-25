@@ -57,90 +57,48 @@ The order book allows us to take in ITCH messages and maintain price books and o
 
 We still parse other ITCH messages through much of the ingress, but once we actually get to the decoder, we can throw them away
 
-### Data representation
-
-- ITCH integers are parsed as **big-endian unsigned integers**.
-- ITCH `Price(4)` values are modified in the PS to have a \$0.01 tick
-(rather than the original $0.0001)
-- The RTL price and configured base price use the same integer unit.
-- The hardware price book is a bounded dense window indexed relative to the configured base price.
-- Real multi-symbol data is filtered or routed before it enters an individual hardware book.
-
----
-
-## RTL datapath
-
-Detailed contracts, parsing assumptions, backpressure behaviour, and per-stage responsibilities are documented in [`docs/rtl_datapath.md`](docs/rtl_datapath.md).
-
-| Stage | Responsibility |
-|---|---|
-| `frame_crack` | Validate the supported Ethernet/IPv4/UDP header shape and emit the UDP payload |
-| `mold_deframe` | Parse MoldUDP64 metadata, remove two-byte message-length prefixes and emit packed ITCH payload bytes plus message-length tokens |
-| `mold_seq_guard` | Accept in-order/post-gap packets, suppress duplicates, and report stale/gap state |
-| `data_realign` | Track message boundaries directly in the packed 64-bit payload stream and decode `A/F/E/C/X/D/U` into the normalised event contract |
-| `event_async_fifo` | Cross complete normalised events from the network clock domain into the 250 MHz data/order-book domain |
-| `symbol_router` | Select the configured instrument/book and insert a register boundary |
-| `order_book` | Resolve order references, update aggregate price levels, and emit BBO updates |
-
-The previous separate `realign -> data_handler` path remains useful as a behavioural/reference implementation, but the current packaged Vivado ingress uses the merged `data_realign` path to avoid recreating a padded AXI packet for every ITCH message.
-
-MoldUDP64 sequencing and recovery policy are documented separately in [`docs/moldudp64_seq_handling.md`](docs/moldudp64_seq_handling.md).
-
 ---
 
 ## Golden model and verification
 
-The Python golden model is the functional source of truth. It converts BinaryFILE records into normalised events, replays those events through a reference order book, and writes matched `events.jsonl` and `states.jsonl` oracle streams for RTL comparison.
+We use a Python golden model as the source of truth. We take BinaryFILE records downloaded from the exchange website and turn them into normalised events, and run them through the reference order book. We output jsonl streams to compare to RTL results.
 
-The golden-model architecture, verification layers, current coverage, and remaining proof gaps are consolidated in [`docs/golden_model.md`](docs/golden_model.md). Environment setup is in [`docs/environment.md`](docs/environment.md), and all commands for running the repository are in [`docs/running_the_project.md`](docs/running_the_project.md).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/golden_model_top_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/golden_model_top_light.png">
+  <img alt="Golden model and RTL testing architecture" src="assets/golden_model_top_light.png">
+</picture>
+
+You can see more in [`docs/golden_model.md`](docs/golden_model.md).
 
 ---
 
-## Vivado and ZCU106 build
+## Vivado build
 
 ### Current block design
 
 ![Current ZCU106 Vivado block design](assets/BD.png)
 
-The hardware build remains modular. The DMA is **MM2S-only** and provides the deterministic replay source, while Taxi provides the real SFP+ Ethernet source. The DMA stream is clock-converted into the Taxi RX/user clock domain before the two sources meet at the static mux.
+The DMA is MM2S-only, Taxi provides the real SFP+ Ethernet source. The DMA stream is clock-converted into the Taxi RX/user clock domain before the two sources meet at the static mux.
 
-The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete normalised event has been decoded, `event_async_fifo` crosses the event into the 250 MHz order-book domain.
-
-### Address map
-
-| Peripheral | Base address | Direction / use |
-|---|---|---|
-| AXI DMA | `0x80040000` | PS control; MM2S frame input |
-| Bid BBO GPIO | `0x80030000` | PL to PS; bid price and shares |
-| Ask BBO GPIO | `0x80020000` | PL to PS; ask price and shares |
-| meta GPIO (valid bit) | `0x80010000` | PL to PS; update indication |
-| Base-price GPIO | `0x80000000` | PS to PL; price-window base |
-| Base-price 2 GPIO | `0x80050000` | PS to PL; price-window base |
-
-> Note that multiple base price GPIOs are used for 2 stocks each
+The 64-bit network ingress runs from the Taxi RX/user clock. Once a complete normalised event has been decoded, the asynchronous FIFO crosses the event into the 250 MHz order-book domain.
 
 ---
 
-## Measured implementation results
+## Implementation Results
 
-Reports on these values can be found in [`implementation_reports`](implementation_reports).
-
-Latest routed build captured on **12th September 2026**:
+You can see the full reports in the `/implementation_reports` folder. Ran on Vivado 2023.2.
 
 | Item | Result |
 |---|---:|
-| Vivado version | 2023.2 |
-| Project | `Feed_Handler_v3.0` |
 | Target board | ZCU106 |
 | SFP+ MGT reference clock | **156.25 MHz / 6.400 ns** |
 | Routed Taxi RX/user clock | **~161.13 MHz / 6.206 ns** |
 | Order Book clock | **250 MHz / 4.000 ns** |
 | WNS | **+0.003   ns** |
-| TNS | **0.000 ns** |
-| WHS | **+0.010 ns** |
-| THS | **0.000 ns** |
 
-All user-specified timing constraints are met and the implementation run completes through bitstream generation.
+
+All constraints are met and we don't have any hold problems.
 
 ### Utilisation
 
@@ -156,56 +114,30 @@ All user-specified timing constraints are met and the implementation run complet
 
 ---
 
-## Latency and throughput design decisions
+## Latency and throughput
 
 The ingress measurements below use the **156.25 MHz** simulation clock used for the native 64-bit line-rate regression. The latest routed Taxi RX/user clock is slightly different, as shown in the implementation table above. The data/order-book domain remains at **250 MHz**.
 
-### Network ingress
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/latency_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/latency_light.png">
+  <img alt="Latency datapath" src="assets/latency_light.png">
+</picture>
 
-| Stage | First output / completion | Sustained behaviour | Current limiter |
-|---|---|---|---|
-| `frame_crack` | UDP/MoldUDP64 forwarding begins after the fixed **42-byte** Ethernet/IPv4/UDP prefix; with 64-bit beats the first payload bytes occur in beat 5 | Up to one **64-bit beat per cycle** after payload streaming begins | Fixed header arrival and the 42-byte-to-8-byte alignment |
-| `mold_deframe` + sequence guard | The 20-byte MoldUDP64 header is decoded across three 64-bit beats before body processing | Parallel body parser handles up to **8 raw bytes/cycle** with registered descriptor/compaction stages | Message-boundary classification and compaction, rather than the old byte-serial parser |
-| `data_realign` | **9 cycles / 57.6 ns** from the final Ethernet beat to the normalised event in the cold-latency sweep | Accepts a complete packed 64-bit payload beat per cycle in the common case and decodes directly to `data_t` | Event-output capacity/backpressure rather than a separate per-message realignment stage |
-| Complete ingress + decode | **19 cycles / 121.6 ns** for `D/X`, **20 / 128.0 ns** for `E`, and **21 / 134.4 ns** for `U/A/C/F` from first Ethernet beat to event | Measured **9.830-9.911 Gbit/s** across the supported message campaigns; all campaigns pass the calculated physical 10GbE wire-rate gate | A small number of zero-gap AXI stress stalls remain around the `frame_crack -> mold_deframe` boundary, but they do not prevent physical 10GbE-rate operation |
-
-The final native-64-bit line-rate campaign measured:
-
-```text
-D:     9.911 Gbit/s
-X:     9.906 Gbit/s
-E:     9.866 Gbit/s
-U:     9.870 Gbit/s
-A:     9.902 Gbit/s
-C:     9.902 Gbit/s
-F:     9.911 Gbit/s
-Mixed: 9.830 Gbit/s
-```
-
-These figures are measured on the AXI frame path while the pass/fail gate accounts for Ethernet preamble/SFD, FCS and inter-frame gap. This is why the required MAC-side rate is slightly below a literal 10.000 Gbit/s for normal Ethernet traffic.
-
-### Decoder and order book
-
-| Stage | Latency | Initiation behaviour | Reason for the decision |
-|---|---|---|---|
-| `data_realign` | Included in the **19-21 cycle** ingress/decode figures above | Direct packed-stream decode avoids the old `realign -> data_handler` per-message bubble | Merging realignment and decode removes duplicated byte movement and improves sustained ingress throughput |
-| `event_async_fifo` | CDC/buffering latency only; no protocol processing | Decouples the fast network domain from the 250 MHz order-book domain | Crossing complete 217-bit events is simpler and lower bandwidth than crossing raw Ethernet data |
-| `symbol_router` | **1 cycle / 4 ns** | Up to one accepted event per cycle when the selected book is ready | The register boundary isolates decoder timing from the book and provides clean routing control |
-| `order_book` | **16-stage pipeline / 64 ns** at 250 MHz | Pipeline latency is separate from initiation rate; successive events can occupy different stages concurrently | Pipelining removes the old state-machine throughput limit while retaining the BRAM-based order and price books |
-
+The current 64-bit ingress sustains approximately **9.83–9.91 Gbit/s**. This is obviously beloy 10Gbit, but actually is suitable once Ethernet framing overhead is accounted for. The Order Book has an II of 4 and runs at 250MHz so can take roughly 62.5M messages/s.
 
 ---
 
 ## Further documentation
 
-- [`docs/environment.md`](docs/environment.md) — host toolchain and Vivado environment setup
+- [`docs/environment.md`](docs/environment.md) — host toolchain and Vivado env setup
 - [`docs/running_the_project.md`](docs/running_the_project.md) — golden-model, cocotb, vector-generation, xsim, formatting, and cleanup commands
 - [`docs/golden_model.md`](docs/golden_model.md) — golden-model architecture and consolidated verification methodology
-- [`docs/rtl_datapath.md`](docs/rtl_datapath.md) — RTL stage contracts, handshakes, and design boundaries
-- [`docs/networking_ingress.md`](docs/networking_ingress.md) — detailed Ethernet/IPv4/UDP/MoldUDP64 ingress behaviour
+- [`docs/rtl_datapath.md`](docs/rtl_datapath.md) — data flow through rtl
+- [`docs/networking_ingress.md`](docs/networking_ingress.md) — network ingress behaviour
 - [`docs/moldudp64_seq_handling.md`](docs/moldudp64_seq_handling.md) — duplicate, gap, stale, heartbeat, and EOS policy
 - [`docs/order_book.md`](docs/order_book.md) — v2 hardware order-book implementation
-- [`docs/pipelined_order_book.md`](docs/pipelined_order_book.md) - v3 varient of the order book specifically
+- [`docs/pipelined_order_book.md`](docs/pipelined_order_book.md) - v3+ varient of the order book specifically
 - [`docs/proccessing_system.md`](docs/processing_system.md) - Processing system used to run the project
 
 ---
@@ -214,23 +146,12 @@ These figures are measured on the AXI frame path while the pass/fail gate accoun
 
 Project-specific software, documentation and independently authored components are provided under the repository's [MIT licence](LICENSE) unless otherwise stated.
 
-The V4.0 FPGA hardware design integrates the [Taxi transport library](https://github.com/fpganinja/taxi), whose core RTL is provided under the **CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)** unless an individual Taxi file states otherwise.
+We integrate the [Taxi transport library](https://github.com/fpganinja/taxi), whose core RTL is provided under the **CERN Open Hardware Licence Version 2 - Strongly Reciprocal (CERN-OHL-S-2.0)**
 
-The V4.0 licensing scope, third-party attribution and source information are documented in [`releases/v4.0/LICENSE.md`](releases/v4.0/LICENSE.md).
-
----
-
-## Contributors
-
-Built collaboratively by:
-
-- [Anthony Bartlett](https://github.com/an-thony350)
-- [Denzil Erza-Essien](https://github.com/derza-essien)
-
-Both contributors worked across the FPGA architecture, RTL implementation, verification, hardware integration and system bring-up.
+Taxi licensing info can be found in [`releases/v4.0/LICENSE.md`](releases/v4.0/LICENSE.md).
 
 ---
 
 ## Continuous integration
 
-GitHub Actions runs repository checks, deterministic golden-model generation, and the full cocotb/Verilator RTL regression on pushes to `main` and pull requests. A separate performance workflow runs smoke tests for relevant changes and a scheduled full campaign, with oracle, diagnostic, and performance artifacts retained for inspection.
+GitHub Actions runs repository checks, golden-model generation, and the full cocotb/Verilator RTL regression on pushes to main and pull requests. A separate performance workflow runs smoke tests for relevant changes and a scheduled full campaign, with oracle, diagnostic, and performance artifacts retained for inspection.
