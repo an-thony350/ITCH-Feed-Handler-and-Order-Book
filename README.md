@@ -1,129 +1,57 @@
 # ITCH 5.0 Feed Handler and FPGA Hardware Order Book
 
-
-This project wraps historical Nasdaq TotalView-ITCH 5.0 data with Ethernet II, IPv4, UDP, and MOLDUDP64 headers. It then recovers variable-length ITCH messages, decodes book events, maintains price-level states, and emits best-bid/ask updates.
-
-RTL is written in SystemVerilog, with Python-controlled PS and reference models for verification. Updates for the hardware system have been made to emulate a high-frequency-trading system.
-
 ---
 
-## Contents
+## Overview
 
-- [ITCH 5.0 Feed Handler and FPGA Hardware Order Book](#itch-50-feed-handler-and-fpga-hardware-order-book)
-  - [Contents](#contents)
-  - [Project status](#project-status)
-  - [Demo](#demo)
-  - [System architecture](#system-architecture)
-    - [Host, Processing System, and Programmable Logic](#host-processing-system-and-programmable-logic)
-    - [PL hot path](#pl-hot-path)
-  - [ZCU106 hardware model](#zcu106-hardware-model)
-    - [Taxi 10GbE frontend](#taxi-10gbe-frontend)
-  - [Protocol and book model](#protocol-and-book-model)
-    - [Relevant ITCH message types](#relevant-itch-message-types)
-    - [Data representation](#data-representation)
-  - [RTL datapath](#rtl-datapath)
-  - [Golden model and verification](#golden-model-and-verification)
-  - [Vivado and ZCU106 build](#vivado-and-zcu106-build)
-    - [Current block design](#current-block-design)
-    - [Address map](#address-map)
-  - [Measured implementation results](#measured-implementation-results)
-    - [Utilisation](#utilisation)
-  - [Latency and throughput design decisions](#latency-and-throughput-design-decisions)
-    - [Network ingress](#network-ingress)
-    - [Decoder and order book](#decoder-and-order-book)
-  - [Further documentation](#further-documentation)
-  - [Licensing](#licensing)
-  - [Contributors](#contributors)
-  - [Continuous integration](#continuous-integration)
-
----
-
-## Project status
-
-As of **12th September 2026**, this project has a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
-
-```text
-Ethernet II -> IPv4 -> UDP -> MoldUDP64 -> ITCH decode -> symbol routing -> order book -> BBO
-```
-
-The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path. The ingress has now been migrated from a 32-bit to a **native 64-bit AXI4-Stream architecture**, with the network path designed around the 10GbE datapath width.
-
-The current ZCU106 Vivado build also integrates a **Taxi-based 10GbE SFP+ frontend** while retaining the existing PS-to-PL DMA replay path. A static source mux immediately before `frame_crack` selects either DMA replay or Taxi Ethernet RX, allowing the deterministic board test path to remain available during physical 10GbE bring-up.
-
-The latest routed design completes bitstream generation and meets timing. The order-book/data domain clocks at **250 MHz**, while the network ingress is clocked from Taxi's RX/user clock domain.
-
----
-
-## Demo
-
-The current ZCU106 demonstration replays historical Nasdaq ITCH data through the FPGA datapath and visualises the resulting best-bid/ask updates for AAPL, MSFT, and NFLX while comparing the hardware output against the Python golden model.
-
-![ITCH FPGA hardware demo](assets/itch_demo.gif)
-
----
-
-## System architecture
-
-### Host, Processing System, and Programmable Logic
+We currently have a complete simulated native 64-bit path from market data wrapped in Ethernet frames to a hardware-maintained BBO:
 
 ![PS PL Architecture](assets/host_ps_pl_architecture.png)
 
-### PL hot path
+The host-side PS in Python generates network frames and expected book states. Cocotb/Verilator tests network parsing, sequence handling, message decoding, order book, and the complete network-to-book path.
 
-![PL Hot Path](assets/pl_hot_path.png)
+The current ZCU106 Vivado build also integrates a **Taxi-based 10GbE SFP+ frontend**, but we are not able to fully test it until we get a machine with 10Gbit SFP+ ports
 
-The network ingress remains in the fast network clock domain until a complete **217-bit normalised event** has been produced. The event FIFO then performs the CDC into the 250 MHz order-book/data domain. This avoids crossing the full raw Ethernet stream after parsing and keeps the CDC at a narrow semantic boundary.
+For the latest design, we have the ingress running at Taxi's clock, and the Order book running at 250MHz
 
 ---
 
 ## ZCU106 hardware model
 
-The ZCU106 provides SFP+ cages connected to UltraScale+ GTH transceivers in the Programmable Logic. The current design therefore supports a direct hardware Ethernet path into the PL rather than requiring packets to pass through the Processing System.
+One of the benefits of the ZCU106 is that it provides SFP+ cages connected to UltraScale+ GTH transceivers in the Programmable Logic. The current design therefore supports a direct hardware Ethernet path into the PL rather than requiring packets to pass through the Processing System.
 
-The PS/DMA path is still retained for deterministic board replay:
-
-```text
-PS DDR -> AXI DMA -> AXIS clock conversion -> source mux -> network ingress
-```
-
-The direct Ethernet path is:
-
-```text
-SFP+ -> GTH -> Taxi PCS/MAC -> lane rewire -> source mux -> network ingress
-```
-
-Both sources therefore exercise the same `frame_crack`, MoldUDP64 and order-book datapath.
 
 ### Taxi 10GbE frontend
 
-The Taxi integration uses the ZCU106's two SFP+ GTH lanes and a **64-bit Taxi MAC/PCS datapath**. The current ITCH path consumes lane 0 RX; the second physical lane remains present in the frontend but is not currently used for feed processing.
+The Taxi integration uses the ZCU106's two SFP+ GTH lanes and a **64-bit Taxi MAC/PCS datapath**. The current ITCH path consumes lane 0 RX; the second physical lane remains present in the frontend but is not currently used for feed processing. We do need a little rewiring to match the required input into the network ingress
 
-Taxi places the earliest Ethernet byte in the low byte lane, while the existing project convention places it in the most-significant byte lane. `lane_rewire` performs this byte-lane reversal before the static DMA/Taxi source mux. Both operations are combinational and add **zero pipeline cycles** to the ingress path.
-
-The frontend also exposes link/debug status including GT power-good, RX status, block lock, BER/error count and bad-FCS indications for physical bring-up.
+The frontend also exposes link/debug status including GT power-good, RX status, block lock, BER/error count and bad-FCS indications for physical bring-up. We currently have an ILA connected for future debug
 
 ---
 
 ## Protocol and book model
 
-Nasdaq TotalView-ITCH describes the lifecycle of individual displayed orders. The feed handler reconstructs the book; it does not match orders.
+The order book allows us to take in ITCH messages and maintain price books and output BBO.
 
-![Protocol and Book Model](assets/protocol_book_model.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/architecture_light.png">
+  <img alt="Architecture diagram" src="docs/images/architecture_light.png">
+</picture>
 
-### Relevant ITCH message types
+### Important ITCH message types
 
-| Type | Name | RTL / golden treatment |
+| Type | Name | Effect |
 |---|---|---|
-| `R` | Stock Directory | Golden model resolves symbol to the daily stock-locate code; not a book mutation |
 | `A` | Add Order | Insert displayed order |
-| `F` | Add Order with MPID | Insert displayed order; attribution is ignored for book state |
+| `F` | Add Order with MPID | Same as ADD, MPID we don't care about |
 | `E` | Order Executed | Reduce shares using the referenced order's stored side and price |
 | `C` | Order Executed with Price | Reduce displayed shares; the displayed level still comes from the order table |
 | `X` | Order Cancel | Reduce displayed shares |
 | `D` | Order Delete | Remove all remaining displayed shares |
 | `U` | Order Replace | Remove the old reference and insert the replacement using the inherited side |
 
-Other ITCH messages may still pass through MoldUDP64 sequencing, but messages that do not mutate the displayed book are ignored by the decoder.
+We still parse other ITCH messages through much of the ingress, but once we actually get to the decoder, we can throw them away
 
 ### Data representation
 
