@@ -77,7 +77,11 @@ You can see more in [`docs/golden_model.md`](docs/golden_model.md).
 
 ### Current block design
 
-![Current ZCU106 Vivado block design](assets/BD.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/BD_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/BD.png">
+  <img alt="Vivado Block Design" src="assets/BD.png">
+</picture>
 
 The DMA is MM2S-only, Taxi provides the real SFP+ Ethernet source. The DMA stream is clock-converted into the Taxi RX/user clock domain before the two sources meet at the static mux.
 
