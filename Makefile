@@ -17,6 +17,8 @@ TB_RTL_DIR := $(TB_DIR)/rtl
 INGRESS_CLOCK_MHZ ?= 156.25
 CLOCK_MHZ ?= $(INGRESS_CLOCK_MHZ)
 TEST_SEED ?= 7
+FRAME_CRACK_CHECK_DST_PORT ?= 0
+FRAME_CRACK_EXPECTED_DST_PORT ?= 5000
 
 LINE_RATE_MODE ?= campaign
 LINE_RATE_EVENT_COUNT ?=
@@ -30,6 +32,8 @@ export LINE_RATE_MODE
 export LINE_RATE_EVENT_COUNT
 export LINE_RATE_ENFORCE
 export LINE_RATE_RESULTS_DIR
+export FRAME_CRACK_CHECK_DST_PORT
+export FRAME_CRACK_EXPECTED_DST_PORT
 
 # Keep generated simulator build output under build/, which is already gitignored.
 # Leave cocotb's results file at its standard name because the test targets
@@ -105,6 +109,14 @@ VERILOG_SOURCES += \
 	$(RTL_DIR)/axis_source_mux.sv \
 	$(TB_RTL_DIR)/source_boundary_equiv_top.sv
 
+else ifeq ($(TOPLEVEL),frame_crack)
+VERILOG_SOURCES += \
+	$(RTL_DIR)/frame_crack.sv
+
+# frame_crack has compile-time destination-port parameters
+COMPILE_ARGS += -GCHECK_DST_PORT=$(FRAME_CRACK_CHECK_DST_PORT)
+COMPILE_ARGS += -GEXPECTED_DST_PORT=$(FRAME_CRACK_EXPECTED_DST_PORT)
+
 else ifeq ($(TOPLEVEL),mold_seq_guard)
 VERILOG_SOURCES += \
 	$(RTL_DIR)/mold_seq_guard.sv
@@ -131,7 +143,7 @@ VERILOG_SOURCES += \
 	$(ORDER_BOOK_TOP_RTL)
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, mold_seq_guard, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, order_book, order_book_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, order_book, order_book_top)
 endif
 
 # Preserve the current Verilator setup. Tracing is useful for local failure
@@ -143,10 +155,9 @@ EXTRA_ARGS += --trace-structs
 
 # The current ingress/data_realign path still has non-fatal width/lint warnings.
 # Keep them visible without allowing Verilator warnings alone to block tests.
-ifneq ($(filter data_realign ingress_data_realign_top ingress_data_realign_perf_probe,$(TOPLEVEL)),)
+ifneq ($(filter frame_crack data_realign ingress_data_realign_top ingress_data_realign_perf_probe,$(TOPLEVEL)),)
 EXTRA_ARGS += -Wno-fatal
 endif
-
 # A direct DUT/module override still behaves like the old single-test workflow:
 #   make TOPLEVEL=data_realign COCOTB_TEST_MODULES=test_data_realign
 ifneq ($(filter command line,$(origin TOPLEVEL) $(origin COCOTB_TEST_MODULES) $(origin MODULE)),)
@@ -162,7 +173,7 @@ endif
 .PHONY: \
 	help quality test test-golden test-rtl \
 	test-axis-source-mux test-lane-rewire test-source-boundary-equiv \
-	test-mold-seq-guard test-data-realign test-ingress \
+	test-frame-crack test-mold-seq-guard test-data-realign test-ingress \
 	test-order-book test-order-book-top \
 	perf-smoke perf-campaign perf-measure \
 	perf-ingress-latency perf-ingress-line-rate-measure \
@@ -178,6 +189,7 @@ test-rtl: \
 	test-axis-source-mux \
 	test-lane-rewire \
 	test-source-boundary-equiv \
+	test-frame-crack \
 	test-mold-seq-guard \
 	test-data-realign \
 	test-ingress \
@@ -205,6 +217,26 @@ test-lane-rewire:
 test-source-boundary-equiv:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=source_boundary_equiv_top COCOTB_TEST_MODULES=test_source_boundary_equiv
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=source_boundary_equiv_top COCOTB_TEST_MODULES=test_source_boundary_equiv
+
+test-frame-crack:
+	$(MAKE) -C $(REPO_ROOT) clean \
+		TOPLEVEL=frame_crack \
+		COCOTB_TEST_MODULES=test_frame_crack
+	$(MAKE) -C $(REPO_ROOT) results.xml \
+		TOPLEVEL=frame_crack \
+		COCOTB_TEST_MODULES=test_frame_crack \
+		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
+		FRAME_CRACK_CHECK_DST_PORT=0 \
+		FRAME_CRACK_EXPECTED_DST_PORT=$(FRAME_CRACK_EXPECTED_DST_PORT)
+	$(MAKE) -C $(REPO_ROOT) clean \
+		TOPLEVEL=frame_crack \
+		COCOTB_TEST_MODULES=test_frame_crack
+	$(MAKE) -C $(REPO_ROOT) results.xml \
+		TOPLEVEL=frame_crack \
+		COCOTB_TEST_MODULES=test_frame_crack \
+		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
+		FRAME_CRACK_CHECK_DST_PORT=1 \
+		FRAME_CRACK_EXPECTED_DST_PORT=$(FRAME_CRACK_EXPECTED_DST_PORT)
 
 test-mold-seq-guard:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=mold_seq_guard COCOTB_TEST_MODULES=test_mold_seq_guard
@@ -302,6 +334,7 @@ help:
 		'  make test-axis-source-mux' \
 		'  make test-lane-rewire' \
 		'  make test-source-boundary-equiv' \
+		'  make test-frame-crack              Complete frame_crack unit regression' \
 		'  make test-mold-seq-guard' \
 		'  make test-data-realign' \
 		'  make test-ingress                 Current 64-bit merged ingress/decode path' \
