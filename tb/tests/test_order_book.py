@@ -1030,15 +1030,15 @@ async def test_order_book_reset_after_activity_clears_all_book_state(dut: Any) -
 ## Pipelined tests
 
 @cocotb.test(skip=True)
-async def test_order_book_pipeline_works(dut: Any) -> None:
+async def test_order_book_independant_adds_pipelined(dut: Any) -> None:
 
     events = [
-            add_event(1, order_ref=2001, side="BUY", shares=100, price=10000),
-            add_event(2, order_ref=2002, side="BUY", shares=50, price=9990),
-            add_event(3, order_ref=2003, side="SELL", shares=70, price=10010),
-            add_event(4, order_ref=2004, side="SELL", shares=30, price=10020),
-            add_event(5, order_ref=2005, side="BUY", shares=20, price=10005),
-        ]
+        add_event(1, order_ref=2001, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=2002, side="BUY", shares=50, price=9990),
+        add_event(3, order_ref=2003, side="SELL", shares=70, price=10010),
+        add_event(4, order_ref=2004, side="SELL", shares=30, price=10020),
+        add_event(5, order_ref=2005, side="BUY", shares=20, price=10005),
+    ]
 
     states = [
         expected_state(1, bid_price=10000, bid_size=100),
@@ -1046,6 +1046,97 @@ async def test_order_book_pipeline_works(dut: Any) -> None:
         expected_state(3, bid_price=10000, bid_size=100, ask_price=10010, ask_size=70),
         expected_state(4, bid_price=10000, bid_size=100, ask_price=10010, ask_size=70),
         expected_state(5, bid_price=10005, bid_size=20, ask_price=10010, ask_size=70),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
+
+@cocotb.test(skip=True)
+async def test_order_book_same_price_level_pipelined(dut: Any) -> None:
+
+    events = [
+        add_event(1, order_ref=2001, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=2002, side="BUY", shares=50, price=10000),
+        add_event(3, order_ref=2003, side="BUY", shares=25, price=10000),
+        cancel_event(4, order_ref=2001, shares=10),
+        execute_event(5, order_ref=2002, shares=40),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10000, bid_size=150),
+        expected_state(3, bid_price=10000, bid_size=175),
+        expected_state(4, bid_price=10000, bid_size=165),
+        expected_state(5, bid_price=10005, bid_size=145),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
+
+@cocotb.test(skip=True)
+async def test_order_book_delete_best_level_pipelined(dut: Any) -> None:
+
+    events = [
+        add_event(1, order_ref=2001, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=2002, side="BUY", shares=50, price=9990),
+        add_event(3, order_ref=2003, side="BUY", shares=25, price=9980),
+        delete_event(4, order_ref=2001),
+        add_event(5, order_ref=2004, side="BUY", shares=40, price=9980),
+        cancel_event(6, order_ref=2002, shares=10),
+        delete_event(7, order_ref=2002),
+        delete_event(8, order_ref=2003),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10000, bid_size=100),
+        expected_state(3, bid_price=10000, bid_size=100),
+        expected_state(4, bid_price=9990, bid_size=50),
+        expected_state(5, bid_price=9990, bid_size=50),
+        expected_state(6, bid_price=9990, bid_size=40),
+        expected_state(7, bid_price=9980, bid_size=65),
+        expected_state(8, bid_price=9980, bid_size=40),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
+
+@cocotb.test(skip=True)
+async def test_order_book_multi_replace_pipelined(dut: Any) -> None:
+
+    events = [
+        add_event(1, order_ref=2001, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=2002, side="BUY", shares=50, price=9990),
+        replace_event(3, order_ref=2001, new_order_ref=3001, shares=80, price=10000),
+        add_event(4, order_ref=2003, side="SELL", shares=60, price=10010),
+        replace_event(5, order_ref=2002, new_order_ref=3002, shares=50, price=9995),
+        replace_event(6, order_ref=3001, new_order_ref=4001, shares=30, price=9985),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10000, bid_size=100),
+        expected_state(3, bid_price=10000, bid_size=80),
+        expected_state(4, bid_price=10000, bid_size=80, ask_price=10010, ask_size=60),
+        expected_state(5, bid_price=10000, bid_size=80, ask_price=10010, ask_size=60),
+        expected_state(6, bid_price=9995,  bid_size=50, ask_price=10010, ask_size=60),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
+
+
+@cocotb.test(skip=True)
+async def test_order_book_diff_orders_same_bucket_pipelined(dut: Any) -> None:
+
+    events = [
+        add_event(1, order_ref=5, side="BUY", shares=100, price=10000),
+        add_event(2, order_ref=1028, side="BUY", shares=50, price=10000),
+        cancel_event(3, order_ref=5, shares=30),
+        cancel_event(4, order_ref=1028, shares=20),
+    ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10000, bid_size=150),
+        expected_state(3, bid_price=10000, bid_size=120),
+        expected_state(4, bid_price=10000, bid_size=100),
     ]
 
     await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
