@@ -161,6 +161,30 @@ async def drive_order_book_event(
 
     return await wait_bbo_valid(dut, timeout_cycles=timeout_cycles)
 
+async def check_bbos(
+    dut: Any,
+    expected_events: int,
+    timeout_cycles: int = 10_000,
+) -> list[int]:
+    """Checks that we are sending all inputs with II=1, and then checks for timeouts between the bbo_valid signals"""
+
+    bbo_words: list[int] = []
+    idle_cycles = 0
+
+    while len(bbo_words) < expected_events:
+        await RisingEdge(dut.clk)
+
+        if signal_value_to_int(dut.bbo_valid_o.value) == 1:
+            bbo_words.append(signal_value_to_int(dut.bbo_data_o.value))
+            idle_cycles =   0
+        else:
+            idle_cycles += 1
+            if idle_cycles >= timeout_cycles:
+                raise TimeoutError(
+                    f"Timed out waiting for BBO data. Collected {len(bbo_words)} from {expected_events} expected events"
+                )
+
+    return bbo_words
 
 async def drive_order_book_events(
     dut: Any,
@@ -170,19 +194,25 @@ async def drive_order_book_events(
 ) -> list[int]:
     """Drive many events into order_book.sv and collect BBO outputs."""
 
-    bbo_words: list[int] = []
-    for event in events:
-        bbo_word = await drive_order_book_event(
-            dut,
-            event,
-            hold_valid_until_bbo=True,
-            timeout_cycles=timeout_cycles,
-        )
-        assert bbo_word is not None
-        bbo_words.append(bbo_word)
+    event_list = list(events)
+    num_events = len(event_list)
 
+    bbo_checks = cocotb.start_soon(
+        check_bbos(dut=dut, expected_events=num_events, timeout_cycles=timeout_cycles)
+    )
+
+    for event in event_list:
+        await RisingEdge(dut.clk)
+
+        dut.valid_i.value = 1
+        dut.rdata_i.value = pack_data_t(event)
+
+    await RisingEdge(dut.clk)
+    dut.valid_i.value = 0
+    dut.rdata_i.value = 0
+
+    bbo_words = await bbo_checks
     return bbo_words
-
 
 def itch_payload_to_words(
     payload: bytes | bytearray | memoryview,

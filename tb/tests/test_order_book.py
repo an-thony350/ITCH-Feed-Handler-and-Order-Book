@@ -17,6 +17,7 @@ from golden.order_book import OrderBook
 from itch_harness.axis import (
     clock_cycles,
     drive_order_book_event,
+    drive_order_book_events,
     reset_dut,
     start_clock,
     wait_ready,
@@ -218,13 +219,32 @@ async def drive_sequence_with_hand_expected(
     dut: Any,
     events: list[dict[str, Any]],
     states: list[dict[str, Any]],
+    *,
+    pipelined: bool = False,
+    timeout_cycles: int = 20_000,
 ) -> None:
     assert len(events) == len(states)
 
     await initialise_order_book(dut)
 
-    for event, state in zip(events, states):
-        await drive_and_check(dut, event, state)
+    if pipelined:
+
+        bbo_words = await drive_order_book_events(
+            dut=dut,
+            events=events,
+            timeout_cycles=timeout_cycles
+        )
+        for event, state, bbo_word in zip(events, states, bbo_words):
+            assert_bbo_matches_word(bbo_word, state)
+            dut._log.info(
+                    "matched msg_index=%s op=%s expected_bbo=%s",
+                    event["msg_index"],
+                    event["op"],
+                    state["bbo"],
+                )
+    else:
+        for event, state in zip(events, states):
+            await drive_and_check(dut, event, state, timeout_cycles=timeout_cycles)
 
 
 async def drive_sequence_against_python_golden(
@@ -276,7 +296,7 @@ async def test_order_book_single_add_matches_expected_bbo(dut: Any) -> None:
         expected_state(1, bid_price=10000, bid_size=100),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -311,7 +331,7 @@ async def test_order_book_adds_update_best_bid_and_best_ask(dut: Any) -> None:
         expected_state(4, bid_price=10005, bid_size=50, ask_price=10015, ask_size=30),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -330,7 +350,7 @@ async def test_order_book_same_price_adds_aggregate_shares(dut: Any) -> None:
         expected_state(4, bid_price=10000, bid_size=100),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 # EXECUTE / CANCEL / DELETE lifecycle tests
@@ -350,7 +370,7 @@ async def test_order_book_partial_execute_then_second_execute_is_cumulative(dut:
         expected_state(3, bid_price=10000, bid_size=50),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -367,7 +387,7 @@ async def test_order_book_full_execute_best_bid_drops_to_next_level(dut: Any) ->
         expected_state(3, bid_price=10000, bid_size=200),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -384,7 +404,7 @@ async def test_order_book_cancel_to_zero_best_bid_drops_to_next_level(dut: Any) 
         expected_state(3, bid_price=10000, bid_size=50),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -401,7 +421,7 @@ async def test_order_book_delete_best_ask_drops_to_next_level(dut: Any) -> None:
         expected_state(3, ask_price=10020, ask_size=100),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 # REPLACE behaviour
@@ -421,7 +441,7 @@ async def test_order_book_replace_moves_bid_to_new_ref_new_price(dut: Any) -> No
         expected_state(3, bid_price=10010, bid_size=30),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -436,7 +456,7 @@ async def test_order_book_replace_inherits_original_sell_side(dut: Any) -> None:
         expected_state(2, ask_price=10015, ask_size=60),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -451,7 +471,7 @@ async def test_order_book_replace_only_order_same_price_changes_size(dut: Any) -
         expected_state(2, bid_price=10000, bid_size=30),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -468,7 +488,7 @@ async def test_order_book_replace_same_ref_same_price_changes_size(dut: Any) -> 
         expected_state(3, bid_price=10000, bid_size=50),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 # Hash collision / linked-list behaviour
@@ -500,7 +520,7 @@ async def test_order_book_same_hash_collision_insert_lookup_delete(dut: Any) -> 
         expected_state(4, bid_price=10000, bid_size=75),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 # Side-independence test
@@ -533,7 +553,7 @@ async def test_order_book_locked_book_same_price_keeps_bid_and_ask_sizes_indepen
         ),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 # Generated oracle replay
@@ -771,7 +791,7 @@ async def test_order_book_delete_one_of_two_orders_at_same_bid_price_keeps_remai
         expected_state(4),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -792,7 +812,7 @@ async def test_order_book_full_execute_one_of_two_same_price_asks_keeps_remainin
         expected_state(4, ask_price=10020, ask_size=50),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -825,7 +845,7 @@ async def test_order_book_best_bid_and_ask_walk_multiple_levels_when_levels_empt
         expected_state(10, bid_price=9995, bid_size=25, ask_price=10025, ask_size=10),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -846,7 +866,7 @@ async def test_order_book_replace_one_order_at_shared_price_preserves_remaining_
         expected_state(4, bid_price=10000, bid_size=50),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -867,7 +887,7 @@ async def test_order_book_same_ref_replace_to_new_price_remains_lookupable_by_sa
         expected_state(4),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -907,7 +927,7 @@ async def test_order_book_hash_cluster_delete_middle_reuse_slot_and_lookup_tail(
         expected_state(8, bid_price=10008, bid_size=25),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -933,7 +953,7 @@ async def test_order_book_extreme_supported_price_indices_base_and_last_tick(
         expected_state(5, bid_price=low, bid_size=10, ask_price=low + 1, ask_size=40),
     ]
 
-    await drive_sequence_with_hand_expected(dut, events, states)
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
 
 
 @cocotb.test(skip=False)
@@ -1005,3 +1025,27 @@ async def test_order_book_reset_after_activity_clears_all_book_state(dut: Any) -
         add_event(3, order_ref=9303, side="SELL", shares=70, price=10015),
         expected_state(3, ask_price=10015, ask_size=70),
     )
+
+
+## Pipelined tests
+
+@cocotb.test(skip=True)
+async def test_order_book_pipeline_works(dut: Any) -> None:
+
+    events = [
+            add_event(1, order_ref=2001, side="BUY", shares=100, price=10000),
+            add_event(2, order_ref=2002, side="BUY", shares=50, price=9990),
+            add_event(3, order_ref=2003, side="SELL", shares=70, price=10010),
+            add_event(4, order_ref=2004, side="SELL", shares=30, price=10020),
+            add_event(5, order_ref=2005, side="BUY", shares=20, price=10005),
+        ]
+
+    states = [
+        expected_state(1, bid_price=10000, bid_size=100),
+        expected_state(2, bid_price=10000, bid_size=100),
+        expected_state(3, bid_price=10000, bid_size=100, ask_price=10010, ask_size=70),
+        expected_state(4, bid_price=10000, bid_size=100, ask_price=10010, ask_size=70),
+        expected_state(5, bid_price=10005, bid_size=20, ask_price=10010, ask_size=70),
+    ]
+
+    await drive_sequence_with_hand_expected(dut, events, states, pipelined=False)
