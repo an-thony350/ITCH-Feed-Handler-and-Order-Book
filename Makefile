@@ -1,7 +1,4 @@
 # ITCH Feed Handler & Order Book - top-level simulation/test entry point
-#
-# Current active RTL regression only. Deprecated cocotb tests under
-# tb/tests/deprecated/ are intentionally not exposed here.
 
 SIM ?= verilator
 TOPLEVEL_LANG := verilog
@@ -121,6 +118,11 @@ else ifeq ($(TOPLEVEL),mold_seq_guard)
 VERILOG_SOURCES += \
 	$(RTL_DIR)/mold_seq_guard.sv
 
+else ifeq ($(TOPLEVEL),mold_deframe)
+VERILOG_SOURCES += \
+	$(RTL_DIR)/mold_seq_guard.sv \
+	$(RTL_DIR)/mold_deframe.sv
+
 else ifeq ($(TOPLEVEL),data_realign)
 VERILOG_SOURCES += \
 	$(RTL_DIR)/data_realign.sv
@@ -143,7 +145,7 @@ VERILOG_SOURCES += \
 	$(ORDER_BOOK_TOP_RTL)
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, order_book, order_book_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, order_book, order_book_top)
 endif
 
 # Preserve the current Verilator setup. Tracing is useful for local failure
@@ -155,7 +157,7 @@ EXTRA_ARGS += --trace-structs
 
 # The current ingress/data_realign path still has non-fatal width/lint warnings.
 # Keep them visible without allowing Verilator warnings alone to block tests.
-ifneq ($(filter frame_crack data_realign ingress_data_realign_top ingress_data_realign_perf_probe,$(TOPLEVEL)),)
+ifneq ($(filter frame_crack mold_deframe data_realign ingress_data_realign_top ingress_data_realign_perf_probe,$(TOPLEVEL)),)
 EXTRA_ARGS += -Wno-fatal
 endif
 # A direct DUT/module override still behaves like the old single-test workflow:
@@ -173,7 +175,8 @@ endif
 .PHONY: \
 	help quality test test-golden test-rtl \
 	test-axis-source-mux test-lane-rewire test-source-boundary-equiv \
-	test-frame-crack test-mold-seq-guard test-data-realign test-ingress \
+	test-frame-crack test-mold-seq-guard test-mold-deframe \
+	test-data-realign test-ingress \
 	test-order-book test-order-book-top \
 	perf-smoke perf-campaign perf-measure \
 	perf-ingress-latency perf-ingress-line-rate-measure \
@@ -191,6 +194,7 @@ test-rtl: \
 	test-source-boundary-equiv \
 	test-frame-crack \
 	test-mold-seq-guard \
+	test-mold-deframe \
 	test-data-realign \
 	test-ingress \
 	test-order-book \
@@ -239,8 +243,22 @@ test-frame-crack:
 		FRAME_CRACK_EXPECTED_DST_PORT=$(FRAME_CRACK_EXPECTED_DST_PORT)
 
 test-mold-seq-guard:
-	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=mold_seq_guard COCOTB_TEST_MODULES=test_mold_seq_guard
-	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=mold_seq_guard COCOTB_TEST_MODULES=test_mold_seq_guard
+	$(MAKE) -C $(REPO_ROOT) clean \
+		TOPLEVEL=mold_seq_guard \
+		COCOTB_TEST_MODULES=test_mold_seq_guard
+	$(MAKE) -C $(REPO_ROOT) results.xml \
+		TOPLEVEL=mold_seq_guard \
+		COCOTB_TEST_MODULES=test_mold_seq_guard \
+		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ)
+
+test-mold-deframe:
+	$(MAKE) -C $(REPO_ROOT) clean \
+		TOPLEVEL=mold_deframe \
+		COCOTB_TEST_MODULES=test_mold_deframe
+	$(MAKE) -C $(REPO_ROOT) results.xml \
+		TOPLEVEL=mold_deframe \
+		COCOTB_TEST_MODULES=test_mold_deframe \
+		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ)
 
 test-data-realign:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=data_realign COCOTB_TEST_MODULES=test_data_realign
@@ -335,7 +353,8 @@ help:
 		'  make test-lane-rewire' \
 		'  make test-source-boundary-equiv' \
 		'  make test-frame-crack              Complete frame_crack unit regression' \
-		'  make test-mold-seq-guard' \
+		'  make test-mold-seq-guard           Complete Mold sequence-policy unit regression' \
+		'  make test-mold-deframe             Complete MoldUDP64 deframer unit regression' \
 		'  make test-data-realign' \
 		'  make test-ingress                 Current 64-bit merged ingress/decode path' \
 		'  make test-order-book' \

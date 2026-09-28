@@ -182,6 +182,7 @@ jobs:
           - test-source-boundary-equiv
           - test-frame-crack
           - test-mold-seq-guard
+          - test-mold-deframe
           - test-data-realign
           - test-ingress
           - test-order-book
