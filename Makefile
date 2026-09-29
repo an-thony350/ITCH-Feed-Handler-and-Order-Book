@@ -8,6 +8,7 @@ REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 RTL_DIR := $(REPO_ROOT)/rtl
 TB_DIR := $(REPO_ROOT)/tb
 TESTS_DIR := $(TB_DIR)/tests
+UNIT_TESTS_DIR := $(TESTS_DIR)/unit
 TB_RTL_DIR := $(TB_DIR)/rtl
 
 # The active Ethernet/ITCH ingress is 64-bit at 156.25 MHz.
@@ -39,7 +40,7 @@ SIM_BUILD ?= $(REPO_ROOT)/build/sim/$(TOPLEVEL)
 COCOTB_RESULTS_FILE ?= results.xml
 
 # Keep imports identical whether tests are launched locally or from CI.
-export PYTHONPATH := $(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
+export PYTHONPATH := $(UNIT_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
 
 # Cocotb 2.x uses COCOTB_TEST_MODULES. Retain MODULE as a convenience for any
 # existing local command lines while the repository is being cleaned up.
