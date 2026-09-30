@@ -185,6 +185,7 @@ jobs:
           - test-mold-deframe
           - test-data-realign
           - test-ingress
+          - test-symbol-router
           - test-order-book
           - test-order-book-top
 

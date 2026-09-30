@@ -137,6 +137,10 @@ VERILOG_SOURCES += \
 	$(CURRENT_INGRESS_RTL) \
 	$(TB_RTL_DIR)/ingress_data_realign_perf_probe.sv
 
+else ifeq ($(TOPLEVEL),symbol_router)
+VERILOG_SOURCES += \
+	$(RTL_DIR)/symbol_router.sv
+
 else ifeq ($(TOPLEVEL),order_book)
 VERILOG_SOURCES += \
 	$(ORDER_BOOK_CORE_RTL)
@@ -146,7 +150,7 @@ VERILOG_SOURCES += \
 	$(ORDER_BOOK_TOP_RTL)
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, order_book, order_book_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, symbol_router, order_book, order_book_top)
 endif
 
 # Preserve the current Verilator setup. Tracing is useful for local failure
@@ -177,7 +181,7 @@ endif
 	help quality test test-golden test-rtl \
 	test-axis-source-mux test-lane-rewire test-source-boundary-equiv \
 	test-frame-crack test-mold-seq-guard test-mold-deframe \
-	test-data-realign test-ingress \
+	test-data-realign test-ingress test-symbol-router \
 	test-order-book test-order-book-top \
 	perf-smoke perf-campaign perf-measure \
 	perf-ingress-latency perf-ingress-line-rate-measure \
@@ -198,6 +202,7 @@ test-rtl: \
 	test-mold-deframe \
 	test-data-realign \
 	test-ingress \
+	test-symbol-router \
 	test-order-book \
 	test-order-book-top
 
@@ -270,6 +275,10 @@ test-data-realign:
 test-ingress:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress_data_realign
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress_data_realign CLOCK_MHZ=$(INGRESS_CLOCK_MHZ)
+
+test-symbol-router:
+	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=symbol_router COCOTB_TEST_MODULES=test_symbol_router
+	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=symbol_router COCOTB_TEST_MODULES=test_symbol_router
 
 test-order-book:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=order_book COCOTB_TEST_MODULES=test_order_book
@@ -358,6 +367,7 @@ help:
 		'  make test-mold-deframe             Complete MoldUDP64 deframer unit regression' \
 		'  make test-data-realign' \
 		'  make test-ingress                 Current 64-bit merged ingress/decode path' \
+		'  make test-symbol-router           Symbol routing and backpressure correctness' \
 		'  make test-order-book' \
 		'  make test-order-book-top' \
 		'' \
