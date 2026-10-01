@@ -1,14 +1,15 @@
-"""Cold-path latency sweep for the merged ingress/decode candidate.
+"""Cold-path latency sweep for the current ingress/decode path.
 
 Each case drives one Ethernet/IPv4/UDP/MoldUDP64 frame containing one supported
 ITCH mutation while m_event_ready_i remains asserted. Latency is measured to the
-normalised data_t event, not to an intermediate padded ITCH packet.
+normalised data_t event.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -40,12 +41,19 @@ from itch_harness.scoreboard import (
 )
 
 
-RESULTS_PATH = (
-    Path(__file__).resolve().parents[2]
+DEFAULT_RESULTS_PATH = (
+    Path(__file__).resolve().parents[3]
     / "build"
     / "perf"
     / "data_realign_ingress_latency.json"
 )
+
+
+def _results_path() -> Path:
+    configured = os.environ.get("INGRESS_LATENCY_RESULTS_FILE", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return DEFAULT_RESULTS_PATH
 
 
 def _event_dict(payload: bytes) -> dict[str, Any]:
@@ -114,7 +122,20 @@ def _cases() -> list[tuple[str, bytes]]:
     ]
 
 
-async def _reset_candidate(dut: Any) -> None:
+def _latency(start_cycle: int, end_cycle: int, *, clock_mhz: float) -> dict[str, Any]:
+    cycles = end_cycle - start_cycle
+    if cycles < 0:
+        raise AssertionError(
+            f"negative latency: start={start_cycle}, end={end_cycle}"
+        )
+
+    return {
+        "cycles": cycles,
+        "ns": cycles_to_ns(cycles, clock_mhz=clock_mhz),
+    }
+
+
+async def _reset_ingress(dut: Any) -> None:
     await FallingEdge(dut.clk)
 
     dut.s_frame_tdata_i.value = 0
@@ -157,8 +178,6 @@ async def _capture_one_event(
 
         frame_valid = signal_value_to_int(dut.s_frame_tvalid_i.value)
         frame_ready = signal_value_to_int(dut.s_frame_tready_o.value)
-        frame_keep = signal_value_to_int(dut.s_frame_tkeep_i.value)
-        frame_last = signal_value_to_int(dut.s_frame_tlast_i.value)
 
         dgram_valid = signal_value_to_int(dut.probe_dgram_tvalid_o.value)
         dgram_ready = signal_value_to_int(dut.probe_dgram_tready_o.value)
@@ -169,52 +188,67 @@ async def _capture_one_event(
         msg_len_valid = signal_value_to_int(dut.probe_msg_len_valid_o.value)
         msg_len_ready = signal_value_to_int(dut.probe_msg_len_ready_o.value)
 
-        event_valid = signal_value_to_int(dut.m_event_valid_o.value)
-        event_ready = signal_value_to_int(dut.m_event_ready_i.value)
-        event_word = signal_value_to_int(dut.m_event_data_o.value)
-
-        dgram_keep = signal_value_to_int(dut.dut.dgram_tkeep.value)
-        payload_keep = signal_value_to_int(dut.dut.payload_tkeep.value)
+        event_valid = signal_value_to_int(dut.probe_event_tvalid_o.value)
+        event_ready = signal_value_to_int(dut.probe_event_tready_o.value)
 
         await RisingEdge(dut.clk)
         await ReadOnly()
 
         if frame_valid and not frame_ready:
             frame_stalls += 1
-        if frame_valid and frame_ready:
-            if first_frame is None:
-                first_frame = cycle
-            if frame_last:
-                last_frame = cycle
-            frame_bytes += frame_keep.bit_count()
-
         if dgram_valid and not dgram_ready:
             dgram_stalls += 1
-        if dgram_valid and dgram_ready:
-            if first_dgram is None:
-                first_dgram = cycle
-            dgram_bytes += dgram_keep.bit_count()
-
         if payload_valid and not payload_ready:
             payload_stalls += 1
-        if payload_valid and payload_ready:
-            if first_payload is None:
-                first_payload = cycle
-            payload_bytes += payload_keep.bit_count()
-
         if msg_len_valid and not msg_len_ready:
             msg_len_stalls += 1
-        if msg_len_valid and msg_len_ready and first_msg_len is None:
-            first_msg_len = cycle
-
         if event_valid and not event_ready:
             event_stalls += 1
-        if event_valid and event_ready:
+
+        if signal_value_to_int(dut.probe_frame_fire_o.value):
+            if first_frame is None:
+                first_frame = cycle
+            if signal_value_to_int(dut.probe_frame_last_fire_o.value):
+                last_frame = cycle
+            frame_bytes += signal_value_to_int(
+                dut.probe_frame_keep_o.value
+            ).bit_count()
+
+        if signal_value_to_int(dut.probe_dgram_fire_o.value):
+            if first_dgram is None:
+                first_dgram = cycle
+            dgram_bytes += signal_value_to_int(
+                dut.probe_dgram_keep_o.value
+            ).bit_count()
+
+        if signal_value_to_int(dut.probe_payload_fire_o.value):
+            if first_payload is None:
+                first_payload = cycle
+            payload_bytes += signal_value_to_int(
+                dut.probe_payload_keep_o.value
+            ).bit_count()
+
+        if (
+            signal_value_to_int(dut.probe_msg_len_fire_o.value)
+            and first_msg_len is None
+        ):
+            first_msg_len = cycle
+
+        if signal_value_to_int(dut.probe_event_fire_o.value):
             if first_frame is None or last_frame is None:
                 raise AssertionError("decoded event arrived before frame accounting")
+            if first_dgram is None:
+                raise AssertionError("decoded event arrived before datagram accounting")
+            if first_payload is None:
+                raise AssertionError("decoded event arrived before payload accounting")
+            if first_msg_len is None:
+                raise AssertionError("decoded event arrived before message-length accounting")
+
             return {
                 "event_cycle": cycle,
-                "event_word": event_word,
+                "event_word": signal_value_to_int(
+                    dut.probe_event_data_o.value
+                ),
                 "first_frame_cycle": first_frame,
                 "last_frame_cycle": last_frame,
                 "first_dgram_cycle": first_dgram,
@@ -232,20 +266,22 @@ async def _capture_one_event(
 
         cycle += 1
 
-    raise TimeoutError("timed out waiting for merged decoded event")
+    raise TimeoutError("timed out waiting for decoded ingress event")
 
 
 @cocotb.test()
-async def test_candidate_single_message_latency_sweep(dut: Any) -> None:
+async def test_ingress_latency(dut: Any) -> None:
     clock_mhz = clock_mhz_from_env(default=156.25)
+    axis_width_bits = len(dut.s_frame_tdata_i)
+
     await start_perf_clock(dut, clock_mhz=clock_mhz)
-    await _reset_candidate(dut)
+    await _reset_ingress(dut)
 
     reports: list[dict[str, Any]] = []
 
     for case_index, (case_name, payload) in enumerate(_cases()):
         if case_index != 0:
-            await _reset_candidate(dut)
+            await _reset_ingress(dut)
 
         datagram = build_mold_datagram([payload], seq=100 + case_index)
         frame = build_eth_ipv4_udp_frame(datagram)
@@ -266,6 +302,9 @@ async def test_candidate_single_message_latency_sweep(dut: Any) -> None:
         event_cycle = int(capture["event_cycle"])
         first_frame = int(capture["first_frame_cycle"])
         last_frame = int(capture["last_frame_cycle"])
+        first_dgram = int(capture["first_dgram_cycle"])
+        first_payload = int(capture["first_payload_cycle"])
+        first_msg_len = int(capture["first_msg_len_cycle"])
 
         report = {
             "case": case_name,
@@ -273,18 +312,56 @@ async def test_candidate_single_message_latency_sweep(dut: Any) -> None:
             "message_bytes": len(payload),
             "frame_bytes": len(frame),
             "datagram_bytes": len(datagram),
-            "clock_mhz": clock_mhz,
-            "axis_width_bits": len(dut.s_frame_tdata_i),
-            "frame_to_event_cycles": event_cycle - first_frame,
-            "frame_to_event_ns": cycles_to_ns(
-                event_cycle - first_frame,
-                clock_mhz=clock_mhz,
-            ),
-            "last_frame_to_event_cycles": event_cycle - last_frame,
-            "last_frame_to_event_ns": cycles_to_ns(
-                event_cycle - last_frame,
-                clock_mhz=clock_mhz,
-            ),
+            "handshake_cycles": {
+                "first_frame": first_frame,
+                "last_frame": last_frame,
+                "first_dgram": first_dgram,
+                "first_payload": first_payload,
+                "first_msg_len": first_msg_len,
+                "event": event_cycle,
+            },
+            "latency": {
+                "frame_to_first_dgram": _latency(
+                    first_frame,
+                    first_dgram,
+                    clock_mhz=clock_mhz,
+                ),
+                "frame_to_first_payload": _latency(
+                    first_frame,
+                    first_payload,
+                    clock_mhz=clock_mhz,
+                ),
+                "frame_to_first_msg_len": _latency(
+                    first_frame,
+                    first_msg_len,
+                    clock_mhz=clock_mhz,
+                ),
+                "frame_to_event": _latency(
+                    first_frame,
+                    event_cycle,
+                    clock_mhz=clock_mhz,
+                ),
+                "last_frame_to_event": _latency(
+                    last_frame,
+                    event_cycle,
+                    clock_mhz=clock_mhz,
+                ),
+                "first_dgram_to_event": _latency(
+                    first_dgram,
+                    event_cycle,
+                    clock_mhz=clock_mhz,
+                ),
+                "first_payload_to_event": _latency(
+                    first_payload,
+                    event_cycle,
+                    clock_mhz=clock_mhz,
+                ),
+                "first_msg_len_to_event": _latency(
+                    first_msg_len,
+                    event_cycle,
+                    clock_mhz=clock_mhz,
+                ),
+            },
             "accepted_frame_bytes": int(capture["frame_bytes"]),
             "accepted_dgram_bytes": int(capture["dgram_bytes"]),
             "accepted_payload_bytes": int(capture["payload_bytes"]),
@@ -310,12 +387,24 @@ async def test_candidate_single_message_latency_sweep(dut: Any) -> None:
         dut._log.info(
             "%s: frame->event=%d cycles, last-frame->event=%d cycles",
             case_name,
-            report["frame_to_event_cycles"],
-            report["last_frame_to_event_cycles"],
+            report["latency"]["frame_to_event"]["cycles"],
+            report["latency"]["last_frame_to_event"]["cycles"],
         )
 
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS_PATH.write_text(
-        json.dumps(reports, indent=2, sort_keys=True) + "\n",
+    result = {
+        "schema_version": 1,
+        "benchmark": "ingress_latency",
+        "traffic_condition": "single_frame_unloaded_always_ready",
+        "latency_start": "first accepted Ethernet beat",
+        "latency_end": "accepted normalised data_t event",
+        "clock_mhz": clock_mhz,
+        "axis_width_bits": axis_width_bits,
+        "cases": reports,
+    }
+
+    results_path = _results_path()
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    results_path.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )

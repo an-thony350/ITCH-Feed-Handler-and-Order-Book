@@ -10,6 +10,7 @@ TB_DIR := $(REPO_ROOT)/tb
 TESTS_DIR := $(TB_DIR)/tests
 UNIT_TESTS_DIR := $(TESTS_DIR)/unit
 SYSTEM_TESTS_DIR := $(TESTS_DIR)/system
+LATENCY_TESTS_DIR := $(TESTS_DIR)/latency
 TB_RTL_DIR := $(TB_DIR)/rtl
 
 # The active Ethernet/ITCH ingress is 64-bit at 156.25 MHz.
@@ -31,6 +32,7 @@ export LINE_RATE_MODE
 export LINE_RATE_EVENT_COUNT
 export LINE_RATE_ENFORCE
 export LINE_RATE_RESULTS_DIR
+export INGRESS_LATENCY_RESULTS_FILE
 export FRAME_CRACK_CHECK_DST_PORT
 export FRAME_CRACK_EXPECTED_DST_PORT
 
@@ -41,7 +43,7 @@ SIM_BUILD ?= $(REPO_ROOT)/build/sim/$(TOPLEVEL)
 COCOTB_RESULTS_FILE ?= results.xml
 
 # Keep imports identical whether tests are launched locally or from CI.
-export PYTHONPATH := $(UNIT_TESTS_DIR):$(SYSTEM_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
+export PYTHONPATH := $(UNIT_TESTS_DIR):$(SYSTEM_TESTS_DIR):$(LATENCY_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
 
 # Cocotb 2.x uses COCOTB_TEST_MODULES. Retain MODULE as a convenience for any
 # existing local command lines while the repository is being cleaned up.
@@ -289,16 +291,17 @@ test-order-book-top:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=order_book_top COCOTB_TEST_MODULES=test_order_book_top
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=order_book_top COCOTB_TEST_MODULES=test_order_book_top
 
-# Current ingress performance tests
+# Current ingress latency/throughput tests
 
 # Cold-path Ethernet-frame -> normalised-event latency sweep at 156.25 MHz.
 perf-ingress-latency:
 	rm -f $(INGRESS_LATENCY_RESULTS_FILE)
-	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_perf_probe COCOTB_TEST_MODULES=test_ingress_data_realign_perf
+	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_perf_probe COCOTB_TEST_MODULES=test_ingress_latency
 	$(MAKE) -C $(REPO_ROOT) results.xml \
 		TOPLEVEL=ingress_data_realign_perf_probe \
-		COCOTB_TEST_MODULES=test_ingress_data_realign_perf \
-		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ)
+		COCOTB_TEST_MODULES=test_ingress_latency \
+		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
+		INGRESS_LATENCY_RESULTS_FILE=$(INGRESS_LATENCY_RESULTS_FILE)
 
 # Measurement-only line-rate run. Useful for experiments because it records
 # failures in the report without making the cocotb test fail on the rate gate.
@@ -382,6 +385,7 @@ help:
 		'Useful overrides:' \
 		'  SIM=verilator' \
 		'  INGRESS_CLOCK_MHZ=156.25' \
+		'  INGRESS_LATENCY_RESULTS_FILE=<path>' \
 		'  LINE_RATE_MODE=smoke|campaign' \
 		'  LINE_RATE_EVENT_COUNT=<count>' \
 		'' \
