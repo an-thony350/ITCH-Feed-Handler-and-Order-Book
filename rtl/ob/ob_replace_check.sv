@@ -26,17 +26,17 @@
 import hdl_header::*;
 
 module ob_replace_check(
+    // Control Signals
     input logic                 clk,
     input logic                 rst_n,
-    input logic                 stall,
+
+    output logic                ready_o
+
+    // Instruction Data I/O
     input logic                 stage_valid_i,
     input o_data_raw_t          input_rdata,
 
-    output logic                stage_valid_o,
-    output o_data_t             rdata_o,
-    output logic                latched_rep_delete_o,
-    output logic                latched_rep_add_o,
-    output logic                ready_o
+    output ob_event_t           event_o
 );
 
 logic        call_replace;
@@ -46,6 +46,7 @@ o_data_t     passed_data;
 logic        rep_add_valid;
 logic        rep_delete;
 logic        rep_add;
+logic        send_bbo; // ensures we only send one bbo update for a replace instruction
 
 assign ready_o = !call_replace;
 
@@ -56,6 +57,7 @@ always_comb begin
     rep_delete      = 1'b0;
     rep_add         = 1'b0;
     rep_add_valid   = 1'b0;
+    send_bbo        = 1'b1;
 
     if(call_replace) begin
         passed_data.message_type = MSG_ADD_A;
@@ -74,6 +76,7 @@ always_comb begin
         passed_data.price        = input_rdata.price;
         rep_delete               = 1'b1;
         rep_add_valid            = 1'b1;
+        send_bbo                 = 1'b0;
     end
     else if(!call_replace) begin
         passed_data.message_type = input_rdata.message_type;
@@ -90,7 +93,7 @@ always_ff @(posedge clk) begin
     if(!rst_n) begin
         call_replace  <= '0;
     end
-    else if(!stall) begin
+    else begin
         call_replace    <=  1'b0;
         if(stage_valid_i && input_rdata.message_type == MSG_REPLACE && !call_replace) begin
             call_replace     <= 1'b1;
@@ -102,13 +105,15 @@ end
 // Default sequential logic
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        stage_valid_o           <=  1'b0;
+        event_o.valid           <=  1'b0;
     end
-    else if(!stall) begin
-        stage_valid_o           <=  rep_add_valid;
-        rdata_o                 <=  passed_data;
-        latched_rep_delete_o    <=  rep_delete;
-        latched_rep_add_o       <=  rep_add;
+    else begin
+        event_o.valid           <=  rep_add_valid;
+        event_o.rdata           <=  passed_data;
+        event_o.rep_delete      <=  rep_delete;
+        event_o.rep_add         <=  rep_add;
+        event_o.emit_bbo        <=  send_bbo;
+        event_o.hash_idx        <=  hash_orn(passed_data.orn);
     end
 end
 endmodule
