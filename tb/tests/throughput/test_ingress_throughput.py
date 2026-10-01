@@ -1,14 +1,12 @@
-"""Sustained line-rate regression for the merged ingress/decode candidate.
+"""Sustained throughput regression for the active ingress/decode path.
 
-Scope:
-    Ethernet -> frame_crack -> mold_deframe -> data_realign
-             -> always-ready normalised-event sink
+From ethernet input to Normalised Event output
 
-The source remains deliberately zero-gap, which is stricter than a physical
-10GbE MAC stream. Gate mode therefore checks the measured sustained AXI frame
-rate against the actual rate required by a saturated 10GbE wire after accounting
-for preamble/SFD, FCS and IFG. Zero-gap stalls remain visible as a stress metric
-but are not automatically a physical line-rate failure.
+The source remains deliberately zero-gap, which is stricter than a physical 10GbE MAC stream.
+
+Gate mode checks the measured sustained AXI frame rate against the actual rate
+required by a saturated 10GbE wire after accounting for preamble/SFD, FCS and IFG.
+
 """
 
 from __future__ import annotations
@@ -93,6 +91,18 @@ class Capture:
     msg_len_stalls: int = 0
     event_stalls: int = 0
 
+    frame_stall_run: int = 0
+    dgram_stall_run: int = 0
+    payload_stall_run: int = 0
+    msg_len_stall_run: int = 0
+    event_stall_run: int = 0
+
+    frame_max_stall_burst: int = 0
+    dgram_max_stall_burst: int = 0
+    payload_max_stall_burst: int = 0
+    msg_len_max_stall_burst: int = 0
+    event_max_stall_burst: int = 0
+
     frame_errors: list[int] = field(default_factory=list)
     mold_errors: list[int] = field(default_factory=list)
     realign_errors: list[int] = field(default_factory=list)
@@ -110,7 +120,7 @@ class Capture:
         return sum(self.payload_fire_bytes)
 
 
-class LineRateMonitor:
+class IngressThroughputMonitor:
     """Snapshot combinational ready/valid before each active edge."""
 
     def __init__(self, dut: Any) -> None:
@@ -181,29 +191,69 @@ class LineRateMonitor:
 
             if frame_valid and not frame_ready:
                 capture.frame_stalls += 1
+                capture.frame_stall_run += 1
+                capture.frame_max_stall_burst = max(
+                    capture.frame_max_stall_burst,
+                    capture.frame_stall_run,
+                )
+            else:
+                capture.frame_stall_run = 0
+
             if frame_valid and frame_ready:
                 capture.frame_fire_cycles.append(capture.cycle)
                 capture.frame_fire_bytes.append(frame_keep.bit_count())
 
             if dgram_valid and not dgram_ready:
                 capture.dgram_stalls += 1
+                capture.dgram_stall_run += 1
+                capture.dgram_max_stall_burst = max(
+                    capture.dgram_max_stall_burst,
+                    capture.dgram_stall_run,
+                )
+            else:
+                capture.dgram_stall_run = 0
+
             if dgram_valid and dgram_ready:
                 capture.dgram_fire_cycles.append(capture.cycle)
                 capture.dgram_fire_bytes.append(dgram_keep.bit_count())
 
             if payload_valid and not payload_ready:
                 capture.payload_stalls += 1
+                capture.payload_stall_run += 1
+                capture.payload_max_stall_burst = max(
+                    capture.payload_max_stall_burst,
+                    capture.payload_stall_run,
+                )
+            else:
+                capture.payload_stall_run = 0
+
             if payload_valid and payload_ready:
                 capture.payload_fire_cycles.append(capture.cycle)
                 capture.payload_fire_bytes.append(payload_keep.bit_count())
 
             if msg_len_valid and not msg_len_ready:
                 capture.msg_len_stalls += 1
+                capture.msg_len_stall_run += 1
+                capture.msg_len_max_stall_burst = max(
+                    capture.msg_len_max_stall_burst,
+                    capture.msg_len_stall_run,
+                )
+            else:
+                capture.msg_len_stall_run = 0
+
             if msg_len_valid and msg_len_ready:
                 capture.msg_len_fire_cycles.append(capture.cycle)
 
             if event_valid and not event_ready:
                 capture.event_stalls += 1
+                capture.event_stall_run += 1
+                capture.event_max_stall_burst = max(
+                    capture.event_max_stall_burst,
+                    capture.event_stall_run,
+                )
+            else:
+                capture.event_stall_run = 0
+
             if event_valid and event_ready:
                 capture.event_fire_cycles.append(capture.cycle)
                 capture.event_words.append(event_word)
@@ -230,14 +280,22 @@ class LineRateMonitor:
 
 
 def _mode() -> str:
-    mode = os.environ.get("LINE_RATE_MODE", "campaign").strip().lower()
+    mode = (
+        os.environ.get("INGRESS_THROUGHPUT_MODE", "campaign")
+        .strip()
+        .lower()
+    )
     if mode not in {"smoke", "campaign"}:
-        raise ValueError(f"invalid LINE_RATE_MODE={mode!r}")
+        raise ValueError(f"invalid INGRESS_THROUGHPUT_MODE={mode!r}")
     return mode
 
 
 def _event_count(mode: str) -> int:
-    configured = os.environ.get("LINE_RATE_EVENT_COUNT", "").strip()
+    configured = os.environ.get(
+        "INGRESS_THROUGHPUT_EVENT_COUNT",
+        "",
+    ).strip()
+
     if configured:
         count = int(configured)
     else:
@@ -246,29 +304,42 @@ def _event_count(mode: str) -> int:
             if mode == "smoke"
             else DEFAULT_CAMPAIGN_EVENTS
         )
+
     if count <= 0:
-        raise ValueError("LINE_RATE_EVENT_COUNT must be positive")
+        raise ValueError("INGRESS_THROUGHPUT_EVENT_COUNT must be positive")
     return count
 
 
 def _enforce() -> bool:
-    value = os.environ.get("LINE_RATE_ENFORCE", "0").strip().lower()
+    value = (
+        os.environ.get("INGRESS_THROUGHPUT_ENFORCE", "0")
+        .strip()
+        .lower()
+    )
+
     if value in {"0", "false", "no", "off"}:
         return False
     if value in {"1", "true", "yes", "on"}:
         return True
-    raise ValueError(f"invalid LINE_RATE_ENFORCE={value!r}")
+
+    raise ValueError(f"invalid INGRESS_THROUGHPUT_ENFORCE={value!r}")
 
 
 def _results_dir() -> Path:
-    configured = os.environ.get("LINE_RATE_RESULTS_DIR", "").strip()
+    configured = os.environ.get(
+        "INGRESS_THROUGHPUT_RESULTS_DIR",
+        "",
+    ).strip()
+
     if configured:
         return Path(configured).expanduser().resolve()
+
     return (
-        Path(__file__).resolve().parents[2]
+        Path(__file__).resolve().parents[3]
         / "build"
-        / "perf"
-        / "data_realign_ingress_line_rate"
+        / "verification"
+        / "throughput"
+        / "ingress"
     )
 
 
@@ -439,6 +510,12 @@ def _window(cycles: list[int]) -> int | None:
     return cycles[-1] - cycles[0] + 1
 
 
+def _elapsed_ns(cycles: int | None, clock_mhz: float) -> float | None:
+    if cycles is None:
+        return None
+    return cycles * 1_000.0 / clock_mhz
+
+
 def _rate_record(
     *,
     case: Campaign,
@@ -456,6 +533,17 @@ def _rate_record(
             clock_mhz=clock_mhz,
         )
         if frame_window not in (None, 0)
+        else 0.0
+    )
+
+    frame_bytes_per_cycle = (
+        bytes_per_cycle(capture.frame_bytes, frame_window)
+        if frame_window not in (None, 0)
+        else 0.0
+    )
+    events_per_cycle = (
+        len(capture.event_words) / event_window
+        if event_window not in (None, 0)
         else 0.0
     )
 
@@ -478,20 +566,41 @@ def _rate_record(
         "mold_to_data_realign_length": capture.msg_len_stalls,
         "data_realign_output": capture.event_stalls,
     }
+    max_stall_bursts = {
+        "frame_crack_input": capture.frame_max_stall_burst,
+        "frame_crack_to_mold": capture.dgram_max_stall_burst,
+        "mold_to_data_realign_payload": capture.payload_max_stall_burst,
+        "mold_to_data_realign_length": capture.msg_len_max_stall_burst,
+        "data_realign_output": capture.event_max_stall_burst,
+    }
+
     stalled = [name for name, count in stalls.items() if count > 0]
+    worst_stall_boundary = max(
+        max_stall_bursts,
+        key=max_stall_bursts.get,
+    )
+    worst_stall_burst = max_stall_bursts[worst_stall_boundary]
 
     return {
         "case": case.name,
         "message_type": case.message_type,
         "clock_mhz": clock_mhz,
-        "frames": len(frames),
-        "expected_events": len(case.payloads),
-        "decoded_events": len(capture.event_words),
+        "frames_offered": len(frames),
+        "events_offered": len(case.payloads),
+        "events_completed": len(capture.event_words),
+        "accepted_frame_beats": len(capture.frame_fire_cycles),
+        "accepted_dgram_beats": len(capture.dgram_fire_cycles),
+        "accepted_payload_beats": len(capture.payload_fire_cycles),
         "accepted_frame_bytes": capture.frame_bytes,
         "expected_frame_bytes": generated_frame_bytes,
         "accepted_dgram_bytes": capture.dgram_bytes,
         "accepted_payload_bytes": capture.payload_bytes,
         "frame_window_cycles": frame_window,
+        "frame_elapsed_ns": _elapsed_ns(frame_window, clock_mhz),
+        "event_window_cycles": event_window,
+        "event_elapsed_ns": _elapsed_ns(event_window, clock_mhz),
+        "accepted_frame_bytes_per_cycle": frame_bytes_per_cycle,
+        "completed_events_per_cycle": events_per_cycle,
         "input_bus_gbps": measured_gbps,
         "required_mac_gbps_for_10gbe_wire": required_mac_gbps,
         "wire_rate_margin_gbps": measured_gbps - required_mac_gbps,
@@ -508,7 +617,12 @@ def _rate_record(
             else 0.0
         ),
         "stall_cycles": stalls,
+        "max_consecutive_stall_cycles": max_stall_bursts,
         "deepest_stalled_boundary": stalled[-1] if stalled else None,
+        "worst_stall_boundary": (
+            worst_stall_boundary if worst_stall_burst > 0 else None
+        ),
+        "worst_stall_burst_cycles": worst_stall_burst,
         "frame_errors": capture.frame_errors,
         "mold_errors": capture.mold_errors,
         "realign_errors": capture.realign_errors,
@@ -525,10 +639,10 @@ def _failures(record: dict[str, Any], mismatches: list[str]) -> list[str]:
             f"{record['accepted_frame_bytes']}/"
             f"{record['expected_frame_bytes']}"
         )
-    if record["decoded_events"] != record["expected_events"]:
+    if record["events_completed"] != record["events_offered"]:
         failures.append(
-            f"{case}: decoded {record['decoded_events']}/"
-            f"{record['expected_events']} events"
+            f"{case}: completed {record['events_completed']}/"
+            f"{record['events_offered']} events"
         )
     if record["frame_errors"]:
         failures.append(f"{case}: frame errors {record['frame_errors']}")
@@ -548,7 +662,7 @@ def _failures(record: dict[str, Any], mismatches: list[str]) -> list[str]:
     return failures
 
 
-async def _reset_candidate(dut: Any) -> None:
+async def _reset_ingress(dut: Any) -> None:
     await FallingEdge(dut.clk)
 
     dut.s_frame_tdata_i.value = 0
@@ -561,7 +675,7 @@ async def _reset_candidate(dut: Any) -> None:
 
 
 @cocotb.test()
-async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
+async def test_ingress_throughput(dut: Any) -> None:
     mode = _mode()
     count = _event_count(mode)
     enforce = _enforce()
@@ -570,9 +684,10 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
     axis_width_bits = len(dut.s_frame_tdata_i)
 
     dut._log.info(
-        "line-rate regression: seed=%d mode=%s events=%d; "
-        "replay: make perf-ingress-line-rate-gate "
-        "TEST_SEED=%d LINE_RATE_MODE=%s LINE_RATE_EVENT_COUNT=%d",
+        "ingress throughput: seed=%d mode=%s events=%d; "
+        "replay: make perf-ingress-throughput "
+        "TEST_SEED=%d INGRESS_THROUGHPUT_MODE=%s "
+        "INGRESS_THROUGHPUT_EVENT_COUNT=%d",
         seed,
         mode,
         count,
@@ -582,23 +697,23 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
     )
 
     await start_perf_clock(dut, clock_mhz=clock_mhz)
-    await _reset_candidate(dut)
+    await _reset_ingress(dut)
 
     records: list[dict[str, Any]] = []
     enforcement_failures: list[str] = []
 
     for case_index, case in enumerate(_campaigns(mode, count)):
         if case_index != 0:
-            await _reset_candidate(dut)
+            await _reset_ingress(dut)
 
         frames = _pack_frames(
             case.payloads,
             seq_start=1,
             randomise_counts=case.randomise_mold_counts,
-            seed = seed,
+            seed=seed,
         )
 
-        monitor = LineRateMonitor(dut)
+        monitor = IngressThroughputMonitor(dut)
         monitor_task = cocotb.start_soon(monitor.run())
 
         await drive_axis_frames_continuous(
@@ -654,23 +769,28 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
         enforcement_failures.extend(case_failures)
 
         dut._log.info(
-            "%s: zero_gap_stalls=%d input=%.3f required=%.3f "
-            "margin=%+.3f Gbit/s decoded=%d/%d deepest=%s",
+            "%s: stalls=%d max_burst=%d input=%.3f required=%.3f "
+            "margin=%+.3f Gbit/s events=%d/%d worst=%s:%d",
             case.name,
             record["zero_gap_source_stalls"],
+            record["max_consecutive_stall_cycles"]["frame_crack_input"],
             record["input_bus_gbps"],
             record["required_mac_gbps_for_10gbe_wire"],
             record["wire_rate_margin_gbps"],
-            record["decoded_events"],
-            record["expected_events"],
-            record["deepest_stalled_boundary"],
+            record["events_completed"],
+            record["events_offered"],
+            record["worst_stall_boundary"],
+            record["worst_stall_burst_cycles"],
         )
 
     result = {
-        "schema_version": 2,
-        "benchmark": "data_realign_pre_taxi_ingress_line_rate",
+        "schema_version": 3,
+        "benchmark": "ingress_throughput",
         "mode": mode,
-        "scope": "frame_crack -> mold_deframe -> data_realign -> always-ready event sink",
+        "scope": (
+            "frame_crack -> mold_deframe -> data_realign "
+            "-> always-ready event sink"
+        ),
         "clock_mhz": clock_mhz,
         "axis_width_bits": axis_width_bits,
         "seed": seed,
@@ -688,7 +808,7 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
     )
 
     summary_lines = [
-        "# Merged data_realign ingress line-rate regression",
+        "# Ingress throughput regression",
         "",
         f"Mode: `{mode}`",
         "",
@@ -696,21 +816,33 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
         "",
         f"Clock: {clock_mhz:.3f} MHz, {axis_width_bits}-bit AXI4-Stream.",
         "",
-        "Scope: `frame_crack -> mold_deframe -> data_realign -> always-ready event sink`.",
+        "Scope: `frame_crack -> mold_deframe -> data_realign "
+        "-> always-ready event sink`.",
         "",
-        "| Case | Frames | Zero-gap stalls | Measured Gbit/s | 10GbE-required Gbit/s | Margin | Events | Deepest stall |",
-        "|---|---:|---:|---:|---:|---:|---:|---|",
+        "| Case | Frames | Input stalls | Max input burst | "
+        "Measured Gbit/s | 10GbE-required Gbit/s | Margin | Events | "
+        "Worst stall burst |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
 
     for record in records:
+        worst = "-"
+        if record["worst_stall_boundary"] is not None:
+            worst = (
+                f"{record['worst_stall_boundary']}:"
+                f"{record['worst_stall_burst_cycles']}"
+            )
+
         summary_lines.append(
-            "| {case} | {frames} | {zero_gap_source_stalls} | "
-            "{input_bus_gbps:.3f} | "
+            "| {case} | {frames_offered} | {zero_gap_source_stalls} | "
+            "{max_input_burst} | {input_bus_gbps:.3f} | "
             "{required_mac_gbps_for_10gbe_wire:.3f} | "
             "{wire_rate_margin_gbps:+.3f} | "
-            "{decoded_events}/{expected_events} | "
-            "{deepest} |".format(
-                deepest=record["deepest_stalled_boundary"] or "-",
+            "{events_completed}/{events_offered} | {worst} |".format(
+                max_input_burst=record[
+                    "max_consecutive_stall_cycles"
+                ]["frame_crack_input"],
+                worst=worst,
                 **record,
             )
         )
@@ -720,6 +852,8 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
         "## Gate interpretation",
         "",
         "- Zero-gap source stalls are retained as a stress metric.",
+        "- Maximum consecutive stall bursts are recorded at each observed "
+        "ingress boundary.",
         "- The physical 10GbE gate compares measured MAC-side frame throughput "
         "against the rate required after 8-byte preamble/SFD, 4-byte FCS and "
         "12-byte minimum IFG are accounted for.",
@@ -743,7 +877,7 @@ async def test_candidate_merged_ingress_line_rate(dut: Any) -> None:
 
     if enforce and enforcement_failures:
         raise AssertionError(
-            f"merged ingress line-rate gate failed (seed={seed}):\n"
+            f"ingress throughput gate failed (seed={seed}):\n"
             + "\n".join(
                 f"  - {failure}"
                 for failure in enforcement_failures

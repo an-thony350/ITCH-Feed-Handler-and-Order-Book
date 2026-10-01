@@ -204,14 +204,14 @@ jobs:
           printf 'performance mode: %s\n' "${PERF_MODE}"
           printf 'ingress clock: %s MHz\n' "${INGRESS_CLOCK_MHZ}"
 
-      - name: Run current ingress performance campaign
+      - name: Run ingress performance campaign
         run: |
           make "perf-${PERF_MODE}" \
             INGRESS_CLOCK_MHZ="${INGRESS_CLOCK_MHZ}"
 
-      - name: Add line-rate summary
-        if: ${{ always() && hashFiles('build/perf/data_realign_ingress_line_rate/summary.md') != '' }}
-        run: cat build/perf/data_realign_ingress_line_rate/summary.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Add ingress throughput summary
+        if: ${{ always() && hashFiles('build/verification/throughput/ingress/summary.md') != '' }}
+        run: cat build/verification/throughput/ingress/summary.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload performance results
         if: always()
@@ -220,6 +220,6 @@ jobs:
           name: ingress-performance-${{ needs.select-mode.outputs.mode }}-${{ github.sha }}
           path: |
             build/perf/data_realign_ingress_latency.json
-            build/perf/data_realign_ingress_line_rate/
+            build/verification/throughput/ingress/
           if-no-files-found: error
           retention-days: 14

@@ -11,6 +11,7 @@ TESTS_DIR := $(TB_DIR)/tests
 UNIT_TESTS_DIR := $(TESTS_DIR)/unit
 SYSTEM_TESTS_DIR := $(TESTS_DIR)/system
 LATENCY_TESTS_DIR := $(TESTS_DIR)/latency
+THROUGHPUT_TESTS_DIR := $(TESTS_DIR)/throughput
 TB_RTL_DIR := $(TB_DIR)/rtl
 
 # The active Ethernet/ITCH ingress is 64-bit at 156.25 MHz.
@@ -20,18 +21,18 @@ TEST_SEED ?= 7
 FRAME_CRACK_CHECK_DST_PORT ?= 0
 FRAME_CRACK_EXPECTED_DST_PORT ?= 5000
 
-LINE_RATE_MODE ?= campaign
-LINE_RATE_EVENT_COUNT ?=
-LINE_RATE_ENFORCE ?= 1
-LINE_RATE_RESULTS_DIR ?= $(REPO_ROOT)/build/perf/data_realign_ingress_line_rate
+INGRESS_THROUGHPUT_MODE ?= campaign
+INGRESS_THROUGHPUT_EVENT_COUNT ?=
+INGRESS_THROUGHPUT_ENFORCE ?= 1
+INGRESS_THROUGHPUT_RESULTS_DIR ?= $(REPO_ROOT)/build/verification/throughput/ingress
 INGRESS_LATENCY_RESULTS_FILE ?= $(REPO_ROOT)/build/perf/data_realign_ingress_latency.json
 
 export CLOCK_MHZ
 export TEST_SEED
-export LINE_RATE_MODE
-export LINE_RATE_EVENT_COUNT
-export LINE_RATE_ENFORCE
-export LINE_RATE_RESULTS_DIR
+export INGRESS_THROUGHPUT_MODE
+export INGRESS_THROUGHPUT_EVENT_COUNT
+export INGRESS_THROUGHPUT_ENFORCE
+export INGRESS_THROUGHPUT_RESULTS_DIR
 export INGRESS_LATENCY_RESULTS_FILE
 export FRAME_CRACK_CHECK_DST_PORT
 export FRAME_CRACK_EXPECTED_DST_PORT
@@ -43,7 +44,7 @@ SIM_BUILD ?= $(REPO_ROOT)/build/sim/$(TOPLEVEL)
 COCOTB_RESULTS_FILE ?= results.xml
 
 # Keep imports identical whether tests are launched locally or from CI.
-export PYTHONPATH := $(UNIT_TESTS_DIR):$(SYSTEM_TESTS_DIR):$(LATENCY_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
+export PYTHONPATH := $(UNIT_TESTS_DIR):$(SYSTEM_TESTS_DIR):$(LATENCY_TESTS_DIR):$(THROUGHPUT_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
 
 # Cocotb 2.x uses COCOTB_TEST_MODULES. Retain MODULE as a convenience for any
 # existing local command lines while the repository is being cleaned up.
@@ -187,8 +188,8 @@ endif
 	test-data-realign test-ingress test-symbol-router \
 	test-order-book test-order-book-top \
 	perf-smoke perf-campaign perf-measure \
-	perf-ingress-latency perf-ingress-line-rate-measure \
-	perf-ingress-line-rate-gate perf-clean clean-all
+	perf-ingress-latency perf-ingress-throughput \
+	perf-clean clean-all
 
 # Aggregate targets
 
@@ -291,7 +292,7 @@ test-order-book-top:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=order_book_top COCOTB_TEST_MODULES=test_order_book_top
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=order_book_top COCOTB_TEST_MODULES=test_order_book_top
 
-# Current ingress latency/throughput tests
+# Current ingress performance tests
 
 # Cold-path Ethernet-frame -> normalised-event latency sweep at 156.25 MHz.
 perf-ingress-latency:
@@ -303,56 +304,51 @@ perf-ingress-latency:
 		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
 		INGRESS_LATENCY_RESULTS_FILE=$(INGRESS_LATENCY_RESULTS_FILE)
 
-# Measurement-only line-rate run. Useful for experiments because it records
-# failures in the report without making the cocotb test fail on the rate gate.
-perf-ingress-line-rate-measure:
-	rm -rf $(LINE_RATE_RESULTS_DIR)
-	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_perf_probe COCOTB_TEST_MODULES=test_ingress_data_realign_line_rate
+# Sustained ingress-throughput test. The event sink remains always ready so
+# this measures ingress capacity rather than downstream CDC/order-book capacity.
+perf-ingress-throughput:
+	rm -rf $(INGRESS_THROUGHPUT_RESULTS_DIR)
+	$(MAKE) -C $(REPO_ROOT) clean \
+		TOPLEVEL=ingress_data_realign_perf_probe \
+		COCOTB_TEST_MODULES=test_ingress_throughput
 	$(MAKE) -C $(REPO_ROOT) results.xml \
 		TOPLEVEL=ingress_data_realign_perf_probe \
-		COCOTB_TEST_MODULES=test_ingress_data_realign_line_rate \
+		COCOTB_TEST_MODULES=test_ingress_throughput \
 		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
-		LINE_RATE_MODE=$(LINE_RATE_MODE) \
-		LINE_RATE_EVENT_COUNT=$(LINE_RATE_EVENT_COUNT) \
-		LINE_RATE_ENFORCE=0 \
-		LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
-
-# CI/local gate. Functional mismatches, protocol errors and insufficient
-# physical-10GbE-equivalent MAC-side throughput make the test fail.
-perf-ingress-line-rate-gate:
-	rm -rf $(LINE_RATE_RESULTS_DIR)
-	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_perf_probe COCOTB_TEST_MODULES=test_ingress_data_realign_line_rate
-	$(MAKE) -C $(REPO_ROOT) results.xml \
-		TOPLEVEL=ingress_data_realign_perf_probe \
-		COCOTB_TEST_MODULES=test_ingress_data_realign_line_rate \
-		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
-		LINE_RATE_MODE=$(LINE_RATE_MODE) \
-		LINE_RATE_EVENT_COUNT=$(LINE_RATE_EVENT_COUNT) \
-		LINE_RATE_ENFORCE=1 \
-		LINE_RATE_RESULTS_DIR=$(LINE_RATE_RESULTS_DIR)
+		INGRESS_THROUGHPUT_MODE=$(INGRESS_THROUGHPUT_MODE) \
+		INGRESS_THROUGHPUT_EVENT_COUNT=$(INGRESS_THROUGHPUT_EVENT_COUNT) \
+		INGRESS_THROUGHPUT_ENFORCE=$(INGRESS_THROUGHPUT_ENFORCE) \
+		INGRESS_THROUGHPUT_RESULTS_DIR=$(INGRESS_THROUGHPUT_RESULTS_DIR)
 
 # Quick local/current-CI performance gate.
 perf-smoke: perf-ingress-latency
-	$(MAKE) -C $(REPO_ROOT) perf-ingress-line-rate-gate LINE_RATE_MODE=smoke
+	$(MAKE) -C $(REPO_ROOT) perf-ingress-throughput \
+		INGRESS_THROUGHPUT_MODE=smoke \
+		INGRESS_THROUGHPUT_ENFORCE=1
 
 # Full current ingress campaign.
 perf-campaign: perf-ingress-latency
-	$(MAKE) -C $(REPO_ROOT) perf-ingress-line-rate-gate LINE_RATE_MODE=campaign
+	$(MAKE) -C $(REPO_ROOT) perf-ingress-throughput \
+		INGRESS_THROUGHPUT_MODE=campaign \
+		INGRESS_THROUGHPUT_ENFORCE=1
 
 # Explicit non-gating campaign for collecting measurements only.
 perf-measure: perf-ingress-latency
-	$(MAKE) -C $(REPO_ROOT) perf-ingress-line-rate-measure LINE_RATE_MODE=campaign
+	$(MAKE) -C $(REPO_ROOT) perf-ingress-throughput \
+		INGRESS_THROUGHPUT_MODE=campaign \
+		INGRESS_THROUGHPUT_ENFORCE=0
 
 # Cleanup / help
 
 perf-clean:
 	rm -f $(INGRESS_LATENCY_RESULTS_FILE)
-	rm -rf $(LINE_RATE_RESULTS_DIR)
+	rm -rf $(INGRESS_THROUGHPUT_RESULTS_DIR)
 
 clean-all:
 	rm -rf $(REPO_ROOT)/build/sim
 	rm -rf $(REPO_ROOT)/build/golden
 	rm -rf $(REPO_ROOT)/build/perf
+	rm -rf $(REPO_ROOT)/build/verification
 
 help:
 	@printf '%s\n' \
@@ -376,18 +372,20 @@ help:
 		'  make test-order-book-top' \
 		'' \
 		'Performance targets:' \
-		'  make perf-smoke                   Latency sweep + short enforced line-rate gate' \
-		'  make perf-campaign                Latency sweep + full enforced line-rate gate' \
+		'  make perf-smoke                   Latency sweep + short ingress throughput gate' \
+		'  make perf-campaign                Latency sweep + full ingress throughput gate' \
 		'  make perf-measure                 Full non-gating ingress measurement campaign' \
 		'  make perf-ingress-latency' \
-		'  make perf-ingress-line-rate-gate' \
+		'  make perf-ingress-throughput' \
 		'' \
 		'Useful overrides:' \
 		'  SIM=verilator' \
 		'  INGRESS_CLOCK_MHZ=156.25' \
 		'  INGRESS_LATENCY_RESULTS_FILE=<path>' \
-		'  LINE_RATE_MODE=smoke|campaign' \
-		'  LINE_RATE_EVENT_COUNT=<count>' \
+		'  INGRESS_THROUGHPUT_MODE=smoke|campaign' \
+		'  INGRESS_THROUGHPUT_EVENT_COUNT=<count>' \
+		'  INGRESS_THROUGHPUT_ENFORCE=0|1' \
+		'  INGRESS_THROUGHPUT_RESULTS_DIR=<path>' \
 		'' \
 		'Direct cocotb run:' \
 		'  make TOPLEVEL=data_realign COCOTB_TEST_MODULES=test_data_realign'
