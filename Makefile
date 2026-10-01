@@ -9,6 +9,7 @@ RTL_DIR := $(REPO_ROOT)/rtl
 TB_DIR := $(REPO_ROOT)/tb
 TESTS_DIR := $(TB_DIR)/tests
 UNIT_TESTS_DIR := $(TESTS_DIR)/unit
+SYSTEM_TESTS_DIR := $(TESTS_DIR)/system
 TB_RTL_DIR := $(TB_DIR)/rtl
 
 # The active Ethernet/ITCH ingress is 64-bit at 156.25 MHz.
@@ -40,7 +41,7 @@ SIM_BUILD ?= $(REPO_ROOT)/build/sim/$(TOPLEVEL)
 COCOTB_RESULTS_FILE ?= results.xml
 
 # Keep imports identical whether tests are launched locally or from CI.
-export PYTHONPATH := $(UNIT_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
+export PYTHONPATH := $(UNIT_TESTS_DIR):$(SYSTEM_TESTS_DIR):$(TESTS_DIR):$(TB_DIR):$(REPO_ROOT):$(PYTHONPATH)
 
 # Cocotb 2.x uses COCOTB_TEST_MODULES. Retain MODULE as a convenience for any
 # existing local command lines while the repository is being cleaned up.
@@ -270,11 +271,11 @@ test-data-realign:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=data_realign COCOTB_TEST_MODULES=test_data_realign
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=data_realign COCOTB_TEST_MODULES=test_data_realign
 
-# "test-ingress" now means the current 64-bit merged ingress/decode path:
+# System integration for the current ingress/decode path:
 # frame_crack -> mold_deframe -> data_realign -> normalised data_t event.
 test-ingress:
-	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress_data_realign
-	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress_data_realign CLOCK_MHZ=$(INGRESS_CLOCK_MHZ)
+	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress
+	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=ingress_data_realign_top COCOTB_TEST_MODULES=test_ingress CLOCK_MHZ=$(INGRESS_CLOCK_MHZ)
 
 test-symbol-router:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=symbol_router COCOTB_TEST_MODULES=test_symbol_router
@@ -366,8 +367,8 @@ help:
 		'  make test-mold-seq-guard           Complete Mold sequence-policy unit regression' \
 		'  make test-mold-deframe             Complete MoldUDP64 deframer unit regression' \
 		'  make test-data-realign' \
-		'  make test-ingress                 Current 64-bit merged ingress/decode path' \
-		'  make test-symbol-router           Symbol routing and backpressure correctness' \
+		'  make test-ingress                  Ingress system integration regression' \
+		'  make test-symbol-router            Symbol routing and backpressure correctness' \
 		'  make test-order-book' \
 		'  make test-order-book-top' \
 		'' \
