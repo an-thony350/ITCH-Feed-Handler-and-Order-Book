@@ -92,6 +92,24 @@ package hdl_header;
         logic                   tombstone;
     } order_entry_t;
 
+    // Struct used to signify an order book event (the register values that are carried throughout the pipieline)
+
+    typedef struct packed {
+        logic                   valid;
+        logic                   is_add;
+        logic                   is_reduce;
+        logic                   is_delete;
+        logic                   rep_delete;
+        logic                   rep_add;
+        logic                   emit_bbo; //check usage of this
+        o_data_t                rdata;
+        logic [HASH_W-1:0]      hash_idx;
+        logic                   is_found; // order found for a repl/del ins
+        logic                   side;
+        logic [BBO_W-1:0]       level; // used for price index
+        logic [SHARES_W-1:0]    delta;
+    } ob_event_t;
+
     // local params for order book
 
     localparam int HASH_DEPTH = (1 << HASH_W); // changed for Set Associative Hashing
