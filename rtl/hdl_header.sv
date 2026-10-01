@@ -22,6 +22,7 @@
 // Revision 0.01 - File Created
 // Revision 0.02 - Added ingress AXIS/protocol constants and derived type widths
 // Revision 0.03 - Added functions used in order book and slightly altered structs
+// Revision 0.04 - Added struct to display order book event data carried in pipeline
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
