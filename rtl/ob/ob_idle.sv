@@ -17,6 +17,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Timing Optimisations
+// Revision 0.10 - ob event struct
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -27,42 +28,31 @@ module ob_idle(
     // Control signals
     input logic                 clk,
     input logic                 rst_n,
-    input logic                 stall,
 
-    // Instruction Data I/O
-    input logic                 stage_valid_i,
-    input o_data_t              rdata_i,
-    input logic                 latched_rep_delete_i,
-    input logic                 latched_rep_add_i,
+    // Event Data I/O
+    input  ob_event_t           event_i,
 
-    output logic                stage_valid_o,
-    output o_data_t             latched_rdata_o,
-    output logic                latched_is_add_o,
-    output logic                latched_is_reduce_o,
-    output logic                latched_is_delete_o,
-    output logic                latched_rep_delete_o,
-    output logic                latched_rep_add_o,
-    output logic [HASH_W-1:0]   latched_hash_idx_o,
+    output ob_event_t           event_o,
 
     // External Memory I/O - BRAM addr pins
     output logic [HASH_W-1:0]   hash_idx_o
 );
 
-assign hash_idx_o =  hash_orn(rdata_i.orn);
+assign hash_idx_o =  event_i.hash_idx;
 
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        stage_valid_o           <=  1'b0;
+        event_o.valid           <=  1'b0;
     end
-    else if(!stall) begin
-        stage_valid_o           <=  stage_valid_i;
-        latched_rdata_o         <=  rdata_i;
-        latched_is_add_o        <=  is_add_msg(rdata_i.message_type);
-        latched_is_reduce_o     <=  is_reduce_msg(rdata_i.message_type);
-        latched_is_delete_o     <=  (rdata_i.message_type == MSG_DELETE);
-        latched_rep_delete_o    <=  latched_rep_delete_i;
-        latched_rep_add_o       <=  latched_rep_add_i;
-        latched_hash_idx_o      <= hash_orn(rdata_i.orn);
+    else begin
+        event_o.valid           <=  event_i.valid;
+        event_o.rdata           <=  event_i.rdata;
+        event_o.is_add          <=  is_add_msg(event_i.rdata.message_type);
+        event_o.is_reduce       <=  is_reduce_msg(event_i.rdata.message_type);
+        event_o.is_delete       <=  (event_i.rdata.message_type == MSG_DELETE);
+        event_o.rep_delete      <=  event_i.rep_delete;
+        event_o.rep_add         <=  event_i.rep_add;
+        event_o.hash_idx        <=  event_i.hash_idx;
     end
 end
 
