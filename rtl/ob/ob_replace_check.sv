@@ -30,7 +30,7 @@ module ob_replace_check(
     input logic                 clk,
     input logic                 rst_n,
 
-    output logic                ready_o
+    output logic                ready_o,
 
     // Instruction Data I/O
     input logic                 stage_valid_i,
