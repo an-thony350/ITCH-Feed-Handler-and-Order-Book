@@ -18,6 +18,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Timing Optimisations
+// Revision 1.00 - Forwading added for the CAM as well as event struct
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -28,35 +29,26 @@ module ob_idx_req(
     // Control Signals
     input logic                 clk,
     input logic                 rst_n,
-    input logic                 stall,
 
-    // Instruction Data I/O
-    input logic                 stage_valid_i,
-    input o_data_t              latched_rdata_i,
-    input logic [PRICE_W-1:0]   latched_base_price_i,
-    input logic                 latched_is_add_i,
-    input logic                 latched_is_reduce_i,
-    input logic                 latched_is_delete_i,
-    input logic                 latched_rep_delete_i,
-    input logic                 latched_rep_add_i,
+    // Event Data I/O
+    input  ob_event_t           event_i,
 
-    output logic                stage_valid_o,
-    output o_data_t             latched_rdata_o,
-    output logic                latched_is_add_o,
-    output logic                latched_is_reduce_o,
-    output logic                latched_is_delete_o,
-    output logic                latched_rep_delete_o,
-    output logic                latched_rep_add_o,
+    output ob_event_t           event_o,
+
+    // Forwarded Event Data
+
+    input  ob_event_t           idx_search_event_i,
+    input  ob_event_t           upd_rd_tbl_event_i,
+
+    output logic [2:0]          cam_frwd_match_o,
 
     // Computed Datapath I/O
-    input logic [HASH_W-1:0]    hash_idx_i,
+    input  logic [63:0]         cam_reserved_i,
 
-    output logic [BBO_W-1:0]    latched_event_price_idx_o,
     output logic                latched_cam_hit_o,
     output logic [5:0]          latched_cam_match_idx_o,
     output logic                latched_cam_is_full_o,
     output logic [5:0]          latched_cam_free_idx_o,
-    output logic [HASH_W-1:0]   latched_hash_idx_o,
 
     // External Memory I/O
     input order_entry_t [63:0]  cam
@@ -81,7 +73,7 @@ always_comb begin
 
     // CAM hit logic
     for(int i = 0; i < 64; i++) begin
-        cam_match_vec[i]    =   (cam[i].valid && ~cam[i].tombstone && (cam[i].orn == latched_rdata_i.orn));
+        cam_match_vec[i]    =   (cam[i].valid && ~cam[i].tombstone && (cam[i].orn == event_i.rdata.orn));
     end
 
     cam_hit = |cam_match_vec;
@@ -93,10 +85,21 @@ always_comb begin
 
     // Free slot finder (priority encoder)
     for(int i = 63; i >= 0; i--) begin
-        if(~cam[i].valid || cam[i].tombstone) begin
+        if((~cam[i].valid || cam[i].tombstone) && ~cam_reserved_i[i]) begin
             cam_is_full     =   1'b0;
             cam_free_idx    =   6'(i);
         end
+    end
+end
+
+// Forwarding Logic
+
+always_ff @(posedge clk) begin
+    if(!rst_n) cam_frwd_match_o <=  '0;
+    else begin
+        cam_frwd_match_o[0] <= event_o.valid            && (event_o.rdata.orn            == event_i.rdata.orn);
+        cam_frwd_match_o[1] <= idx_search_event_i.valid && (idx_search_event_i.rdata.orn == event_i.rdata.orn);
+        cam_frwd_match_o[2] <= upd_rd_tbl_event_i.valid && (upd_rd_tbl_event_i.rdata.orn == event_i.rdata.orn);
     end
 end
 
@@ -104,25 +107,22 @@ end
 
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        stage_valid_o               <=  1'b0;
+        event_o.valid               <=  1'b0;
     end
-    else if(!stall) begin
-        stage_valid_o               <=  stage_valid_i;
-        latched_rdata_o             <=  latched_rdata_i;
-        latched_is_add_o            <=  latched_is_add_i;
-        latched_is_reduce_o         <=  latched_is_reduce_i;
-        latched_is_delete_o         <=  latched_is_delete_i;
-        latched_rep_delete_o        <=  latched_rep_delete_i;
-        latched_rep_add_o           <=  latched_rep_add_i;
+    else begin
+        event_o.valid               <=  event_i.valid;
+        event_o.rdata               <=  event_i.rdata;
+        event_o.is_add              <=  event_i.is_add;
+        event_o.is_reduce           <=  event_i.is_reduce;
+        event_o.is_delete           <=  event_i.is_delete;
+        event_o.rep_delete          <=  event_i.rep_delete;
+        event_o.rep_add             <=  event_i.rep_add;
+        event_o.hash_idx            <=  event_i.hash_idx;
 
-        latched_event_price_idx_o   <=  price_to_idx(latched_rdata_i.price, latched_base_price_i);
         latched_cam_hit_o           <=  cam_hit;
         latched_cam_match_idx_o     <=  cam_match_idx;
         latched_cam_is_full_o       <=  cam_is_full;
         latched_cam_free_idx_o      <=  cam_free_idx;
-        latched_hash_idx_o          <=  hash_idx_i;
-
-
     end
 end
 
