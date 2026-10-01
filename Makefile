@@ -14,8 +14,10 @@ LATENCY_TESTS_DIR := $(TESTS_DIR)/latency
 THROUGHPUT_TESTS_DIR := $(TESTS_DIR)/throughput
 TB_RTL_DIR := $(TB_DIR)/rtl
 
-# The active Ethernet/ITCH ingress is 64-bit at 156.25 MHz.
+# Current v4 clock defaults. Reusable tests derive AXI width from the DUT, and
+# both clock rates remain overrides so the same harness can be reused for v5.
 INGRESS_CLOCK_MHZ ?= 156.25
+DATA_CLOCK_MHZ ?= 250.0
 CLOCK_MHZ ?= $(INGRESS_CLOCK_MHZ)
 TEST_SEED ?= 7
 FRAME_CRACK_CHECK_DST_PORT ?= 0
@@ -28,6 +30,7 @@ INGRESS_THROUGHPUT_RESULTS_DIR ?= $(REPO_ROOT)/build/verification/throughput/ing
 INGRESS_LATENCY_RESULTS_FILE ?= $(REPO_ROOT)/build/perf/data_realign_ingress_latency.json
 
 export CLOCK_MHZ
+export DATA_CLOCK_MHZ
 export TEST_SEED
 export INGRESS_THROUGHPUT_MODE
 export INGRESS_THROUGHPUT_EVENT_COUNT
@@ -93,6 +96,12 @@ ORDER_BOOK_TOP_RTL := \
 	$(ORDER_BOOK_CORE_RTL) \
 	$(RTL_DIR)/order_book_top.sv
 
+ETHERNET_TO_BBO_RTL := \
+	$(CURRENT_INGRESS_RTL) \
+	$(TB_RTL_DIR)/event_async_fifo_sim.sv \
+	$(ORDER_BOOK_TOP_RTL) \
+	$(TB_RTL_DIR)/ethernet_to_bbo_top.sv
+
 # Cocotb DUT selection
 
 VERILOG_SOURCES := $(COMMON_RTL)
@@ -153,8 +162,12 @@ else ifeq ($(TOPLEVEL),order_book_top)
 VERILOG_SOURCES += \
 	$(ORDER_BOOK_TOP_RTL)
 
+else ifeq ($(TOPLEVEL),ethernet_to_bbo_top)
+VERILOG_SOURCES += \
+	$(ETHERNET_TO_BBO_RTL)
+
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, symbol_router, order_book, order_book_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, symbol_router, order_book, order_book_top, ethernet_to_bbo_top)
 endif
 
 # Preserve the current Verilator setup. Tracing is useful for local failure
@@ -166,7 +179,7 @@ EXTRA_ARGS += --trace-structs
 
 # The current ingress/data_realign path still has non-fatal width/lint warnings.
 # Keep them visible without allowing Verilator warnings alone to block tests.
-ifneq ($(filter frame_crack mold_deframe data_realign ingress_data_realign_top ingress_data_realign_perf_probe,$(TOPLEVEL)),)
+ifneq ($(filter frame_crack mold_deframe data_realign ingress_data_realign_top ingress_data_realign_perf_probe ethernet_to_bbo_top,$(TOPLEVEL)),)
 EXTRA_ARGS += -Wno-fatal
 endif
 # A direct DUT/module override still behaves like the old single-test workflow:
@@ -182,11 +195,11 @@ endif
 .NOTPARALLEL:
 
 .PHONY: \
-	help quality test test-golden test-rtl \
+	help quality test test-golden test-rtl test-system \
 	test-axis-source-mux test-lane-rewire test-source-boundary-equiv \
 	test-frame-crack test-mold-seq-guard test-mold-deframe \
 	test-data-realign test-ingress test-symbol-router \
-	test-order-book test-order-book-top \
+	test-order-book test-order-book-top test-ethernet-to-bbo \
 	perf-smoke perf-campaign perf-measure \
 	perf-ingress-latency perf-ingress-throughput \
 	perf-clean clean-all
@@ -208,7 +221,11 @@ test-rtl: \
 	test-ingress \
 	test-symbol-router \
 	test-order-book \
-	test-order-book-top
+	test-order-book-top \
+	test-system
+
+# Complete dual-clock architectural correctness regression.
+test-system: test-ethernet-to-bbo
 
 quality:
 	cd $(REPO_ROOT) && pre-commit run --all-files --show-diff-on-failure
@@ -292,6 +309,19 @@ test-order-book-top:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=order_book_top COCOTB_TEST_MODULES=test_order_book_top
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=order_book_top COCOTB_TEST_MODULES=test_order_book_top
 
+# Complete Ethernet -> ingress -> CDC -> order_book_top -> BBO path.
+# CLOCK_MHZ and DATA_CLOCK_MHZ are independent so future ingress clock changes
+# do not require changes to the Python functional test.
+test-ethernet-to-bbo:
+	$(MAKE) -C $(REPO_ROOT) clean \
+		TOPLEVEL=ethernet_to_bbo_top \
+		COCOTB_TEST_MODULES=test_ethernet_to_bbo
+	$(MAKE) -C $(REPO_ROOT) results.xml \
+		TOPLEVEL=ethernet_to_bbo_top \
+		COCOTB_TEST_MODULES=test_ethernet_to_bbo \
+		CLOCK_MHZ=$(INGRESS_CLOCK_MHZ) \
+		DATA_CLOCK_MHZ=$(DATA_CLOCK_MHZ)
+
 # Current ingress performance tests
 
 # Cold-path Ethernet-frame -> normalised-event latency sweep at 156.25 MHz.
@@ -356,6 +386,7 @@ help:
 		'  make test                         Golden model + all active RTL correctness tests' \
 		'  make test-golden                  Golden unit tests + deterministic oracle generation' \
 		'  make test-rtl                     All active cocotb RTL correctness tests' \
+		'  make test-system                  Complete Ethernet-to-BBO architectural test' \
 		'  make quality                      Run pre-commit repository checks' \
 		'' \
 		'Individual RTL targets:' \
@@ -370,6 +401,7 @@ help:
 		'  make test-symbol-router            Symbol routing and backpressure correctness' \
 		'  make test-order-book' \
 		'  make test-order-book-top' \
+		'  make test-ethernet-to-bbo          Dual-clock Ethernet-to-BBO golden replay' \
 		'' \
 		'Performance targets:' \
 		'  make perf-smoke                   Latency sweep + short ingress throughput gate' \
@@ -381,6 +413,7 @@ help:
 		'Useful overrides:' \
 		'  SIM=verilator' \
 		'  INGRESS_CLOCK_MHZ=156.25' \
+		'  DATA_CLOCK_MHZ=250' \
 		'  INGRESS_LATENCY_RESULTS_FILE=<path>' \
 		'  INGRESS_THROUGHPUT_MODE=smoke|campaign' \
 		'  INGRESS_THROUGHPUT_EVENT_COUNT=<count>' \

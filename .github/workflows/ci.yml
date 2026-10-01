@@ -188,6 +188,7 @@ jobs:
           - test-symbol-router
           - test-order-book
           - test-order-book-top
+          - test-ethernet-to-bbo
 
     steps:
       - name: Check out repository
