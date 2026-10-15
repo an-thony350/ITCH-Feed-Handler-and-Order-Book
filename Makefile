@@ -114,6 +114,9 @@ else ifeq ($(TOPLEVEL),lane_rewire)
 VERILOG_SOURCES += \
 	$(RTL_DIR)/lane_rewire.sv
 
+else ifeq ($(TOPLEVEL),itch_csr)
+VERILOG_SOURCES += $(RTL_DIR)/itch_csr.v
+
 else ifeq ($(TOPLEVEL),source_boundary_equiv_top)
 VERILOG_SOURCES += \
 	$(RTL_DIR)/lane_rewire.sv \
@@ -167,7 +170,7 @@ VERILOG_SOURCES += \
 	$(ETHERNET_TO_BBO_RTL)
 
 else
-$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, symbol_router, order_book, order_book_top, ethernet_to_bbo_top)
+$(error Unsupported TOPLEVEL=$(TOPLEVEL). Supported: axis_source_mux, lane_rewire, itch_csr, source_boundary_equiv_top, frame_crack, mold_seq_guard, mold_deframe, data_realign, ingress_data_realign_top, ingress_data_realign_perf_probe, symbol_router, order_book, order_book_top, ethernet_to_bbo_top)
 endif
 
 # Preserve the current Verilator setup. Tracing is useful for local failure
@@ -196,7 +199,7 @@ endif
 
 .PHONY: \
 	help quality test test-golden test-rtl test-system \
-	test-axis-source-mux test-lane-rewire test-source-boundary-equiv \
+	test-axis-source-mux test-lane-rewire test-itch-csr test-source-boundary-equiv \
 	test-frame-crack test-mold-seq-guard test-mold-deframe \
 	test-data-realign test-ingress test-symbol-router \
 	test-order-book test-order-book-top test-ethernet-to-bbo \
@@ -213,6 +216,7 @@ test: test-golden test-rtl
 test-rtl: \
 	test-axis-source-mux \
 	test-lane-rewire \
+	test-itch-csr \
 	test-source-boundary-equiv \
 	test-frame-crack \
 	test-mold-seq-guard \
@@ -244,6 +248,10 @@ test-axis-source-mux:
 test-lane-rewire:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=lane_rewire COCOTB_TEST_MODULES=test_lane_rewire
 	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=lane_rewire COCOTB_TEST_MODULES=test_lane_rewire
+
+test-itch-csr:
+	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=itch_csr COCOTB_TEST_MODULES=test_itch_csr
+	$(MAKE) -C $(REPO_ROOT) results.xml TOPLEVEL=itch_csr COCOTB_TEST_MODULES=test_itch_csr
 
 test-source-boundary-equiv:
 	$(MAKE) -C $(REPO_ROOT) clean TOPLEVEL=source_boundary_equiv_top COCOTB_TEST_MODULES=test_source_boundary_equiv
@@ -392,6 +400,7 @@ help:
 		'Individual RTL targets:' \
 		'  make test-axis-source-mux' \
 		'  make test-lane-rewire' \
+		'  make test-itch-csr                 AXI4-Lite CSR register and snapshot regression' \
 		'  make test-source-boundary-equiv' \
 		'  make test-frame-crack              Complete frame_crack unit regression' \
 		'  make test-mold-seq-guard           Complete Mold sequence-policy unit regression' \

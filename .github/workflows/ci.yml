@@ -180,6 +180,7 @@ jobs:
           - test-axis-source-mux
           - test-lane-rewire
           - test-source-boundary-equiv
+          - test-itch-csr
           - test-frame-crack
           - test-mold-seq-guard
           - test-mold-deframe
