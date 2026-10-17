@@ -19,6 +19,7 @@
 // Revision:
 // Revision 0.01 - File Created
 // Revision 0.02 - Timing Optimisations & Forwarding Logic
+// Revision 1.00 - More forwarding and better use of stage for selection
 // Additional Comments:
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -29,267 +30,169 @@ module ob_idx_search(
     // Control signals
     input logic                 clk,
     input logic                 rst_n,
-    input logic                 stall,
 
-    // Instruction Data I/O
-    input logic                 stage_valid_i,
-    input o_data_t              latched_rdata_i,
-    input logic                 latched_is_add_i,
-    input logic                 latched_is_reduce_i,
-    input logic                 latched_is_delete_i,
-    input logic                 latched_rep_delete_i,
-    input logic                 latched_rep_add_i,
+    // Event Data I/O
+    input   ob_event_t          event_i,
+    output  ob_event_t          event_o,
 
-    output logic                stage_valid_o,
-    output o_data_t             latched_rdata_o,
-    output logic                latched_is_add_o,
-    output logic                latched_is_reduce_o,
-    output logic                latched_is_delete_o,
-    output logic                latched_rep_delete_o,
-    output logic                latched_rep_add_o,
+    // Forwarding flags for Data Matching
+    input logic [3:0]           hash_frwd_match_i,
+    input logic [2:0]           cam_frwd_match_i,
+
+    // Older events (for forwarding)
+    input ob_event_t            upd_rd_tbl_event_i,
+    input ob_event_t            issue_read_event_i,
+
+    // Older buckets (for forwarding)
+    input order_entry_t [2:0]   upd_rd_tbl_bucket;
+    input order_entry_t [2:0]   updr_1_del_bucket;
+    input order_entry_t [2:0]   updr_2_del_bucket;
 
     // Computed DataPath I/O
-    input logic [BBO_W-1:0]     latched_event_price_idx_i,
     input logic                 latched_cam_hit_i,
     input logic [5:0]           latched_cam_match_idx_i,
-    input logic [5:0]           latched_cam_free_idx_i,
-    input logic [HASH_W-1:0]    latched_hash_idx_i,
-    input logic [HASH_W-1:0]    early_hash_idx_i,
+    input logic                 latched_cam_is_full_i,
+    input logic [5:0]           latched_cam_free_lo_i,
+    input logic [5:0]           latched_cam_free_hi_i,
 
-    output logic [BBO_W-1:0]    latched_event_price_idx_o,
-    output logic                latched_cam_hit_o,
-    output logic [5:0]          latched_cam_match_idx_o,
-    output logic [5:0]          latched_cam_free_idx_o,
-    output logic [1:0]          latched_slot_idx_o,
-    output logic [2:0]          latched_hash_match_o,
-    output logic [2:0]          latched_free_slot_o,
-    output logic [HASH_W-1:0]   latched_hash_idx_o,
-    output order_entry_t [2:0]  read_bucket_o,
+    // CAM mask data
+    input logic                 cam_wr_en_i,
+    input logic [5:0]           cam_wr_slot_i,
+    output logic [63:0]         cam_reserved_o,
 
     // External Memory I/O - BRAM dout pins
-    input order_entry_t [2:0]   read_bucket_i,
-
-    // Inputs from Update Write block
-    input logic                   wr0_we,
-    input logic [HASH_W-1:0]      wr0_addr,
-    input logic [1:0]             wr0_slot,
-    input order_entry_t           wr0_data
+    input  order_entry_t [2:0]  read_bucket_i,
+    output order_entry_t [2:0]  read_bucket_o
 );
 
 // Internal Registers
+
+// internal bucket
+order_entry_t [2:0] frwd_bucket;
 
 // comb 3-way associative hash regs
 logic [2:0] hash_match;
 logic [2:0] free_slot;
 
+// forwarded cam signals
+logic       cam_hit_f;
+logic [5:0] cam_idx_f;
+
+logic [5:0] cam_pick;
+logic       cam_full;
+
+logic       found;
+logic       use_cam;
+
+logic       prev_event_low;
+
 // idx search regs
-logic [1:0] comb_slot_idx;
+logic [1:0] slot;
+logic [5:0] cam_slot;
 
+// Function to determine if an older event put an order into the CAM
+function automatic logic cam_insert(ob_event_t e);
+    return e.valid && e.is_add && e.is_found && e.use_cam;
+endfunction
 
-// Internal registers used as snapshots for edge case order book condition (consecutive entries at same index/hash bucket)
-logic                   wr1_we;
-logic [HASH_W-1:0]      wr1_addr;
-logic [1:0]             wr1_slot;
-order_entry_t           wr1_data;
-logic                   wr2_we;
-logic [HASH_W-1:0]      wr2_addr;
-logic [1:0]             wr2_slot;
-order_entry_t           wr2_data;
-logic                   wr3_we;
-logic [HASH_W-1:0]      wr3_addr;
-logic [1:0]             wr3_slot;
-order_entry_t           wr3_data;
-logic                   wr4_we;
-logic [HASH_W-1:0]      wr4_addr;
-logic [1:0]             wr4_slot;
-order_entry_t           wr4_data;
-logic                   wr5_we;
-logic [HASH_W-1:0]      wr5_addr;
-logic [1:0]             wr5_slot;
-order_entry_t           wr5_data;
-logic                   wr6_we;
-logic [HASH_W-1:0]      wr6_addr;
-logic [1:0]             wr6_slot;
-order_entry_t           wr6_data;
-logic                   wr7_we;
-logic [HASH_W-1:0]      wr7_addr;
-logic [1:0]             wr7_slot;
-order_entry_t           wr7_data;
-logic                   wr8_we;
-logic [HASH_W-1:0]      wr8_addr;
-logic [1:0]             wr8_slot;
-order_entry_t           wr8_data;
-logic                   wr9_we;
-logic [HASH_W-1:0]      wr9_addr;
-logic [1:0]             wr9_slot;
-order_entry_t           wr9_data;
-
-logic [HASH_W-1:0]      capture_addr;
-order_entry_t [2:0]     frwd_bucket;
-
-// these registers are used in case we have a match which doesn't come from forwarding
-logic [8:0]             early_match;
-logic [8:0]             match_q;
-
-// combinational forward matching determination - priority encoder
+// combinational Forward Bucket matching & selection
 
 always_comb begin
-    early_match[0] = wr0_we && (early_hash_idx_i == wr0_addr);
-    early_match[1] = wr1_we && (early_hash_idx_i == wr1_addr);
-    early_match[2] = wr2_we && (early_hash_idx_i == wr2_addr);
-    early_match[3] = wr3_we && (early_hash_idx_i == wr3_addr);
-    early_match[4] = wr4_we && (early_hash_idx_i == wr4_addr);
-    early_match[5] = wr5_we && (early_hash_idx_i == wr5_addr);
-    early_match[6] = wr6_we && (early_hash_idx_i == wr6_addr);
-    early_match[7] = wr7_we && (early_hash_idx_i == wr7_addr);
-    early_match[8] = wr8_we && (early_hash_idx_i == wr8_addr);
+    frwd_bucket =   read_bucket_i;
+
+    // priority encoder
+    if(hash_frwd_match_i[3]) frwd_bucket    =   updr_2_del_bucket;
+    if(hash_frwd_match_i[2]) frwd_bucket    =   updr_1_del_bucket;
+    if(hash_frwd_match_i[1]) frwd_bucket    =   upd_rd_tbl_bucket;
+
+    if(hash_frwd_match_i[0] && event_o.is_add && event_o.is_found && !event_o.use_cam) begin
+        frwd_bucket[event_o.slot].valid     =   1'b1;
+        frwd_bucket[event_o.slot].tombstone =   1'b0;
+        frwd_bucket[event_o.slot].orn       =   event_o.rdata.orn;
+    end
+
+    // Search bucket for match/free slot
+    for(int i = 0; i < 3; i++) begin
+        hash_match[i]   =   frwd_bucket[i].valid && !frwd_bucket[i].tombstone && (frwd_bucket[i].orn == event_i.rdata.orn);
+        free_slot[i]    =   !frwd_bucket[i].valid || frwd_bucket[i].tombstone;
+    end
 end
 
+// Combinational Forward CAM matching & selection - priority encoder
+
 always_comb begin
-    // Default Assignments
-    frwd_bucket     =       read_bucket_i;
-    capture_addr    =       latched_hash_idx_i;
+    cam_hit_f   =   latched_cam_hit_i;
+    cam_idx_f   =   latched_cam_match_idx_i;
 
-    // Determining if we have a match for forwarding before capturing data
-    if(match_q[8])    frwd_bucket[wr9_slot]   =   wr9_data;
-    if(match_q[7])    frwd_bucket[wr8_slot]   =   wr8_data;
-    if(match_q[6])    frwd_bucket[wr7_slot]   =   wr7_data;
-    if(match_q[5])    frwd_bucket[wr6_slot]   =   wr6_data;
-    if(match_q[4])    frwd_bucket[wr5_slot]   =   wr5_data;
-    if(match_q[3])    frwd_bucket[wr4_slot]   =   wr4_data;
-    if(match_q[2])    frwd_bucket[wr3_slot]   =   wr3_data;
-    if(match_q[1])    frwd_bucket[wr2_slot]   =   wr2_data;
-    if(match_q[0])    frwd_bucket[wr1_slot]   =   wr1_data;
+    // priority encoder
+    if(cam_frwd_match_i[2] && cam_insert(issue_read_event_i)) begin
+        cam_hit_f   =   1'b1;
+        cam_idx_f   =   issue_read_event_i.cam_slot;
+    end
+    if(cam_frwd_match_i[1] && cam_insert(upd_rd_tbl_event_i)) begin
+        cam_hit_f   =   1'b1;
+        cam_idx_f   =   upd_rd_tbl_event_i.cam_slot;
+    end
+    if(cam_frwd_match_i[0] && cam_insert(event_o)) begin
+        cam_hit_f   =   1'b1;
+        cam_idx_f   =   event_o.cam_slot;
+    end
 
+    // Pick a free CAM slot
+    prev_event_low  =   cam_insert(event_o) && (event_o.cam_slot == latched_cam_free_lo_i); // the previous event chose the lowest slot
+    cam_pick        =   prev_event_low ? latched_cam_free_hi_i ? latched_cam_free_lo_i;
+    cam_full        =   latched_cam_is_full_i || (prev_event_low && latched_cam_free_lo_i == latched_cam_free_hi_i);
 end
 
-// combinational logic determing hash matches and free slots
-always_comb begin
-    // Default Assignments
-    hash_match      =   '0;
-    free_slot       =   '0;
-
-    hash_match[0]        =   (frwd_bucket[0].valid && frwd_bucket[0].orn == latched_rdata_i.orn && ~frwd_bucket[0].tombstone);
-    hash_match[1]        =   (frwd_bucket[1].valid && frwd_bucket[1].orn == latched_rdata_i.orn && ~frwd_bucket[1].tombstone);
-    hash_match[2]        =   (frwd_bucket[2].valid && frwd_bucket[2].orn == latched_rdata_i.orn && ~frwd_bucket[2].tombstone);
-
-    free_slot[0]         = (!frwd_bucket[0].valid || frwd_bucket[0].tombstone);
-    free_slot[1]         = (!frwd_bucket[1].valid || frwd_bucket[1].tombstone);
-    free_slot[2]         = (!frwd_bucket[2].valid || frwd_bucket[2].tombstone);
-
-end
-
-
-// combinational logic determining if data can be passed if valid - must fill if in here (with CAM overflow used in previous stage)
+// Combinational logic to chose between buckets or CAM
 
 always_comb begin
-    comb_slot_idx       =   '0;
+    found   =   1'b0;
+    use_cam =   1'b0;
+    slot    =   '0;
+    cam_slot=   '0;
 
-    if(latched_is_add_i) begin
-        if(free_slot != 3'b000) begin
-            if      (free_slot[0]) comb_slot_idx = 2'd0;
-            else if (free_slot[1]) comb_slot_idx = 2'd1;
-            else                   comb_slot_idx = 2'd2;
+    if(event_i.is_add) begin
+        if(|free_slot) begin
+            found   =   1'b1;
+            slot    =   free_slot[0] ? 2'd0 : (free_slot[1] ? 2'd1 : 2'd2);
+        end
+        else if(!cam_full) begin
+            found   =   1'b1;
+            use_cam =   1'b1;
+            cam_slot=   cam_pick;
         end
     end
     else begin
-        if(hash_match != 3'b000) begin
-            if      (hash_match[0]) comb_slot_idx = 2'd0;
-            else if (hash_match[1]) comb_slot_idx = 2'd1;
-            else                    comb_slot_idx = 2'd2;
+        if(|hash_match) begin
+            found   =   1'b1;
+            slot    =   hash_match[0] ? 2'd0 : (hash_match[1] ? 2'd1 : 2'd2);
+        end
+        else if(cam_hit_f) begin
+            found   =   1'b1;
+            use_cam =   1'b1;
+            cam_slot=   cam_idx_f;
         end
     end
 end
+
 
 // seq logic
 always_ff @(posedge clk) begin
     if(!rst_n) begin
-        stage_valid_o               <=  '0;
-
-        wr1_we <= 1'b0;
-        wr2_we <= 1'b0;
-        wr3_we <= 1'b0;
-        wr4_we <= 1'b0;
-        wr5_we <= 1'b0;
-        wr6_we <= 1'b0;
-        wr7_we <= 1'b0;
-        wr8_we <= 1'b0;
-        wr9_we <= 1'b0;
-
-        match_q <= '0;
+        event_o.valid               <=  '0;
+        cam_reserved_o              <=  '0;
     end
-    else if(!stall) begin
-        // deals with immediate return to FETCH_BBO state in old design
-        if(!latched_is_add_i && hash_match == 3'b000 && !latched_cam_hit_i) begin
-            stage_valid_o   <=  1'b0;
-        end
-        else begin
-            stage_valid_o   <=  stage_valid_i;
-        end
+    else begin
+        event_o          <= event_i;
+        event_o.found    <= found;
+        event_o.use_cam  <= use_cam;
+        event_o.slot     <= slot;
+        event_o.cam_slot <= cam_slot;
+        read_bucket_o    <= frwd_bucket;
 
-        latched_rdata_o             <=  latched_rdata_i;
-        latched_is_add_o            <=  latched_is_add_i;
-        latched_is_reduce_o         <=  latched_is_reduce_i;
-        latched_is_delete_o         <=  latched_is_delete_i;
-        latched_rep_delete_o        <=  latched_rep_delete_i;
-        latched_rep_add_o           <=  latched_rep_add_i;
-
-        latched_event_price_idx_o   <=  latched_event_price_idx_i;
-        latched_cam_hit_o           <=  latched_cam_hit_i;
-        latched_cam_match_idx_o     <=  latched_cam_match_idx_i;
-        latched_cam_free_idx_o      <=  latched_cam_free_idx_i;
-        latched_slot_idx_o          <=  comb_slot_idx;
-        latched_hash_match_o        <=  hash_match;
-        latched_free_slot_o         <=  free_slot;
-        latched_hash_idx_o          <=  latched_hash_idx_i;
-        read_bucket_o               <=  frwd_bucket;
-
-        wr1_we                      <=  wr0_we;
-        wr1_addr                    <=  wr0_addr;
-        wr1_slot                    <=  wr0_slot;
-        wr1_data                    <=  wr0_data;
-
-        wr2_we                      <=  wr1_we;
-        wr2_addr                    <=  wr1_addr;
-        wr2_slot                    <=  wr1_slot;
-        wr2_data                    <=  wr1_data;
-
-        wr3_we                      <=  wr2_we;
-        wr3_addr                    <=  wr2_addr;
-        wr3_slot                    <=  wr2_slot;
-        wr3_data                    <=  wr2_data;
-
-        wr4_we                      <=  wr3_we;
-        wr4_addr                    <=  wr3_addr;
-        wr4_slot                    <=  wr3_slot;
-        wr4_data                    <=  wr3_data;
-
-        wr5_we                      <=  wr4_we;
-        wr5_addr                    <=  wr4_addr;
-        wr5_slot                    <=  wr4_slot;
-        wr5_data                    <=  wr4_data;
-
-        wr6_we                      <=  wr5_we;
-        wr6_addr                    <=  wr5_addr;
-        wr6_slot                    <=  wr5_slot;
-        wr6_data                    <=  wr5_data;
-
-        wr7_we                      <=  wr6_we;
-        wr7_addr                    <=  wr6_addr;
-        wr7_slot                    <=  wr6_slot;
-        wr7_data                    <=  wr6_data;
-
-        wr8_we                      <=  wr7_we;
-        wr8_addr                    <=  wr7_addr;
-        wr8_slot                    <=  wr7_slot;
-        wr8_data                    <=  wr7_data;
-
-        wr9_we                      <= wr8_we;
-        wr9_addr                    <= wr8_addr;
-        wr9_slot                    <= wr8_slot;
-        wr9_data                    <= wr8_data;
-
-        match_q                     <=  early_match;
+        if(cam_wr_en_i)                                         cam_reserved_o[cam_wr_slot_i]   <= 1'b0;
+        if(event_i.valid && event_i.is_add && use_cam && found) cam_reserved_o[cam_slot]        <= 1'b1;
     end
 end
 

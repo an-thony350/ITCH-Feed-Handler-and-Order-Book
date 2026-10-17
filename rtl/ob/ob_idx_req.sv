@@ -48,7 +48,8 @@ module ob_idx_req(
     output logic                latched_cam_hit_o,
     output logic [5:0]          latched_cam_match_idx_o,
     output logic                latched_cam_is_full_o,
-    output logic [5:0]          latched_cam_free_idx_o,
+    output logic [5:0]          latched_cam_free_lo_o,
+    output logic [5:0]          latched_cam_free_hi_o,
 
     // External Memory I/O
     input order_entry_t [63:0]  cam
@@ -61,15 +62,18 @@ module ob_idx_req(
 logic           cam_hit;
 logic [5:0]     cam_match_idx;
 logic           cam_is_full;
-logic [5:0]     cam_free_idx;
 logic [63:0]    cam_match_vec;
+logic [5:0]     cam_free_lo;
+logic [5:0]     cam_free_hi;
+
 
 // Comb. Logic for CAM
 always_comb begin
     // Default Assignments
     cam_match_idx   =   '0;
     cam_is_full     =   1'b1;
-    cam_free_idx    =   '0;
+    cam_free_hi     =   '0;
+    cam_free_lo     =   '0;
 
     // CAM hit logic
     for(int i = 0; i < 64; i++) begin
@@ -84,10 +88,17 @@ always_comb begin
     end
 
     // Free slot finder (priority encoder)
+    for(int i = 0; i < 64; i++) begin
+        if((~cam[i].valid || cam[i].tombstone) && ~cam_reserved_i[i]) begin
+            cam_free_hi = 6'(i);
+        end
+    end
+
+    // Free slot finder (reverse priority encoder)
     for(int i = 63; i >= 0; i--) begin
         if((~cam[i].valid || cam[i].tombstone) && ~cam_reserved_i[i]) begin
             cam_is_full     =   1'b0;
-            cam_free_idx    =   6'(i);
+            cam_free_lo     =   6'(i);
         end
     end
 end
@@ -122,7 +133,8 @@ always_ff @(posedge clk) begin
         latched_cam_hit_o           <=  cam_hit;
         latched_cam_match_idx_o     <=  cam_match_idx;
         latched_cam_is_full_o       <=  cam_is_full;
-        latched_cam_free_idx_o      <=  cam_free_idx;
+        latched_cam_free_lo_o       <=  cam_free_lo;
+        latched_cam_free_hi_o       <=  cam_free_hi;
     end
 end
 

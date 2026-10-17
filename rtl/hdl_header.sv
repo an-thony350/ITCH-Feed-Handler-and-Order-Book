@@ -106,6 +106,9 @@ package hdl_header;
         o_data_t                rdata;
         logic [HASH_W-1:0]      hash_idx;
         logic                   is_found; // order found for a repl/del ins
+        logic                   use_cam;
+        logic [1:0]             slot;
+        logic [5:0]             cam_slot;
         logic                   side;
         logic [BBO_W-1:0]       level; // used for price index
         logic [SHARES_W-1:0]    delta;
