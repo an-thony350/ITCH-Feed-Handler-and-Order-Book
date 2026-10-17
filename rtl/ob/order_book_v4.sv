@@ -87,7 +87,10 @@ module order_book(
 
     // BBO output
     output bbo_t                bbo_data_o,
-    output logic                bbo_valid_o
+    output logic                bbo_valid_o,
+
+    // CAM Full Flag
+    output logic                cam_is_full_o
 );
 
 // local parameters
@@ -823,7 +826,7 @@ ob_idx_req idx_req_block(
     .latched_event_price_idx_o(IDXREQ_IDXSEARCH_latched_event_price_idx),
     .latched_cam_hit_o(IDXREQ_IDXSEARCH_cam_hit),
     .latched_cam_match_idx_o(IDXREQ_IDXSEARCH_cam_match_idx),
-    .latched_cam_is_full_o(IDXREQ_IDXSEARCH_cam_is_full),
+    .latched_cam_is_full_o(cam_is_full_o),
     .latched_cam_free_idx_o(IDXREQ_IDXSEARCH_cam_free_idx),
     .latched_hash_idx_o(IDXREQ_IDXSEARCH_hash_idx),
     .cam(cam)
