@@ -51,7 +51,9 @@ module order_book_top(
 
     // output to next block
     output  bbo_t                   bbo_data_o,
-    output  logic                   bbo_valid_o
+    output  logic                   bbo_valid_o,
+
+    output  logic [2:0]             cam_is_full
 );
 
 // Internal registers sr + ob regs
@@ -140,7 +142,8 @@ order_book ob_stock0(
     .base_price_i (sr_ob_base_price),
     .ready_o      (ob_sr_ready_bus[1]),
     .bbo_data_o   (bbo_stock_0),
-    .bbo_valid_o  (bbo_valid_0)
+    .bbo_valid_o  (bbo_valid_0),
+    .cam_is_full_o(cam_is_full[0])
 );
 
 order_book ob_stock1(
@@ -151,7 +154,8 @@ order_book ob_stock1(
     .base_price_i (sr_ob_base_price),
     .ready_o      (ob_sr_ready_bus[2]),
     .bbo_data_o   (bbo_stock_1),
-    .bbo_valid_o  (bbo_valid_1)
+    .bbo_valid_o  (bbo_valid_1),
+    .cam_is_full_o(cam_is_full[1])
 );
 
 order_book ob_stock2(
@@ -162,7 +166,8 @@ order_book ob_stock2(
     .base_price_i (sr_ob_base_price),
     .ready_o      (ob_sr_ready_bus[3]),
     .bbo_data_o   (bbo_stock_2),
-    .bbo_valid_o  (bbo_valid_2)
+    .bbo_valid_o  (bbo_valid_2),
+    .cam_is_full_o(cam_is_full[2])
 );
 
 // FIFO write logic
